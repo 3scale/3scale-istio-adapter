@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+// config for threescale
+package adapter.threescale.config;
+
+import "gogoproto/gogo.proto";
+
+option go_package="config";
+
+// config for threescale
+message Params {
+    // service_id is the 3scale Service ID
+    string service_id = 1;
+    // system is the system URL
+    string system_url = 2;
+    // backend is the backend URL
+    string backend_url = 3;
+    // access_token is the Accesstoken for system
+    string access_token = 4;
+    // service_token is the token for backend
+    string service_token = 5;
+}
