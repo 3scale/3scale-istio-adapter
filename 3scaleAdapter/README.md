@@ -43,3 +43,7 @@ oc project istio-system
 oc create -f ./openshift
 oc create -f ./istio 
 ```
+
+### Other
+
+Check the devel.md for more info on how to hack/test this adapter.
