@@ -134,11 +134,11 @@ func addReport(reports []report, newReport report) []report {
 func getSystemProxyConfig(cfg *config.Params) (Config, error) {
 	var proxyConfig Config
 
-	if cacheConfig, found := Cache.Get("proxyConfig"); found {
+	if cachedConfig, found := getCachedConfig(cfg.ServiceId); found {
 
 		log.Debugf("Cached config: %v", proxyConfig)
 
-		proxyConfig = cacheConfig.(Config)
+		proxyConfig = cachedConfig.(Config)
 
 	} else {
 
@@ -169,9 +169,17 @@ func getSystemProxyConfig(cfg *config.Params) (Config, error) {
 		if err != nil {
 			return proxyConfig, err
 		}
-
-		Cache.Set("proxyConfig", proxyConfig, cache.DefaultExpiration)
+		setCachedConfig(cfg.ServiceId,proxyConfig)
 	}
 
 	return proxyConfig, nil
+}
+
+func getCachedConfig(ServiceId string) (interface{},bool){
+	config, found := Cache.Get(ServiceId)
+	return config,found
+}
+
+func setCachedConfig(ServiceId string, config interface{}) {
+	Cache.Set(ServiceId, config, cache.DefaultExpiration)
 }
