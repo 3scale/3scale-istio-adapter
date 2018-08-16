@@ -11,11 +11,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:92e016f529528df85f070480ec6beb9e40042d245a933fb1bdeb687e40ea8e88"
+  digest = "1:3fdbd53962bb796a751552e6be1fb3dbd293d6d5851c0c48f611a82480769d7c"
   name = "github.com/gogo/googleapis"
   packages = ["google/rpc"]
   pruneopts = "UT"
-  revision = "b23578765ee54ff6bceff57f397d833bf4ca6869"
+  revision = "8558fb44d2f1fc223118afc694129d2c2d2924d1"
 
 [[projects]]
   digest = "1:3f7c586d2fd571c4f2e3d313c0638b33b999055de507d5f11fafe27e5adc30db"
@@ -46,11 +46,12 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:07671f8997086ed115824d1974507d2b147d1e0463675ea5dbf3be89b1c2c563"
+  branch = "master"
+  digest = "1:d1971637b21871ec2033a44ca87c99c5608a7340cb34ec75fab8d2ab503276c9"
   name = "github.com/hashicorp/errwrap"
   packages = ["."]
   pruneopts = "UT"
-  revision = "7554cd9344cec97297fa6649b055a8c98c2a1e55"
+  revision = "d6c0cd88035724dd42e0f335ae30161c20575ecc"
 
 [[projects]]
   branch = "master"
@@ -117,14 +118,6 @@
   version = "v2.1"
 
 [[projects]]
-  digest = "1:808cdddf087fb64baeae67b8dfaee2069034d9704923a3cb8bd96a995421a625"
-  name = "github.com/patrickmn/go-cache"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "a3647f8e31d79543b2d0f0ae2fe5c379d72cedc0"
-  version = "v2.1.0"
-
-[[projects]]
   digest = "1:645cabccbb4fa8aab25a956cbcbdf6a6845ca736b2c64e197ca7cbb9d210b939"
   name = "github.com/spf13/cobra"
   packages = ["."]
@@ -133,12 +126,12 @@
   version = "v0.0.3"
 
 [[projects]]
-  digest = "1:9424f440bba8f7508b69414634aef3b2b3a877e522d8a4624692412805407bb7"
+  digest = "1:dab83a1bbc7ad3d7a6ba1a1cc1760f25ac38cdf7d96a5cdd55cd915a4f5ceaf9"
   name = "github.com/spf13/pflag"
   packages = ["."]
   pruneopts = "UT"
-  revision = "583c0c0531f06d5278b7d917446061adc344b5cd"
-  version = "v1.0.1"
+  revision = "9a97c102cda95a86cec2345a6f09f55a939babf5"
+  version = "v1.0.2"
 
 [[projects]]
   branch = "master"
@@ -157,12 +150,12 @@
   revision = "dcecefd839c4193db0d35b88ec65b4c12d360ab0"
 
 [[projects]]
-  digest = "1:777e729b475d3895c7229552aa10076f0d177daf37c0a72258006d046d329960"
+  digest = "1:3c1a69cdae3501bf75e76d0d86dc6f2b0a7421bc205c0cb7b96b19eed464a34d"
   name = "go.uber.org/atomic"
   packages = ["."]
   pruneopts = "UT"
-  revision = "4e336646b2ef9fc6e47be8e21594178f98e5ebcf"
-  version = "v1.2.0"
+  revision = "1ea20fb1cbb1cc08cbd0d913a96dead89aa18289"
+  version = "v1.3.2"
 
 [[projects]]
   digest = "1:60bf2a5e347af463c42ed31a493d817f8a72f102543060ed992754e689805d1a"
@@ -173,7 +166,7 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:b71cb7ad9f08b8e3fe08c3689ae299b594147ab49bd8b15ba30d24f6e23d7ec4"
+  digest = "1:1a48a306f348a6454fbe88c77c25430de7c3427c4081735d3223aa97c302c24f"
   name = "go.uber.org/zap"
   packages = [
     ".",
@@ -185,23 +178,23 @@
     "zapgrpc",
   ]
   pruneopts = "UT"
-  revision = "4d45f9617f7d90f7a663ff21c7a4321dbe78098b"
-  version = "v1.9.0"
+  revision = "ff33455a0e382e8a81d14dd7c922020b6b5e7982"
+  version = "v1.9.1"
 
 [[projects]]
   branch = "master"
-  digest = "1:a2057c5b6feb8feb081ce9987f0e4d0713c6b3a6d3824900e35750f349223a25"
+  digest = "1:dedf20eb0d3e8d6aa8a4d3d2fae248222b688ed528201995e152cc497899123c"
   name = "golang.org/x/crypto"
   packages = [
     "acme",
     "acme/autocert",
   ]
   pruneopts = "UT"
-  revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
+  revision = "de0752318171da717af4ce24d0a2e8626afaeb11"
 
 [[projects]]
   branch = "master"
-  digest = "1:26e43791a83decf1105c1a523c054b0d58b162df5212a1a3f8ca9f01c2456bc1"
+  digest = "1:b5c3834d33445efdc5a8dcb154bed9e4c211edadbf02f6f5cc20c5e9be26a499"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -213,15 +206,15 @@
     "trace",
   ]
   pruneopts = "UT"
-  revision = "49c15d80dfbc983ea25246ee959d970efe09ec09"
+  revision = "aaf60122140d3fcf75376d319f0554393160eb50"
 
 [[projects]]
   branch = "master"
-  digest = "1:8466957fb2af510f68b13aec64ccad13e9e756dc1da3ea28c422f8ac410e56f0"
+  digest = "1:05662433b3a13c921587a6e622b5722072edff83211efd1cd79eeaeedfd83f07"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "bd9dbc187b6e1dacfdd2722a87e83093c2d7bd6e"
+  revision = "1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded"
 
 [[projects]]
   digest = "1:a2ab62866c75542dd18d2b069fec854577a20211d7c0ea6ae746072a1dccdd18"
@@ -252,7 +245,7 @@
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
   pruneopts = "UT"
-  revision = "daca94659cb50e9f37c1b834680f2e46358f10b0"
+  revision = "d0a8f471bba2dbb160885b0000d814ee5d559bad"
 
 [[projects]]
   digest = "1:3dd7996ce6bf52dec6a2f69fa43e7c4cefea1d4dfa3c8ab7a5f8a9f7434e239d"
@@ -322,7 +315,6 @@
     "github.com/gogo/protobuf/proto",
     "github.com/labstack/echo",
     "github.com/labstack/echo/middleware",
-    "github.com/patrickmn/go-cache",
     "google.golang.org/grpc",
     "istio.io/api/mixer/adapter/model/v1beta1",
     "istio.io/istio/mixer/template/authorization",

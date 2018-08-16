@@ -1,4 +1,4 @@
-TAG ?= 0.1
+TAG ?= 0.1-httpPlugin
 IMAGE_NAME = 3scaleistioadapter:$(TAG)
 REGISTRY ?= quay.io/3scale
 PORT ?= 3333
