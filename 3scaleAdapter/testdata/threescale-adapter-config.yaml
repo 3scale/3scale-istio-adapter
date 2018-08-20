@@ -9,14 +9,13 @@ spec:
  params:
    service_id: "XXXXXXXXXXXX"
    system_url: "https://XXXXXX-admin.3scale.net/"
-   backend_url: "https://su1.3scale.net/"
    access_token: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-   service_token: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
  connection:
    address: "[::]:3333"
 ---
 
 # instance for template authorization
+
 apiVersion: "config.istio.io/v1alpha2"
 kind: instance
 metadata:
@@ -25,8 +24,13 @@ metadata:
 spec:
  template: authorization
  params:
-   action: 
+   action:
+     namespace: destination.namespace | ""
+     service: destination.service | ""
      path: request.path | ""
+     method: request.method | ""
+     properties:
+       user-key: request.headers["user-key"] | ""
 ---
 
 # rule to dispatch to handler threescalehandler

@@ -11,13 +11,15 @@ import (
 	"context"
 	"fmt"
 	"github.com/3scale/istio-integration/3scaleAdapter/config"
+	"github.com/3scale/istio-integration/3scaleAdapter/httpPluginClient"
 	"google.golang.org/grpc"
+	"istio.io/api/mixer/adapter/model/v1beta1"
 	"istio.io/istio/mixer/template/authorization"
 	"istio.io/istio/pkg/log"
 	"net"
+	"net/http"
+	"net/url"
 	"time"
-	"github.com/3scale/istio-integration/3scaleAdapter/threescaleClient"
-	"istio.io/api/mixer/adapter/model/v1beta1"
 )
 
 type (
@@ -37,7 +39,6 @@ type (
 // is more convenient and we can do some optimizations around.
 var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 
-
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
 
@@ -56,16 +57,25 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 			return nil, err
 		}
 	}
-
 	log.Debugf("adapter config: %v\n", cfg.String())
 
-	request := r.Instance
+	// Creates URL object from the config system URL.
+	systemUrl, err := url.Parse(cfg.SystemUrl)
 
-	ok, err := threescaleClient.HandleRequest(cfg, *request)
 	if err != nil {
-		// 13 -> INTERNAL ERROR
-		log.Debugf("Error authenticating request: %v\n", err)
+		log.Errorf("Couldn't parse the SystemURL url: %s", err)
 		result.Status.Code = 13
+		return &result, nil
+	}
+
+	originalRequest := buildRequestFromInstanceMsg(r.Instance)
+
+	c := httpPluginClient.NewClient(nil)
+	ok, err := c.Authorize(cfg.AccessToken, cfg.ServiceId, systemUrl, originalRequest)
+
+	if err != nil {
+		log.Infof("Problem with the threescale Client: %v\n", err)
+		result.Status.Code = 7
 		return &result, nil
 	}
 
@@ -79,6 +89,32 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	}
 
 	return &result, nil
+}
+
+func buildRequestFromInstanceMsg(instanceMsg *authorization.InstanceMsg) *http.Request {
+
+	// Using the Properties from the authorization template, so the user can define
+	// the required headers for different authentication methods.
+	headers := make(map[string][]string)
+
+	for k, v := range instanceMsg.Action.Properties {
+		if k != "" && v.GetStringValue() != "" {
+			var value []string
+			headers[k] = append(value, v.GetStringValue())
+		}
+	}
+	// Let's create the request object based on the original request from the user.
+	originalRequest := &http.Request{
+		Method: instanceMsg.Action.Method,
+		URL: &url.URL{
+			User:       &url.Userinfo{},
+			Path:       instanceMsg.Action.Path,
+			ForceQuery: false,
+		},
+		Header: headers,
+	}
+
+	return originalRequest
 }
 
 func (s *Threescale) Addr() string {
@@ -118,5 +154,6 @@ func NewThreescale(addr string) (Server, error) {
 	s.server = grpc.NewServer()
 
 	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
+	// TODO: Add report template for metrics.
 	return s, nil
 }

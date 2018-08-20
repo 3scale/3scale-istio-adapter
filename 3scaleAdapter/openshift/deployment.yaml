@@ -25,12 +25,25 @@ spec:
         deploymentconfig: 3scale-istio-adapter
     spec:
       containers:
-      - image: quay.io/3scale/3scaleistioadapter:0.1
+      - image: quay.io/3scale/3scaleistioadapter:0.1-httpPlugin
         imagePullPolicy: Always
         name: 3scale-istio-adapter
         ports:
         - containerPort: 3333
           protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+      - image: quay.io/3scale/apicast:3scale-http-plugin
+        imagePullPolicy: Always
+        name: 3scale-istio-httpclient
+        ports:
+        - containerPort: 8090
+          protocol: TCP
+        env:
+          - name: APICAST_CONFIGURATION_LOADER
+            value: "lazy"
+          - name: APICAST_MANAGEMENT_API
+            value: "http_plugin"
         resources: {}
         terminationMessagePath: /dev/termination-log
       dnsPolicy: ClusterFirst
