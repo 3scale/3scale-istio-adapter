@@ -29,9 +29,7 @@ spec:
  params:
    service_id: "XXXXXXXXXXXX"
    system_url: "https://XXXXXX-admin.3scale.net/"
-   backend_url: "https://su1.3scale.net/"
    access_token: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-   service_token: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
  connection:
    address: "threescaleistioadapter:3333"
 ```
@@ -43,3 +41,7 @@ oc project istio-system
 oc create -f ./openshift
 oc create -f ./istio 
 ```
+
+### Other
+
+Check the [DEVEL.md](DEVEL.md) for more info on how to hack/test this adapter.
