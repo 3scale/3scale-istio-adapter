@@ -72,9 +72,11 @@ metadata:
 spec:
  adapter: threescale
  params:
+   access_token: "XXXXXXXXXXXXXXXXXXXXXX"
    service_id: "XXXXXXXXXXXX"
    system_url: "https://XXXXXX-admin.3scale.net/"
-  (...)
+ connection:
+   address: "[::]:3333"
 ```
 
 Run the adapter:
