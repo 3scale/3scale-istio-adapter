@@ -42,7 +42,7 @@ var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
 
-	log.Debugf("Got instance %v\n", r.Instance)
+	log.Debugf("Got instance %+v", r.Instance)
 
 	// We set the result to 1 ms valid duration to avoid
 	// Mixer caching the request and not reporting everything
@@ -57,7 +57,8 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 			return nil, err
 		}
 	}
-	log.Debugf("adapter config: %v\n", cfg.String())
+
+	log.Debugf("Got adapter config: %+v", cfg.String())
 
 	// Creates URL object from the config system URL.
 	systemUrl, err := url.Parse(cfg.SystemUrl)
@@ -74,7 +75,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	ok, err := c.Authorize(cfg.AccessToken, cfg.ServiceId, systemUrl, originalRequest)
 
 	if err != nil {
-		log.Infof("Problem with the threescale Client: %v\n", err)
+		log.Errorf("Problem with the threescale Client: %v", err)
 		result.Status.Code = 7
 		return &result, nil
 	}
@@ -87,6 +88,8 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		// 7 -> PERMISSION DENIED
 		result.Status.Code = 7
 	}
+
+	log.Debugf("Returning result: %+v", result)
 
 	return &result, nil
 }
@@ -138,18 +141,16 @@ func (s *Threescale) Close() error {
 }
 
 func NewThreescale(addr string) (Server, error) {
-	if addr == "" {
-		// Random port
-		addr = "0"
-	}
+
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
 	if err != nil {
-		return nil, fmt.Errorf("unable to listen on socket: %v", err)
+		return nil, err
 	}
 	s := &Threescale{
 		listener: listener,
 	}
-	fmt.Printf("listening on \"%v\"\n", s.Addr())
+
+	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
 
 	s.server = grpc.NewServer()
 
