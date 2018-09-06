@@ -31,6 +31,9 @@ spec:
         ports:
         - containerPort: 3333
           protocol: TCP
+        env:
+        - name: "THREESCALE_LOG_JSON" 
+          value: "true"
         resources: {}
         terminationMessagePath: /dev/termination-log
       - image: quay.io/3scale/apicast:3scale-http-plugin

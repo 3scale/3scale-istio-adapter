@@ -8,5 +8,6 @@ RUN dep ensure -v && go build -o /tmp/3scaleAdapter cmd/main.go
 FROM centos
 WORKDIR /app
 COPY --from=build /tmp/3scaleAdapter /app/
-ENV PORT=3333
-ENTRYPOINT ./3scaleAdapter $PORT
+ENV THREESCALE_LISTEN_ADDR 3333
+ENTRYPOINT ./3scaleAdapter
+
