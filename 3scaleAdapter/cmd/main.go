@@ -49,9 +49,9 @@ func stringToLogLevel(loglevel string) (log.Level, error) {
 
 	if val, ok := stringToLevel[loglevel]; ok {
 		return val, nil
-	} else {
-		return log.InfoLevel, errors.New("invalid log_level")
 	}
+
+	return log.InfoLevel, errors.New("invalid log_level")
 }
 
 func main() {

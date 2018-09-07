@@ -3,7 +3,7 @@
 // supported template names (metric in this case), and whether it is session or no-session based.
 
 // nolint: lll
-//go:generate $GOPATH/src/istio.io/istio/bin/mixer_codegen.sh -a mixer/adapter/3scaleAdapter/config/config.proto -x "-s=false -n threescale -t authorization"
+//go:generate $GOPATH/src/istio.io/istio/bin/mixer_codegen.sh -a mixer/adapter/3scaleAdapter/config/config.proto -x "-s=false -n Threescale -t authorization"
 
 package threescale
 
@@ -23,12 +23,14 @@ import (
 )
 
 type (
+	// Server interface
 	Server interface {
 		Addr() string
 		Close() error
 		Run(shutdown chan error)
 	}
 
+	// Threescale contains the Listener and the server
 	Threescale struct {
 		listener net.Listener
 		server   *grpc.Server
@@ -39,6 +41,7 @@ type (
 // is more convenient and we can do some optimizations around.
 var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 
+// HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
 
@@ -61,7 +64,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	log.Debugf("Got adapter config: %+v", cfg.String())
 
 	// Creates URL object from the config system URL.
-	systemUrl, err := url.Parse(cfg.SystemUrl)
+	systemURL, err := url.Parse(cfg.SystemUrl)
 
 	if err != nil {
 		log.Errorf("Couldn't parse the SystemURL url: %s", err)
@@ -72,10 +75,10 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	originalRequest := buildRequestFromInstanceMsg(r.Instance)
 
 	c := httpPluginClient.NewClient(nil)
-	ok, err := c.Authorize(cfg.AccessToken, cfg.ServiceId, systemUrl, originalRequest)
+	ok, err := c.Authorize(cfg.AccessToken, cfg.ServiceId, systemURL, originalRequest)
 
 	if err != nil {
-		log.Errorf("Problem with the threescale Client: %v", err)
+		log.Errorf("Problem with the Threescale client: %v", err)
 		result.Status.Code = 7
 		return &result, nil
 	}
@@ -120,14 +123,17 @@ func buildRequestFromInstanceMsg(instanceMsg *authorization.InstanceMsg) *http.R
 	return originalRequest
 }
 
+// Addr returns the Threescale addrs as a string
 func (s *Threescale) Addr() string {
 	return s.listener.Addr().String()
 }
 
+// Run starts the Threescale grpc Server
 func (s *Threescale) Run(shutdown chan error) {
 	shutdown <- s.server.Serve(s.listener)
 }
 
+// Close stops the Threescale grpc Server
 func (s *Threescale) Close() error {
 	if s.server != nil {
 		s.server.GracefulStop()
@@ -140,6 +146,7 @@ func (s *Threescale) Close() error {
 	return nil
 }
 
+// NewThreescale returns a Threescale Server
 func NewThreescale(addr string) (Server, error) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
