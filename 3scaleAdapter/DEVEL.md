@@ -82,7 +82,7 @@ spec:
 Run the adapter:
 
 ```
-go run cmd/main.go 3333
+THREESCALE_LISTEN_ADDR=3333 go run cmd/main.go
 ```
 
 ### Run the adapter in a container
@@ -90,7 +90,7 @@ go run cmd/main.go 3333
 Use the provided Makefile:
 
 ```
-make test
+make docker-test
 ```
 
 ### Run Mixer
@@ -99,6 +99,10 @@ Start `mixs`:
 
 ```
 mixs server --configStoreURL=fs://$GOPATH/src/github.com/3scale/istio-integration/3scaleAdapter/testdata
+
+or
+
+make mixer
 ```
 
 ### Test the adapter! 
