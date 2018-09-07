@@ -27,34 +27,35 @@ type httpRequest struct {
 	Headers map[string][]string `json:"headers"`
 }
 
-type client struct {
+// Client is contains a BaseURL and the httpClient
+type Client struct {
 	BaseURL    *url.URL
 	httpClient *http.Client
 }
 
 const (
-	AuthorizationPath = "/auth"
-	TelemetryPath     = "/report"
+	authorizationPath = "/auth"
+	telemetryPath     = "/report"
 )
 
-// NewClient returns a new instance of the HttpPlugin client
-func NewClient(httpClient *http.Client) *client {
+// NewClient returns a new instance of the HttpPlugin Client
+func NewClient(httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = &http.Client{
 			Timeout: 2 * time.Second,
 		}
 	}
 
-	defaultBaseUrl, _ := url.Parse("http://localhost:8090")
+	defaultBaseURL, _ := url.Parse("http://localhost:8090")
 
-	c := &client{
+	c := &Client{
 		httpClient: httpClient,
-		BaseURL:    defaultBaseUrl,
+		BaseURL:    defaultBaseURL,
 	}
 	return c
 }
 
-func (c *client) newRequest(method, path string, body interface{}) (*http.Request, error) {
+func (c *Client) newRequest(method, path string, body interface{}) (*http.Request, error) {
 	rel := &url.URL{Path: path}
 	u := c.BaseURL.ResolveReference(rel)
 	var buf io.ReadWriter
@@ -76,7 +77,7 @@ func (c *client) newRequest(method, path string, body interface{}) (*http.Reques
 	return req, nil
 }
 
-func (c *client) do(req *http.Request) (*http.Response, error) {
+func (c *Client) do(req *http.Request) (*http.Response, error) {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -86,7 +87,7 @@ func (c *client) do(req *http.Request) (*http.Response, error) {
 }
 
 // Authorize returns true or false based on the 3scale HTTP Plugin response.
-func (c *client) Authorize(accessToken string, serviceID string, systemEndpointURL *url.URL, originalRequest *http.Request) (bool, error) {
+func (c *Client) Authorize(accessToken string, serviceID string, systemEndpointURL *url.URL, originalRequest *http.Request) (bool, error) {
 	ok := false
 
 	ServiceIDint64, err := strconv.ParseInt(serviceID, 10, 64)
@@ -104,7 +105,7 @@ func (c *client) Authorize(accessToken string, serviceID string, systemEndpointU
 		},
 	}
 
-	req, err := c.newRequest("PUT", AuthorizationPath, body)
+	req, err := c.newRequest("PUT", authorizationPath, body)
 	if err != nil {
 		return false, err
 	}
