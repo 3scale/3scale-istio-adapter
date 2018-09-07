@@ -11,38 +11,34 @@ import (
 	"time"
 )
 
-func UnmarshalHTTPPlugin(data []byte) (HTTPPlugin, error) {
-	var r HTTPPlugin
-	err := json.Unmarshal(data, &r)
-	return r, err
-}
-
-func (r *HTTPPlugin) Marshal() ([]byte, error) {
+func (r *httpPlugin) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
-type HTTPPlugin struct {
+type httpPlugin struct {
 	ServiceID      int64       `json:"service_id"`
 	SystemEndpoint string      `json:"system_endpoint"`
-	HTTPRequest    HTTPRequest `json:"http_request"`
+	HTTPRequest    httpRequest `json:"http_request"`
 }
 
-type HTTPRequest struct {
+type httpRequest struct {
 	Path    string              `json:"path"`
 	Method  string              `json:"method"`
 	Headers map[string][]string `json:"headers"`
 }
 
+// Client is contains a BaseURL and the httpClient
 type Client struct {
 	BaseURL    *url.URL
 	httpClient *http.Client
 }
 
 const (
-	AuthorizationPath = "/auth"
-	TelemetryPath     = "/report"
+	authorizationPath = "/auth"
+	telemetryPath     = "/report"
 )
 
+// NewClient returns a new instance of the HttpPlugin Client
 func NewClient(httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = &http.Client{
@@ -50,11 +46,11 @@ func NewClient(httpClient *http.Client) *Client {
 		}
 	}
 
-	defaultBaseUrl, _ := url.Parse("http://localhost:8090")
+	defaultBaseURL, _ := url.Parse("http://localhost:8090")
 
 	c := &Client{
 		httpClient: httpClient,
-		BaseURL:    defaultBaseUrl,
+		BaseURL:    defaultBaseURL,
 	}
 	return c
 }
@@ -90,6 +86,7 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
+// Authorize returns true or false based on the 3scale HTTP Plugin response.
 func (c *Client) Authorize(accessToken string, serviceID string, systemEndpointURL *url.URL, originalRequest *http.Request) (bool, error) {
 	ok := false
 
@@ -97,10 +94,10 @@ func (c *Client) Authorize(accessToken string, serviceID string, systemEndpointU
 
 	systemEndpointURL.User = url.User(accessToken)
 
-	body := HTTPPlugin{
+	body := httpPlugin{
 		ServiceID:      ServiceIDint64,
 		SystemEndpoint: systemEndpointURL.String(),
-		HTTPRequest: HTTPRequest{
+		HTTPRequest: httpRequest{
 			Path: originalRequest.URL.Path,
 			// Method comes from istio in lowercase, we need to upper it for the 3scale Http Plugin
 			Method:  strings.ToUpper(originalRequest.Method),
@@ -108,7 +105,7 @@ func (c *Client) Authorize(accessToken string, serviceID string, systemEndpointU
 		},
 	}
 
-	req, err := c.newRequest("PUT", AuthorizationPath, body)
+	req, err := c.newRequest("PUT", authorizationPath, body)
 	if err != nil {
 		return false, err
 	}

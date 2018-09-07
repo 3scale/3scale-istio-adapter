@@ -1,25 +1,11 @@
-// Copyright 2018 Istio Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/3scale/istio-integration/3scaleAdapter"
 	"github.com/spf13/viper"
 	"istio.io/istio/pkg/log"
-	"errors"
 	"os"
 )
 
@@ -52,7 +38,7 @@ func init() {
 }
 
 func stringToLogLevel(loglevel string) (log.Level, error) {
-	
+
 	stringToLevel := map[string]log.Level{
 		"debug": log.DebugLevel,
 		"info":  log.InfoLevel,
@@ -63,11 +49,10 @@ func stringToLogLevel(loglevel string) (log.Level, error) {
 
 	if val, ok := stringToLevel[loglevel]; ok {
 		return val, nil
-	} else {
-		return log.InfoLevel, errors.New("invalid log_level")
 	}
-}
 
+	return log.InfoLevel, errors.New("invalid log_level")
+}
 
 func main() {
 	var addr string

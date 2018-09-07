@@ -2,8 +2,7 @@
 
 ## Devel
 
-### Build Mixer server and client.
-
+### Build Mixer server and client
 
 Get the istio sources:
 
@@ -22,7 +21,7 @@ make mixs && make mixc
 
 Make sure you have the `$GOPATH/bin/` in your `$PATH` var.
 
-Now you should be able to use mixc / mixs: 
+Now you should be able to use mixc / mixs:
 
 ```
 mixc version
@@ -42,7 +41,7 @@ You will need to write down:
   * Service ID, you can find the service ID in the API section, as the "ID for API calls is XXXXXXXXXX"
   * User_key: You will find this key in the integration page.
 
-### Run a local instance of the adapter.
+### Run a local instance of the adapter
 
 Get the adapter:
 
@@ -82,7 +81,7 @@ spec:
 Run the adapter:
 
 ```
-go run cmd/main.go 3333
+THREESCALE_LISTEN_ADDR=3333 go run cmd/main.go
 ```
 
 ### Run the adapter in a container
@@ -90,7 +89,7 @@ go run cmd/main.go 3333
 Use the provided Makefile:
 
 ```
-make test
+make docker-test
 ```
 
 ### Run Mixer
@@ -99,15 +98,19 @@ Start `mixs`:
 
 ```
 mixs server --configStoreURL=fs://$GOPATH/src/github.com/3scale/istio-integration/3scaleAdapter/testdata
+
+or
+
+make mixer
 ```
 
-### Test the adapter! 
+### Test the adapter
 
-Run `mixc` with the desired request.path: 
+Run `mixc` with the desired request.path:
 
 ```
 mixc check -s request.path="/thepath?user_key=XXXXXXXXXXXXXXXXXXXXXXX"
 ```
 
-With this, you should be able to simulate the istio -> mixer -> adapter -> 3scale path.  
+With this, you should be able to simulate the istio -> mixer -> adapter -> 3scale path.
 
