@@ -56,6 +56,12 @@ jobs:
           paths:
             - "/go/src/github.com/3scale/istio-integration/3scaleAdapter/vendor"
 
+      - run: 
+          name: Golang tests
+          command: |
+            cd ${ADAPTER_CODE}
+            make test
+      
       - run:
           name: Start 3scale Istio Adapter
           command: |

@@ -146,7 +146,7 @@ func (s *Threescale) Close() error {
 	return nil
 }
 
-// NewThreescale returns a Threescale Server
+// NewThreescale returns a Server interface
 func NewThreescale(addr string) (Server, error) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
@@ -160,7 +160,6 @@ func NewThreescale(addr string) (Server, error) {
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
 
 	s.server = grpc.NewServer()
-
 	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
 	// TODO: Add report template for metrics.
 	return s, nil
