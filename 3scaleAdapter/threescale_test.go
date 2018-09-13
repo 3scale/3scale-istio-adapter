@@ -2,6 +2,7 @@ package threescale
 
 import (
 	"context"
+	"github.com/3scale/istio-integration/3scaleAdapter/httpPluginClient"
 	"github.com/gogo/protobuf/types"
 	"istio.io/api/policy/v1beta1"
 	"istio.io/istio/mixer/template/authorization"
@@ -38,6 +39,8 @@ func Test_HandleAuthorization(t *testing.T) {
 		DedupId:       "",
 	}
 
+	c := &Threescale{client: httpPluginClient.NewClient(nil)}
+
 	for _, tt := range handleAuthorizationTests {
 		ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(tt.httpStatus)
@@ -46,7 +49,7 @@ func Test_HandleAuthorization(t *testing.T) {
 		ts.Listener = l
 		ts.Start()
 
-		result, err := (*Threescale).HandleAuthorization(&Threescale{}, ctx, r)
+		result, err := (*Threescale).HandleAuthorization(c, ctx, r)
 		if err != nil {
 			t.Errorf("Fail %#v", err)
 		}
@@ -97,6 +100,7 @@ func Test_buildRequestFromInstanceMsg(t *testing.T) {
 }
 
 func Test_NewThreescale(t *testing.T) {
+
 	addr := "0"
 	s, err := NewThreescale(addr)
 	if err != nil {
