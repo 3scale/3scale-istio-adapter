@@ -15,19 +15,20 @@ const (
 	validServiceID   = "111111"
 )
 
-var AuthorizationTests = []struct {
-	accessToken  string
-	userKey string
-	ok bool
-}{
-	{validAccessToken, validUserKey, true},
-	{validAccessToken, "", false},
-	{"", validUserKey, false},
-	{"", "", false},
-	{"aaaaaaaaaaaa", "222222", false},
-}
-
 func Test_Authorize(t *testing.T) {
+
+
+	var AuthorizationTests = []struct {
+		accessToken string
+		userKey     string
+		ok          bool
+	}{
+		{validAccessToken, validUserKey, true},
+		{validAccessToken, "", false},
+		{"", validUserKey, false},
+		{"", "", false},
+		{"aaaaaaaaaaaa", "222222", false},
+	}
 
 	for _, tt := range AuthorizationTests {
 
@@ -58,7 +59,7 @@ func Test_Authorize(t *testing.T) {
 		}
 	}
 
-	}
+}
 
 // Mocking the 3scale HTTP Plugin
 func HTTPPluginMock(t *testing.T) *httptest.Server {

@@ -13,18 +13,49 @@ import (
 	"testing"
 )
 
+func Test_HandleAuthorization(t *testing.T) {
 
+	var handleAuthorizationTests = []struct {
+		httpStatus     int
+		expectedStatus int32
+	}{
+		{http.StatusOK, 0},
+		{http.StatusAccepted, 0},
+		{http.StatusRequestTimeout, 7},
+		{http.StatusBadGateway, 7},
+		{http.StatusGatewayTimeout, 7},
+		{http.StatusForbidden, 7},
+	}
 
-var handleAuthorizationTests = []struct {
-	httpStatus  int
-	expectedStatus int32
-}{
-	{http.StatusOK, 0},
-	{http.StatusAccepted, 0},
-	{http.StatusRequestTimeout, 7},
-	{http.StatusBadGateway, 7},
-	{http.StatusGatewayTimeout, 7},
-	{http.StatusForbidden, 7},
+	ctx := context.TODO()
+
+	r := &authorization.HandleAuthorizationRequest{
+		Instance: &authorization.InstanceMsg{
+			Subject: &authorization.SubjectMsg{},
+			Action:  &authorization.ActionMsg{},
+		},
+		AdapterConfig: &types.Any{},
+		DedupId:       "",
+	}
+
+	for _, tt := range handleAuthorizationTests {
+		ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(tt.httpStatus)
+		}))
+		l, _ := net.Listen("tcp", "127.0.0.1:8090")
+		ts.Listener = l
+		ts.Start()
+
+		result, err := (*Threescale).HandleAuthorization(&Threescale{}, ctx, r)
+		if err != nil {
+			t.Errorf("Fail %#v", err)
+		}
+		if result.Status.Code != tt.expectedStatus {
+			t.Errorf("Expected %v got %#v", tt.expectedStatus, result.Status.Code)
+		}
+
+		ts.Close()
+	}
 }
 
 func Test_buildRequestFromInstanceMsg(t *testing.T) {
@@ -62,40 +93,6 @@ func Test_buildRequestFromInstanceMsg(t *testing.T) {
 
 	if reflect.DeepEqual(expectedURLObject, originalRequest) {
 		t.Logf("the same")
-	}
-}
-
-
-func Test_HandleAuthorization(t *testing.T) {
-
-	ctx := context.TODO()
-
-	r := &authorization.HandleAuthorizationRequest{
-		Instance: &authorization.InstanceMsg{
-			Subject: &authorization.SubjectMsg{},
-			Action:  &authorization.ActionMsg{},
-		},
-		AdapterConfig: &types.Any{},
-		DedupId:       "",
-	}
-
-	for _, tt := range handleAuthorizationTests {
-			ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.httpStatus)
-			}))
-			l, _ := net.Listen("tcp", "127.0.0.1:8090")
-			ts.Listener = l
-			ts.Start()
-
-			result, err := (*Threescale).HandleAuthorization(&Threescale{}, ctx, r)
-			if err != nil {
-				t.Errorf("Fail %#v", err)
-			}
-			if result.Status.Code != tt.expectedStatus {
-				t.Errorf("Expected %v got %#v", tt.expectedStatus, result.Status.Code)
-			}
-
-			ts.Close()
 	}
 }
 
