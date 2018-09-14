@@ -12,6 +12,12 @@ adapter: ## run the adapter
 mixer: ## Run the mixer server
 	mixs server --configStoreURL=fs://$(CURDIR)/testdata
 
+test: ## Run golang tests
+	go test ./... 
+
+coverage: ## Show code coverage
+	go test -coverprofile=c.out ./... && go tool cover -html=c.out
+
 docker-build: ## Build builder image
 	docker build --tag $(REGISTRY)/$(IMAGE_NAME) .
 

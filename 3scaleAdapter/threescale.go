@@ -34,6 +34,7 @@ type (
 	Threescale struct {
 		listener net.Listener
 		server   *grpc.Server
+		client   *httpPluginClient.Client
 	}
 )
 
@@ -73,9 +74,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	}
 
 	originalRequest := buildRequestFromInstanceMsg(r.Instance)
-
-	c := httpPluginClient.NewClient(nil)
-	ok, err := c.Authorize(cfg.AccessToken, cfg.ServiceId, systemURL, originalRequest)
+	ok, err := s.client.Authorize(cfg.AccessToken, cfg.ServiceId, systemURL, originalRequest)
 
 	if err != nil {
 		log.Errorf("Problem with the Threescale client: %v", err)
@@ -146,7 +145,7 @@ func (s *Threescale) Close() error {
 	return nil
 }
 
-// NewThreescale returns a Threescale Server
+// NewThreescale returns a Server interface
 func NewThreescale(addr string) (Server, error) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
@@ -157,10 +156,10 @@ func NewThreescale(addr string) (Server, error) {
 		listener: listener,
 	}
 
+	s.client = httpPluginClient.NewClient(nil)
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
 
 	s.server = grpc.NewServer()
-
 	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
 	// TODO: Add report template for metrics.
 	return s, nil
