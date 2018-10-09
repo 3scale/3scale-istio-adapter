@@ -56,23 +56,29 @@ jobs:
           paths:
             - "/go/src/github.com/3scale/istio-integration/3scaleAdapter/vendor"
 
-      - run: 
+      - run:
           name: Golang tests
           command: |
             cd ${ADAPTER_CODE}
-            make test
-      
+            make unit
+
+      - run:
+          name: Build 3scale Istio Adapter with test coverage
+          command: |
+            cd ${ADAPTER_CODE}
+            make build_test_adapter
+
       - run:
           name: Start 3scale Istio Adapter
           command: |
             cd ${ADAPTER_CODE}
-            THREESCALE_LISTEN_ADDR=3333 go run cmd/main.go
+            ./_output/3scale-adapter-integration-bin -test.coverprofile="$(pwd)/_output/integration.cov"
           background: true
 
       - run:
-          name: Wait
+          name: Wait for adapter to become ready
           command: |
-            sleep 5
+            dockerize -wait tcp://0.0.0.0:3333 -timeout 1m
 
       - run:
           name: Start Mixer Server
@@ -81,11 +87,27 @@ jobs:
           background: true
 
       - run:
-          name: Wait
+          name: Wait for Mixer Server to become ready
           command: |
-            sleep 15
+            dockerize -wait tcp://0.0.0.0:9091 -timeout 1m
 
       - run:
           name: Run Integration test scripts
           command: |
-            bash ${ADAPTER_CODE}/scripts/integration_tests.sh
+            cd ${ADAPTER_CODE}
+            make integration START_DEPENDENCIES=No
+
+      - run:
+          name: Gracefully terminate adapter and generate coverage report
+          command: |
+            kill  $(ps -ef | grep mixs | grep -v grep | awk '{print $2}')
+            kill -SIGTERM $(ps -ef | grep adapter | grep -v grep | awk '{print $2}')
+            sleep 5
+
+      - run:
+          name: Merge coverage profiles and pipe to Codecov
+          command: |
+            cd ${ADAPTER_CODE}
+            go get github.com/wadey/gocovmerge
+            gocovmerge _output/integration.cov _output/unit.cov > coverage.txt
+            bash <(curl -s https://codecov.io/bash)

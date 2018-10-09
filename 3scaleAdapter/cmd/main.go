@@ -3,10 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/3scale/istio-integration/3scaleAdapter"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale"
 	"github.com/spf13/viper"
 	"istio.io/istio/pkg/log"
-	"os"
 )
 
 func init() {
@@ -74,5 +77,20 @@ func main() {
 	go func() {
 		s.Run(shutdown)
 	}()
+
+	sigC := make(chan os.Signal, 1)
+	signal.Notify(sigC, syscall.SIGTERM)
+
+	go func() {
+		_ = <-sigC
+		fmt.Println("SIGTERM received. Attempting graceful shutdown")
+		err := s.Close()
+		if err != nil {
+			fmt.Println("Error calling graceful shutdown")
+			os.Exit(1)
+		}
+		return
+	}()
+
 	_ = <-shutdown
 }
