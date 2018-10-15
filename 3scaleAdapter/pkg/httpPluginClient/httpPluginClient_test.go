@@ -17,7 +17,6 @@ const (
 
 func Test_Authorize(t *testing.T) {
 
-
 	var AuthorizationTests = []struct {
 		accessToken string
 		userKey     string

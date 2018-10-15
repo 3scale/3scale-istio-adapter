@@ -2,16 +2,17 @@ package threescale
 
 import (
 	"context"
-	"github.com/3scale/istio-integration/3scaleAdapter/httpPluginClient"
-	"github.com/gogo/protobuf/types"
-	"istio.io/api/policy/v1beta1"
-	"istio.io/istio/mixer/template/authorization"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"testing"
+
+	"github.com/3scale/istio-integration/3scaleAdapter/pkg/httpPluginClient"
+	"github.com/gogo/protobuf/types"
+	"istio.io/api/policy/v1beta1"
+	"istio.io/istio/mixer/template/authorization"
 )
 
 func Test_HandleAuthorization(t *testing.T) {

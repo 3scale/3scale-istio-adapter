@@ -10,16 +10,17 @@ package threescale
 import (
 	"context"
 	"fmt"
-	"github.com/3scale/istio-integration/3scaleAdapter/config"
-	"github.com/3scale/istio-integration/3scaleAdapter/httpPluginClient"
-	"google.golang.org/grpc"
-	"istio.io/api/mixer/adapter/model/v1beta1"
-	"istio.io/istio/mixer/template/authorization"
-	"istio.io/istio/pkg/log"
 	"net"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/3scale/istio-integration/3scaleAdapter/config"
+	"github.com/3scale/istio-integration/3scaleAdapter/pkg/httpPluginClient"
+	"google.golang.org/grpc"
+	"istio.io/api/mixer/adapter/model/v1beta1"
+	"istio.io/istio/mixer/template/authorization"
+	"istio.io/istio/pkg/log"
 )
 
 type (
