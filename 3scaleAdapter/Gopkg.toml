@@ -37,6 +37,14 @@
   name = "istio.io/istio"
   version = "1.0.0"
 
+[[constraint]]
+  name = "github.com/3scale/3scale-go-client"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/3scale/3scale-porta-go-client"
+  branch = "master"
+
 [prune]
   go-tests = true
   unused-packages = true

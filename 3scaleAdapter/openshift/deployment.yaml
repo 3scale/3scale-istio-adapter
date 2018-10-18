@@ -32,7 +32,7 @@ spec:
         - containerPort: 3333
           protocol: TCP
         env:
-        - name: "THREESCALE_LOG_JSON" 
+        - name: "THREESCALE_LOG_JSON"
           value: "true"
         resources: {}
         terminationMessagePath: /dev/termination-log
