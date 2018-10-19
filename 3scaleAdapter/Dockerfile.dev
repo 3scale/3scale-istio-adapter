@@ -1,0 +1,28 @@
+FROM golang:1.10 AS build
+
+ENV WORKDIR=/go/src/github.com/3scale/istio-integration/3scaleAdapter
+
+ADD . ${WORKDIR}
+WORKDIR ${WORKDIR}
+
+RUN go get -u github.com/golang/dep/cmd/dep && \
+    dep ensure -v && \
+    go build -gcflags "all=-N -l" -o /tmp/3scaleAdapter cmd/main.go
+
+
+FROM philipgough/dlv:centos as debugger
+
+FROM centos
+
+ENV THREESCALE_LISTEN_ADDR 3333
+
+WORKDIR /app
+
+COPY --from=build /tmp/3scaleAdapter /app/
+COPY --from=debugger /go/bin/dlv /app/
+
+EXPOSE 3333
+EXPOSE 40000
+
+CMD ["/app/dlv", "--listen=:40000", "--headless=true", "--api-version=2", "exec", "/app/3scaleAdapter"]
+

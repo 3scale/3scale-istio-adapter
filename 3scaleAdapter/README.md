@@ -38,7 +38,7 @@ then deploy the 3scale Adapter POD and required configuration:
 
 ```
 oc project istio-system
-oc create -f ./openshift
+oc create -f ./deploy
 oc create -f ./istio 
 ```
 

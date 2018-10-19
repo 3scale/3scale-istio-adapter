@@ -1,8 +1,32 @@
 
 
-## Devel
+# Development and testing
 
-### Build Mixer server and client
+This document provides some instructions that may be helpfully when contributing changes and testing the adapter locally.
+
+You will need a working Go environment to test and contribute to this project.
+This project uses `dep` for dependency management. Follow the [installation instructions](https://golang.github.io/dep/docs/installation.html) for your operating system.
+
+## Testing the adapter
+
+### Running tests
+
+Running `make unit` and `make integration` will run the unit tests and integration tests respectively. The adapters integration test uses the testing framework
+provided by Istio to create an in-memory `mixer server` and therefore does not require any external dependencies. Appending `_coverage` to either of the `make` test
+targets generates coverage reports.
+
+The integration test above creates test servers to simulate responses from 3scale. However testing can be done using real data by following instructions in the next section.
+
+__________________________________
+
+### Running tests against real data
+
+Requirements:
+1. Existing 3scale account
+1. Istio source code.
+
+
+#### Build Mixer server and client
 
 Get the istio sources:
 
@@ -21,14 +45,14 @@ make mixs && make mixc
 
 Make sure you have the `$GOPATH/bin/` in your `$PATH` var.
 
-Now you should be able to use mixc / mixs:
+Now you should be able to use `mixc`/`mixs`:
 
 ```
 mixc version
 mixs version
 ```
 
-### Get your 3scale account
+#### Get your 3scale account
 
 You can signup for a trial account here: https://www.3scale.net/signup/
 
@@ -41,20 +65,16 @@ You will need to write down:
   * Service ID, you can find the service ID in the API section, as the "ID for API calls is XXXXXXXXXX"
   * User_key: You will find this key in the integration page.
 
-### Run a local instance of the adapter
+#### Run a local instance of the adapter
 
-Get the adapter:
+Build the adapter:
 
 ```
 go get github.com/3scale/istio-integration/3scaleAdapter
-```
-
-Download deps:
-
-```
 cd $GOPATH/src/github.com/3scale/istio-integration/3scaleAdapter
-dep ensure -v 
+make build
 ```
+
 
 Modify the testdata with you 3scale account information:
 
@@ -78,33 +98,26 @@ spec:
    address: "[::]:3333"
 ```
 
-Run the adapter:
+
+Run the adapter locally...:
 
 ```
 THREESCALE_LISTEN_ADDR=3333 go run cmd/main.go
 ```
 
-### Run the adapter in a container
-
-Use the provided Makefile:
-
+Or in a container using the provided `make` target:
 ```
 make docker-test
 ```
 
-### Run Mixer
+#### Run Mixer
 
 Start `mixs`:
-
 ```
-mixs server --configStoreURL=fs://$GOPATH/src/github.com/3scale/istio-integration/3scaleAdapter/testdata
-
-or
-
 make mixer
 ```
 
-### Test the adapter
+#### Test the adapter
 
 Run `mixc` with the desired request.path:
 
@@ -114,3 +127,41 @@ mixc check -s request.path="/thepath?user_key=XXXXXXXXXXXXXXXXXXXXXXX"
 
 With this, you should be able to simulate the istio -> mixer -> adapter -> 3scale path.
 
+__________________________________
+
+## Creating a debuggable adapter
+
+During development, it may be useful to step through adapter code while it's running within a cluster.
+To do this you will need to build a specific version of the adapter image.
+
+This guide assumes you have an OpenShift cluster running with istio installed in the `istio-system` namespace
+and the 3scale adapter has already been deployed into that project
+
+Run the following to create the image:
+```
+make debug-image REGISTRY=$(whoami) IMAGE=3scaleadapter TAG=debug
+```
+
+The debugger listens on port 40000 and we need to patch the service, run the following:
+```bash
+oc patch svc -n istio-system threescaleistioadapter \
+   --patch='{"spec":{"ports":[{"name":"debug", "port":40000,"targetPort":40000}]}}'
+```
+
+Next, we need to patch the deployment with the image we built above:
+```bash
+export THREESCALE_DEBUG_ADAPTER=$(whoami)/3scaleistioadapter:debug
+docker push ${THREESCALE_DEBUG_ADAPTER}
+oc patch deployment -n istio-system 3scale-istio-adapter \
+   --patch='{"spec":{"template":{"spec":{"containers":[{"name": "3scale-istio-adapter", "image":"'${THREESCALE_DEBUG_ADAPTER}'"}]}}}}'
+```
+
+Now, we need to get the Pod name and do some port forwarding:
+```bash
+POD_NAME="$(oc get po -n istio-system -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}')"
+oc port-forward ${POD_NAME} 40000 -n istio-system
+```
+
+Connect a remote debugger to `localhost:40000` and the adapter will begin to listen on `3333` as normal.
+
+__________________________________
