@@ -3,9 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale"
 	"github.com/spf13/viper"
@@ -66,7 +68,12 @@ func main() {
 		addr = "0"
 	}
 
-	s, err := threescale.NewThreescale(addr)
+	c := &http.Client{
+		// Setting some sensible default here for http timeouts
+		// This should probably come from a flag/env
+		Timeout: time.Duration(time.Second * 10),
+	}
+	s, err := threescale.NewThreescale(addr, c)
 
 	if err != nil {
 		log.Errorf("Unable to start sever: %v", err)

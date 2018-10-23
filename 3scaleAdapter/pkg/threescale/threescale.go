@@ -13,10 +13,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"time"
 
+	backendC "github.com/3scale/3scale-go-client/client"
+	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/3scale/istio-integration/3scaleAdapter/config"
-	"github.com/3scale/istio-integration/3scaleAdapter/pkg/httpPluginClient"
 	"google.golang.org/grpc"
 	"istio.io/api/mixer/adapter/model/v1beta1"
 	"istio.io/istio/mixer/template/authorization"
@@ -35,7 +38,7 @@ type (
 	Threescale struct {
 		listener net.Listener
 		server   *grpc.Server
-		client   *httpPluginClient.Client
+		client   *http.Client
 	}
 )
 
@@ -55,72 +58,153 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	// Same happens with ValidUseCount, we need to investigate more.
 	result.ValidDuration = 1 * time.Millisecond
 
+	if r.AdapterConfig == nil {
+		result.Status.Code = 9
+		return &result, fmt.Errorf("adapter config not available")
+	}
+
 	cfg := &config.Params{}
-	if r.AdapterConfig != nil {
-		if err := cfg.Unmarshal(r.AdapterConfig.Value); err != nil {
-			log.Errorf("error unmarshalling adapter config: %v", err)
-			return nil, err
-		}
+	if err := cfg.Unmarshal(r.AdapterConfig.Value); err != nil {
+		log.Errorf("error unmarshalling adapter config: %v", err)
+		result.Status.Code = 3
+		return &result, err
 	}
 
-	log.Debugf("Got adapter config: %+v", cfg.String())
-
-	// Creates URL object from the config system URL.
-	systemURL, err := url.Parse(cfg.SystemUrl)
-
+	systemC, err := s.systemClientBuilder(cfg.SystemUrl)
 	if err != nil {
-		log.Errorf("Couldn't parse the SystemURL url: %s", err)
-		result.Status.Code = 13
-		return &result, nil
+		log.Errorf("error building HTTP client for 3scale system - %s", err.Error())
+		result.Status.Code = 3
+		return &result, err
 	}
 
-	originalRequest := buildRequestFromInstanceMsg(r.Instance)
-	ok, err := s.client.Authorize(cfg.AccessToken, cfg.ServiceId, systemURL, originalRequest)
-
+	status, err := s.isAuthorized(cfg, *r.Instance, systemC)
 	if err != nil {
-		log.Errorf("Problem with the Threescale client: %v", err)
-		result.Status.Code = 7
-		return &result, nil
+		log.Errorf("error authorizing request - %s", err.Error())
 	}
 
-	if ok {
-		// 0 -> Ok
-		// check https://github.com/grpc/grpc-go/blob/master/codes/codes.go
-		result.Status.Code = 0
-	} else {
-		// 7 -> PERMISSION DENIED
-		result.Status.Code = 7
-	}
-
-	log.Debugf("Returning result: %+v", result)
-
-	return &result, nil
+	result.Status.Code = status
+	return &result, err
 }
 
-func buildRequestFromInstanceMsg(instanceMsg *authorization.InstanceMsg) *http.Request {
+// isAuthorized returns code 0 is authorization is successful
+// based on grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
+func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, c *sysC.ThreeScaleClient) (int32, error) {
+	parsedRequest, err := url.ParseRequestURI(request.Action.Path)
+	if err != nil {
+		return 3, err
+	}
 
-	// Using the Properties from the authorization template, so the user can define
-	// the required headers for different authentication methods.
-	headers := make(map[string][]string)
+	userKey := parsedRequest.Query().Get("user_key")
+	if userKey == "" {
+		return 7, nil
+	}
 
-	for k, v := range instanceMsg.Action.Properties {
-		if k != "" && v.GetStringValue() != "" {
-			var value []string
-			headers[k] = append(value, v.GetStringValue())
+	// TODO - Some caching around this
+	pce, err := c.GetLatestProxyConfig(cfg.AccessToken, cfg.ServiceId, "production")
+	if err != nil {
+		return 9, err
+	}
+
+	authType := pce.ProxyConfig.Content.BackendAuthenticationType
+	switch authType {
+	case "provider_key", "service_token":
+		return s.doAuthRep(cfg.ServiceId, userKey, request.Action.Path, pce.ProxyConfig)
+	default:
+		return 16, fmt.Errorf("unsupported auth type for service %s", cfg.ServiceId)
+
+	}
+}
+
+func (s *Threescale) doAuthRep(svcID string, userKey string, actionPath string, conf sysC.ProxyConfig) (int32, error) {
+	var resp backendC.ApiResponse
+	var apiErr error
+
+	bc, err := s.backendClientBuilder(conf.Content.Proxy.Backend.Endpoint)
+	if err != nil {
+		return 3, err
+	}
+
+	params := backendC.NewAuthRepKeyParams("", "")
+	for _, pr := range conf.Content.Proxy.ProxyRules {
+		if match, err := regexp.MatchString(pr.Pattern, actionPath); err == nil {
+			if match {
+				baseDelta := 0
+				if val, ok := params.Metrics[pr.MetricSystemName]; ok {
+					baseDelta = val
+				}
+				params.Metrics.Add(pr.MetricSystemName, baseDelta+int(pr.Delta))
+			}
 		}
 	}
-	// Let's create the request object based on the original request from the user.
-	originalRequest := &http.Request{
-		Method: instanceMsg.Action.Method,
-		URL: &url.URL{
-			User:       &url.Userinfo{},
-			Path:       instanceMsg.Action.Path,
-			ForceQuery: false,
-		},
-		Header: headers,
+
+	if conf.Content.BackendAuthenticationType == "provider_key" {
+		resp, apiErr = bc.AuthRepProviderKey(userKey, conf.Content.BackendAuthenticationValue, svcID, params)
+	} else {
+		resp, apiErr = bc.AuthRepKey(userKey, conf.Content.BackendAuthenticationValue, svcID, params)
 	}
 
-	return originalRequest
+	if apiErr != nil {
+		return 2, apiErr
+	}
+
+	if !resp.Success {
+		return 7, nil
+	}
+
+	return 0, nil
+}
+
+func (s *Threescale) systemClientBuilder(systemURL string) (*sysC.ThreeScaleClient, error) {
+	sysURL, err := url.ParseRequestURI(systemURL)
+	if err != nil {
+		return nil, err
+	}
+
+	scheme, host, port := parseURL(sysURL)
+	ap, err := sysC.NewAdminPortal(scheme, host, port)
+	if err != nil {
+		return nil, err
+	}
+
+	return sysC.NewThreeScale(ap, s.client), nil
+}
+
+func (s *Threescale) backendClientBuilder(backendURL string) (*backendC.ThreeScaleClient, error) {
+	url, err := url.ParseRequestURI(backendURL)
+	if err != nil {
+		return nil, err
+	}
+
+	scheme, host, port := parseURL(url)
+	be, err := backendC.NewBackend(scheme, host, port)
+	if err != nil {
+		return nil, err
+	}
+
+	return backendC.NewThreeScale(be, s.client), nil
+}
+
+func parseURL(url *url.URL) (string, string, int) {
+	scheme := url.Scheme
+	if scheme == "" {
+		scheme = "https"
+	}
+
+	host, port, _ := net.SplitHostPort(url.Host)
+	if port == "" {
+		if scheme == "http" {
+			port = "80"
+		} else if scheme == "https" {
+			port = "443"
+		}
+	}
+
+	if host == "" {
+		host = url.Host
+	}
+
+	p, _ := strconv.Atoi(port)
+	return scheme, host, p
 }
 
 // Addr returns the Threescale addrs as a string
@@ -147,7 +231,7 @@ func (s *Threescale) Close() error {
 }
 
 // NewThreescale returns a Server interface
-func NewThreescale(addr string) (Server, error) {
+func NewThreescale(addr string, client *http.Client) (Server, error) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
 	if err != nil {
@@ -155,9 +239,9 @@ func NewThreescale(addr string) (Server, error) {
 	}
 	s := &Threescale{
 		listener: listener,
+		client:   client,
 	}
 
-	s.client = httpPluginClient.NewClient(nil)
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
 
 	s.server = grpc.NewServer()

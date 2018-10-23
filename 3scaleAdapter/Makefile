@@ -17,12 +17,12 @@ build_test_adapter: ## build the adapter with test coverage
 mixer: ## Run the mixer server
 	mixs server --configStoreURL=fs://$(CURDIR)/testdata
 
-unit: ## Run golang tests
+unit: ## Run unit tests
 	mkdir -p "$(CURDIR)/_output"
 	go test ./... -covermode=count -test.coverprofile="$(CURDIR)/_output/unit.cov"
 
 integration: build_test_adapter
-	./scripts/integration_tests.sh ${START_DEPENDENCIES}
+	go test ./... -covermode=count -tags=integration -test.coverprofile="$(CURDIR)/_output/integration.cov"
 
 test: unit integration
 
