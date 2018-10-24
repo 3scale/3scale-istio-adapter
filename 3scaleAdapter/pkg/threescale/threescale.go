@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	backendC "github.com/3scale/3scale-go-client/client"
@@ -108,14 +109,14 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 	authType := pce.ProxyConfig.Content.BackendAuthenticationType
 	switch authType {
 	case "provider_key", "service_token":
-		return s.doAuthRep(cfg.ServiceId, userKey, request.Action.Path, pce.ProxyConfig)
+		return s.doAuthRep(cfg.ServiceId, userKey, request, pce.ProxyConfig)
 	default:
 		return 16, fmt.Errorf("unsupported auth type for service %s", cfg.ServiceId)
 
 	}
 }
 
-func (s *Threescale) doAuthRep(svcID string, userKey string, actionPath string, conf sysC.ProxyConfig) (int32, error) {
+func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (int32, error) {
 	var resp backendC.ApiResponse
 	var apiErr error
 
@@ -124,17 +125,9 @@ func (s *Threescale) doAuthRep(svcID string, userKey string, actionPath string, 
 		return 3, err
 	}
 
-	params := backendC.NewAuthRepKeyParams("", "")
-	for _, pr := range conf.Content.Proxy.ProxyRules {
-		if match, err := regexp.MatchString(pr.Pattern, actionPath); err == nil {
-			if match {
-				baseDelta := 0
-				if val, ok := params.Metrics[pr.MetricSystemName]; ok {
-					baseDelta = val
-				}
-				params.Metrics.Add(pr.MetricSystemName, baseDelta+int(pr.Delta))
-			}
-		}
+	shouldReport, params := s.generateReports(request, conf)
+	if !shouldReport {
+		return 7, nil
 	}
 
 	if conf.Content.BackendAuthenticationType == "provider_key" {
@@ -152,6 +145,23 @@ func (s *Threescale) doAuthRep(svcID string, userKey string, actionPath string, 
 	}
 
 	return 0, nil
+}
+
+func (s *Threescale) generateReports(request authorization.InstanceMsg, conf sysC.ProxyConfig) (shouldReport bool, params backendC.AuthRepKeyParams) {
+	params = backendC.NewAuthRepKeyParams("", "")
+	for _, pr := range conf.Content.Proxy.ProxyRules {
+		if match, err := regexp.MatchString(pr.Pattern, request.Action.Path); err == nil {
+			if match && strings.ToUpper(pr.HTTPMethod) == strings.ToUpper(request.Action.Method) {
+				shouldReport = true
+				baseDelta := 0
+				if val, ok := params.Metrics[pr.MetricSystemName]; ok {
+					baseDelta = val
+				}
+				params.Metrics.Add(pr.MetricSystemName, baseDelta+int(pr.Delta))
+			}
+		}
+	}
+	return shouldReport, params
 }
 
 func (s *Threescale) systemClientBuilder(systemURL string) (*sysC.ThreeScaleClient, error) {
