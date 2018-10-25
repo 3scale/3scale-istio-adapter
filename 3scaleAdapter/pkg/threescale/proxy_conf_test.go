@@ -23,9 +23,9 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 	const ttl = time.Duration(time.Millisecond * 100)
 	type (
 		testInput struct {
-			name   string
-			params pb.Params
-			action *authorization.ActionMsg
+			name     string
+			params   pb.Params
+			template authorization.InstanceMsg
 		}
 
 		testResult struct {
@@ -72,9 +72,15 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 				SystemUrl:   "https://www.fake-system.3scale.net",
 				AccessToken: "happy-path",
 			},
-			action: &authorization.ActionMsg{
-				Path:   "/?user_key=secret",
-				Method: "get",
+			template: authorization.InstanceMsg{
+				Name: "",
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
+				},
+				Action: &authorization.ActionMsg{
+					Path:   "/?user_key=secret",
+					Method: "get",
+				},
 			},
 		},
 		{
@@ -84,9 +90,15 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 				SystemUrl:   "https://www.fake-system.3scale.net",
 				AccessToken: "happy-path",
 			},
-			action: &authorization.ActionMsg{
-				Path:   "/?user_key=secret",
-				Method: "get",
+			template: authorization.InstanceMsg{
+				Name: "",
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
+				},
+				Action: &authorization.ActionMsg{
+					Path:   "/?user_key=secret",
+					Method: "get",
+				},
 			},
 		},
 	}
@@ -96,7 +108,7 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 	results := []chan testResult{resultOne, resultTwo}
 
 	for i, input := range inputs {
-		copy := testInput{input.name, input.params, input.action}
+		copy := testInput{input.name, input.params, input.template}
 		index := i
 		go func(input testInput, index int) {
 			r := &authorization.HandleAuthorizationRequest{
@@ -109,7 +121,7 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 
 			b, _ := input.params.Marshal()
 			r.AdapterConfig.Value = b
-			r.Instance.Action = input.action
+			r.Instance = &input.template
 
 			result, err := c.HandleAuthorization(ctx, r)
 			results[index] <- testResult{result, err}
@@ -165,7 +177,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 		testInput struct {
 			name   string
 			params pb.Params
-			action *authorization.ActionMsg
+			template authorization.InstanceMsg
 		}
 
 		testResult struct {
@@ -219,9 +231,15 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 				SystemUrl:   "https://www.fake-system.3scale.net",
 				AccessToken: "happy-path",
 			},
-			action: &authorization.ActionMsg{
-				Path:   "/?user_key=secret",
-				Method: "get",
+			template: authorization.InstanceMsg{
+				Name: "",
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
+				},
+				Action: &authorization.ActionMsg{
+					Path:   "/?user_key=secret",
+					Method: "get",
+				},
 			},
 		},
 		{
@@ -231,9 +249,15 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 				SystemUrl:   "https://www.fake-system.3scale.net",
 				AccessToken: "happy-path",
 			},
-			action: &authorization.ActionMsg{
-				Path:   "/?user_key=secret",
-				Method: "get",
+			template: authorization.InstanceMsg{
+				Name: "",
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
+				},
+				Action: &authorization.ActionMsg{
+					Path:   "/?user_key=secret",
+					Method: "get",
+				},
 			},
 		},
 	}
@@ -243,7 +267,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	results := []chan testResult{resultOne, resultTwo}
 
 	for i, input := range inputs {
-		copy := testInput{input.name, input.params, input.action}
+		copy := testInput{input.name, input.params, input.template}
 		index := i
 		go func(input testInput, index int) {
 			r := &authorization.HandleAuthorizationRequest{
@@ -256,7 +280,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 
 			b, _ := input.params.Marshal()
 			r.AdapterConfig.Value = b
-			r.Instance.Action = input.action
+			r.Instance = &input.template
 
 			result, err := c.HandleAuthorization(ctx, r)
 			results[index] <- testResult{result, err}

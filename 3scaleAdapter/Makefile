@@ -1,4 +1,4 @@
-TAG ?= 0.1-httpPlugin
+TAG ?= 0.2
 IMAGE_NAME = 3scaleistioadapter:$(TAG)
 REGISTRY ?= quay.io/3scale
 LISTEN_ADDR ?= 3333

@@ -206,7 +206,6 @@ func (pc *ProxyConfigCache) flushCache(exitC chan bool) {
 
 func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
 	for {
-
 		select {
 		case stop := <-exitC:
 			if stop {

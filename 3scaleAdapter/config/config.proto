@@ -16,4 +16,8 @@ message Params {
 
     string access_token = 3;
 
+    string cache_valid_seconds = 4;
+
+    string cache_valid_hits = 5;
+
 }
