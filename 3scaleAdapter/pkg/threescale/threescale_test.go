@@ -18,11 +18,13 @@ import (
 func TestHandleAuthorization(t *testing.T) {
 	ctx := context.TODO()
 	inputs := []struct {
+		name         string
 		params       pb.Params
 		action       *authorization.ActionMsg
 		expectStatus int32
 	}{
 		{
+			name: "Test fail - invalid system url in CRD",
 			params: pb.Params{
 				ServiceId:   "123",
 				SystemUrl:   "www.invalid.com",
@@ -31,6 +33,7 @@ func TestHandleAuthorization(t *testing.T) {
 			expectStatus: 3,
 		},
 		{
+			name: "Test fail - missing request path",
 			params: pb.Params{
 				ServiceId:   "123",
 				SystemUrl:   "https://www.fake-system.3scale.net",
@@ -40,6 +43,7 @@ func TestHandleAuthorization(t *testing.T) {
 			action:       &authorization.ActionMsg{},
 		},
 		{
+			name: "Test fail - missing user_key in query param",
 			params: pb.Params{
 				ServiceId:   "123",
 				SystemUrl:   "https://www.fake-system.3scale.net",
@@ -51,6 +55,7 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 		},
 		{
+			name: "Test fail - invalid or no response from 3scale backend",
 			params: pb.Params{
 				ServiceId:   "123",
 				SystemUrl:   "https://www.fake-system.3scale.net",
@@ -62,6 +67,7 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 		},
 		{
+			name: "Test fail - Non 2xx status code from 3scale backend",
 			params: pb.Params{
 				ServiceId:   "123",
 				SystemUrl:   "https://www.fake-system.3scale.net",
@@ -69,10 +75,25 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: 7,
 			action: &authorization.ActionMsg{
-				Path: "/test?user_key=invalid-backend-resp",
+				Path:   "/test?user_key=invalid-backend-resp",
+				Method: "get",
 			},
 		},
 		{
+			name: "Test fail - non-matching mapping rule",
+			params: pb.Params{
+				ServiceId:   "123",
+				SystemUrl:   "https://www.fake-system.3scale.net",
+				AccessToken: "any",
+			},
+			expectStatus: 7,
+			action: &authorization.ActionMsg{
+				Path: "/test?user_key=secret",
+                                Method: "post",
+			},
+		},
+		{
+			name: "Test success - 200 response from AuthRep call",
 			params: pb.Params{
 				ServiceId:   "123",
 				SystemUrl:   "https://www.fake-system.3scale.net",
@@ -80,7 +101,8 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: 0,
 			action: &authorization.ActionMsg{
-				Path: "/test?user_key=secret",
+				Path:   "/?user_key=secret",
+				Method: "get",
 			},
 		},
 	}
