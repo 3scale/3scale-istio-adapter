@@ -7,7 +7,7 @@ WORKDIR ${WORKDIR}
 
 RUN go get -u github.com/golang/dep/cmd/dep && \
     dep ensure -v && \
-    go build -gcflags "all=-N -l" -o /tmp/3scaleAdapter cmd/main.go
+    go build -race -gcflags "all=-N -l" -o /tmp/3scaleAdapter cmd/main.go
 
 
 FROM philipgough/dlv:centos as debugger
