@@ -17,6 +17,9 @@ const (
 	// DefaultCacheTTL - Default time to wait before purging expired items from the cache
 	DefaultCacheTTL = time.Duration(time.Minute * 5)
 
+	// DefaultCacheRefreshBuffer - Default time difference to refresh the cache element before expiry time
+	DefaultCacheRefreshBuffer = time.Duration(time.Minute * 1)
+
 	// DefaultCacheLimit - Default max number of items that can be stored in the cache at any time
 	DefaultCacheLimit = 1000
 
@@ -41,6 +44,8 @@ type ProxyConfigCache struct {
 	refreshBuffer        time.Duration
 	flushWorkerRunning   int32
 	stopFlushWorker      chan bool
+	refreshWorkerRunning int32
+	stopRefreshWorker    chan bool
 	mutex                sync.RWMutex
 	cache                map[string]proxyStore
 }
@@ -56,6 +61,7 @@ func NewProxyConfigCache(cacheTTL time.Duration, refreshBuffer time.Duration, li
 		refreshBuffer:        refreshBuffer,
 		cache:                make(map[string]proxyStore, limit),
 		flushWorkerRunning:   0,
+		refreshWorkerRunning: 0,
 	}
 	return pcc
 }
@@ -64,6 +70,24 @@ func NewProxyConfigCache(cacheTTL time.Duration, refreshBuffer time.Duration, li
 func (pc *ProxyConfigCache) FlushCache() {
 	log.Debugf("starting cache flush for proxy config")
 	pc.delete(pc.markForDeletion()...)
+}
+
+// RefreshCache iterates over the items in the cache and updates their values
+// If a configuration cannot be refreshed then the existing values is considered invalid
+// and will be purged from the cache
+func (pc *ProxyConfigCache) RefreshCache() {
+	log.Debugf("refreshing cache for existing proxy config entries")
+	forRefresh := pc.markForRefresh()
+	for _, store := range forRefresh {
+		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
+		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client)
+		if err != nil {
+			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
+			pc.delete(cacheKey)
+			break
+		}
+		pc.set(cacheKey, pce, store.replayWith)
+	}
 }
 
 // StartFlushWorker starts a background process that periodically carries out the
@@ -87,6 +111,30 @@ func (pc *ProxyConfigCache) StopFlushWorker() error {
 
 	pc.stopFlushWorker <- true
 	close(pc.stopFlushWorker)
+	return nil
+}
+
+// StartRefreshWorker starts a background process that periodically carries out the
+// functionality provided by RefreshCache
+func (pc *ProxyConfigCache) StartRefreshWorker() error {
+	if !atomic.CompareAndSwapInt32(&pc.refreshWorkerRunning, 0, 1) {
+		return errors.New("worker has already been started")
+	}
+
+	pc.stopRefreshWorker = make(chan bool)
+	go pc.refreshCache(pc.stopRefreshWorker)
+	return nil
+}
+
+// StopRefreshWorker stops a background process started by StartRefreshWorker if it has been started
+// Returns an error if the background task is not running
+func (pc *ProxyConfigCache) StopRefreshWorker() error {
+	if !atomic.CompareAndSwapInt32(&pc.refreshWorkerRunning, 1, 0) {
+		return errors.New("worker is not running")
+	}
+
+	pc.stopRefreshWorker <- true
+	close(pc.stopRefreshWorker)
 	return nil
 }
 
@@ -156,6 +204,22 @@ func (pc *ProxyConfigCache) flushCache(exitC chan bool) {
 	}
 }
 
+func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
+	for {
+
+		select {
+		case stop := <-exitC:
+			if stop {
+				log.Debugf("stopping cache refresh worker")
+				return
+			}
+		default:
+			pc.RefreshCache()
+			<-time.After(pc.ttl)
+		}
+	}
+}
+
 func (pc *ProxyConfigCache) markForDeletion() []string {
 	var forDeletion []string
 	now := time.Now()
@@ -167,6 +231,23 @@ func (pc *ProxyConfigCache) markForDeletion() []string {
 		}
 	}
 	return forDeletion
+}
+
+func (pc *ProxyConfigCache) markForRefresh() []proxyStore {
+	var forRefresh []proxyStore
+	pc.mutex.RLock()
+	now := time.Now()
+	defer pc.mutex.RUnlock()
+	for _, v := range pc.cache {
+		if pc.shouldRefresh(now, v.expiresAt) {
+			forRefresh = append(forRefresh, v)
+		}
+	}
+	return forRefresh
+}
+
+func (pc *ProxyConfigCache) shouldRefresh(currentTime time.Time, expiryTime time.Time) bool {
+	return currentTime.Add(pc.refreshBuffer).After(expiryTime)
 }
 
 func isExpired(currentTime time.Time, expiryTime time.Time) bool {
