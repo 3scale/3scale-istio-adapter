@@ -71,7 +71,7 @@ func TestAuthorizationCheck(t *testing.T) {
 			            "Check":{
 			                "Status":{
 			                    "code":7,
-			                    "message":"threescalehandler.handler.istio-system:"
+			                    "message":"threescalehandler.handler.istio-system:user_key_invalid"
 			                },
 			                "ValidDuration":1000000
 			            },

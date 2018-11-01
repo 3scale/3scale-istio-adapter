@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/3scale/3scale-go-client/fake"
@@ -22,7 +23,18 @@ func TestHandleAuthorization(t *testing.T) {
 		params       pb.Params
 		action       *authorization.ActionMsg
 		expectStatus int32
+		expectErrMsg []string
 	}{
+		{
+			name: "Test nil config",
+			params: pb.Params{
+				ServiceId:   "123",
+				SystemUrl:   "set-nil",
+				AccessToken: "789",
+			},
+			expectStatus: 13,
+			expectErrMsg: []string{"internal error - adapter config is not available"},
+		},
 		{
 			name: "Test fail - invalid system url in CRD",
 			params: pb.Params{
@@ -31,6 +43,7 @@ func TestHandleAuthorization(t *testing.T) {
 				AccessToken: "789",
 			},
 			expectStatus: 3,
+			expectErrMsg: []string{"error building HTTP client for 3scale system", "invalid URI for request"},
 		},
 		{
 			name: "Test fail - missing request path",
@@ -41,6 +54,7 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: 3,
 			action:       &authorization.ActionMsg{},
+			expectErrMsg: []string{"error parsing request URI"},
 		},
 		{
 			name: "Test fail - missing user_key in query param",
@@ -53,6 +67,7 @@ func TestHandleAuthorization(t *testing.T) {
 			action: &authorization.ActionMsg{
 				Path: "/test",
 			},
+			expectErrMsg: []string{"user_key must be provided as a query parameter"},
 		},
 		{
 			name: "Test fail - invalid or no response from 3scale backend",
@@ -65,6 +80,7 @@ func TestHandleAuthorization(t *testing.T) {
 			action: &authorization.ActionMsg{
 				Path: "/test?user_key=secret",
 			},
+			expectErrMsg: []string{"currently unable to fetch required data from 3scale system"},
 		},
 		{
 			name: "Test fail - Non 2xx status code from 3scale backend",
@@ -78,6 +94,7 @@ func TestHandleAuthorization(t *testing.T) {
 				Path:   "/test?user_key=invalid-backend-resp",
 				Method: "get",
 			},
+			expectErrMsg: []string{"user_key_invalid"},
 		},
 		{
 			name: "Test fail - non-matching mapping rule",
@@ -91,6 +108,7 @@ func TestHandleAuthorization(t *testing.T) {
 				Path:   "/test?user_key=secret",
 				Method: "post",
 			},
+			expectErrMsg: []string{"no matching mapping rule for request with method post and path /test"},
 		},
 		{
 			name: "Test success - 200 response from AuthRep call",
@@ -118,6 +136,10 @@ func TestHandleAuthorization(t *testing.T) {
 		b, _ := input.params.Marshal()
 		r.AdapterConfig.Value = b
 		r.Instance.Action = input.action
+
+		if input.params.SystemUrl == "set-nil" {
+			r.AdapterConfig = nil
+		}
 
 		httpClient := NewTestClient(func(req *http.Request) *http.Response {
 			params := req.URL.Query()
@@ -154,6 +176,19 @@ func TestHandleAuthorization(t *testing.T) {
 		result, _ := c.HandleAuthorization(ctx, r)
 		if result.Status.Code != input.expectStatus {
 			t.Errorf("Expected %v got %#v", input.expectStatus, result.Status.Code)
+		}
+
+		if result.Status.Code != 0 {
+			if len(input.expectErrMsg) == 0 {
+				t.Errorf("Error tests should produce a message")
+			}
+
+			for _, msg := range input.expectErrMsg {
+				if !strings.Contains(result.Status.Message, msg) {
+					t.Errorf("expected message not delivered to end user")
+				}
+			}
+
 		}
 	}
 }
