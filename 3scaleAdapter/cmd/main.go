@@ -73,11 +73,20 @@ func main() {
 		// This should probably come from a flag/env
 		Timeout: time.Duration(time.Second * 10),
 	}
-	s, err := threescale.NewThreescale(addr, c)
+
+	proxyCache := threescale.NewProxyConfigCache(
+		threescale.DefaultCacheTTL, threescale.DefaultCacheRefreshBuffer, threescale.DefaultCacheLimit)
+
+	s, err := threescale.NewThreescale(addr, c, proxyCache)
 
 	if err != nil {
 		log.Errorf("Unable to start sever: %v", err)
 		os.Exit(1)
+	}
+
+	proxyCache.StartRefreshWorker()
+	if err != nil {
+		log.Errorf("error while starting cache refresh worker %s", err.Error())
 	}
 
 	shutdown := make(chan error, 1)

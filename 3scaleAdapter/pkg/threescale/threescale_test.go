@@ -88,8 +88,8 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: 7,
 			action: &authorization.ActionMsg{
-				Path: "/test?user_key=secret",
-                                Method: "post",
+				Path:   "/test?user_key=secret",
+				Method: "post",
 			},
 		},
 		{
@@ -147,8 +147,10 @@ func TestHandleAuthorization(t *testing.T) {
 				}
 			}
 		})
-
-		c := &Threescale{client: httpClient}
+		c := &Threescale{
+			client:     httpClient,
+			proxyCache: nil,
+		}
 		result, _ := c.HandleAuthorization(ctx, r)
 		if result.Status.Code != input.expectStatus {
 			t.Errorf("Expected %v got %#v", input.expectStatus, result.Status.Code)
@@ -159,7 +161,7 @@ func TestHandleAuthorization(t *testing.T) {
 func Test_NewThreescale(t *testing.T) {
 
 	addr := "0"
-	s, err := NewThreescale(addr, http.DefaultClient)
+	s, err := NewThreescale(addr, http.DefaultClient, nil)
 	if err != nil {
 		t.Errorf("Error running threescale server %#v", err)
 	}

@@ -37,9 +37,10 @@ type (
 
 	// Threescale contains the Listener and the server
 	Threescale struct {
-		listener net.Listener
-		server   *grpc.Server
-		client   *http.Client
+		listener   net.Listener
+		server     *grpc.Server
+		client     *http.Client
+		proxyCache *ProxyConfigCache
 	}
 )
 
@@ -90,6 +91,9 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 // isAuthorized returns code 0 is authorization is successful
 // based on grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
 func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, c *sysC.ThreeScaleClient) (int32, error) {
+	var pce sysC.ProxyConfigElement
+	var proxyConfErr error
+
 	parsedRequest, err := url.ParseRequestURI(request.Action.Path)
 	if err != nil {
 		return 3, err
@@ -100,9 +104,13 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 		return 7, nil
 	}
 
-	// TODO - Some caching around this
-	pce, err := c.GetLatestProxyConfig(cfg.AccessToken, cfg.ServiceId, "production")
-	if err != nil {
+	if s.proxyCache != nil {
+		pce, proxyConfErr = s.proxyCache.get(cfg, c)
+	} else {
+		pce, proxyConfErr = getFromRemote(cfg, c)
+	}
+
+	if proxyConfErr != nil {
 		return 9, err
 	}
 
@@ -241,15 +249,17 @@ func (s *Threescale) Close() error {
 }
 
 // NewThreescale returns a Server interface
-func NewThreescale(addr string, client *http.Client) (Server, error) {
+func NewThreescale(addr string, client *http.Client, proxyCache *ProxyConfigCache) (Server, error) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
 	if err != nil {
 		return nil, err
 	}
+
 	s := &Threescale{
-		listener: listener,
-		client:   client,
+		listener:   listener,
+		client:     client,
+		proxyCache: proxyCache,
 	}
 
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())

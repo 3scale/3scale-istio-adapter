@@ -111,7 +111,7 @@ func TestAuthorizationCheck(t *testing.T) {
 	for _, input := range inputs {
 		s := integration.Scenario{
 			Setup: func() (ctx interface{}, err error) {
-				pServer, err := NewThreescale("3333", http.DefaultClient)
+				pServer, err := NewThreescale("3333", http.DefaultClient, nil)
 				if err != nil {
 					return nil, err
 				}
