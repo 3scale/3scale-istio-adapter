@@ -9,6 +9,7 @@ package threescale
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -21,8 +22,10 @@ import (
 	backendC "github.com/3scale/3scale-go-client/client"
 	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/3scale/istio-integration/3scaleAdapter/config"
+	"github.com/gogo/googleapis/google/rpc"
 	"google.golang.org/grpc"
 	"istio.io/api/mixer/adapter/model/v1beta1"
+	"istio.io/istio/mixer/pkg/status"
 	"istio.io/istio/mixer/template/authorization"
 	"istio.io/istio/pkg/log"
 )
@@ -61,21 +64,25 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	result.ValidDuration = 1 * time.Millisecond
 
 	if r.AdapterConfig == nil {
-		result.Status.Code = 9
-		return &result, fmt.Errorf("adapter config not available")
+		err := errors.New("internal error - adapter config is not available")
+		log.Error(err.Error())
+		result.Status = status.WithError(err)
+		return &result, err
 	}
 
 	cfg := &config.Params{}
 	if err := cfg.Unmarshal(r.AdapterConfig.Value); err != nil {
-		log.Errorf("error unmarshalling adapter config: %v", err)
-		result.Status.Code = 3
+		unmarshalErr := errors.New("internal error - unable to unmarshal adapter config")
+		log.Errorf("%s: %v", unmarshalErr, err)
+		result.Status = status.WithError(unmarshalErr)
 		return &result, err
 	}
 
 	systemC, err := s.systemClientBuilder(cfg.SystemUrl)
 	if err != nil {
-		log.Errorf("error building HTTP client for 3scale system - %s", err.Error())
-		result.Status.Code = 3
+		err = fmt.Errorf("error building HTTP client for 3scale system - %s", err.Error())
+		log.Error(err.Error())
+		result.Status = status.WithInvalidArgument(err.Error())
 		return &result, err
 	}
 
@@ -84,24 +91,24 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		log.Errorf("error authorizing request - %s", err.Error())
 	}
 
-	result.Status.Code = status
+	result.Status = status
 	return &result, err
 }
 
 // isAuthorized returns code 0 is authorization is successful
 // based on grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
-func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, c *sysC.ThreeScaleClient) (int32, error) {
+func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, c *sysC.ThreeScaleClient) (rpc.Status, error) {
 	var pce sysC.ProxyConfigElement
 	var proxyConfErr error
 
 	parsedRequest, err := url.ParseRequestURI(request.Action.Path)
 	if err != nil {
-		return 3, err
+		return status.WithInvalidArgument(fmt.Sprintf("error parsing request URI - %s", err.Error())), err
 	}
 
 	userKey := parsedRequest.Query().Get("user_key")
 	if userKey == "" {
-		return 7, nil
+		return status.WithPermissionDenied("user_key must be provided as a query parameter"), nil
 	}
 
 	if s.proxyCache != nil {
@@ -111,7 +118,8 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 	}
 
 	if proxyConfErr != nil {
-		return 9, err
+		return status.WithMessage(
+			9, fmt.Sprintf("currently unable to fetch required data from 3scale system - %s", proxyConfErr.Error())), err
 	}
 
 	authType := pce.ProxyConfig.Content.BackendAuthenticationType
@@ -119,23 +127,26 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 	case "provider_key", "service_token":
 		return s.doAuthRep(cfg.ServiceId, userKey, request, pce.ProxyConfig)
 	default:
-		return 16, fmt.Errorf("unsupported auth type for service %s", cfg.ServiceId)
+		err := fmt.Errorf("unsupported auth type %s for service %s", authType, cfg.ServiceId)
+		return status.WithMessage(16, err.Error()), err
 
 	}
 }
 
-func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (int32, error) {
+func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (rpc.Status, error) {
 	var resp backendC.ApiResponse
 	var apiErr error
 
 	bc, err := s.backendClientBuilder(conf.Content.Proxy.Backend.Endpoint)
 	if err != nil {
-		return 3, err
+		return status.WithInvalidArgument(
+			fmt.Sprintf("error creating 3scale backend client - %s", err.Error())), err
 	}
 
 	shouldReport, params := s.generateReports(request, conf)
 	if !shouldReport {
-		return 7, nil
+		return status.WithPermissionDenied(fmt.Sprintf("no matching mapping rule for request with method %s and path %s",
+			request.Action.Method, request.Action.Path)), nil
 	}
 
 	if conf.Content.BackendAuthenticationType == "provider_key" {
@@ -145,14 +156,14 @@ func (s *Threescale) doAuthRep(svcID string, userKey string, request authorizati
 	}
 
 	if apiErr != nil {
-		return 2, apiErr
+		return status.WithMessage(2, fmt.Sprintf("error calling 3scale AuthRep -  %s", apiErr.Error())), apiErr
 	}
 
 	if !resp.Success {
-		return 7, nil
+		return status.WithPermissionDenied(resp.Reason), nil
 	}
 
-	return 0, nil
+	return status.OK, nil
 }
 
 func (s *Threescale) generateReports(request authorization.InstanceMsg, conf sysC.ProxyConfig) (shouldReport bool, params backendC.AuthRepKeyParams) {
