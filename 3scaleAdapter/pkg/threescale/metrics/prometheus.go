@@ -6,6 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// DefaultMetricsPort - Default port that metrics endpoint will be served on
 const DefaultMetricsPort = 8080
 
 var (
@@ -52,14 +53,17 @@ func init() {
 	prometheus.MustRegister(systemLatency, backendLatency)
 }
 
-func ObserveSystemLatency(sysURL string, serviceId string, observed time.Duration) {
-	systemLatency.WithLabelValues(sysURL, serviceId).Observe(observed.Seconds())
+// ObserveSystemLatency reports a metric to system latency histogram
+func ObserveSystemLatency(sysURL string, serviceID string, observed time.Duration) {
+	systemLatency.WithLabelValues(sysURL, serviceID).Observe(observed.Seconds())
 }
 
-func ObserveBackendLatency(backendURL string, serviceId string, observed time.Duration) {
-	backendLatency.WithLabelValues(backendURL, serviceId).Observe(observed.Seconds())
+// ObserveBackendLatency reports a metric to backend latency histogram
+func ObserveBackendLatency(backendURL string, serviceID string, observed time.Duration) {
+	backendLatency.WithLabelValues(backendURL, serviceID).Observe(observed.Seconds())
 }
 
+// IncrementTotalRequests increments the request count for authorization handler
 func IncrementTotalRequests() {
 	totalRequests.Inc()
 }

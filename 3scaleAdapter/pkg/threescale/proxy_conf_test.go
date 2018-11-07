@@ -175,8 +175,8 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	const ttl = time.Duration(time.Second * 10)
 	type (
 		testInput struct {
-			name   string
-			params pb.Params
+			name     string
+			params   pb.Params
 			template authorization.InstanceMsg
 		}
 
@@ -210,7 +210,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	pc := NewProxyConfigCache(time.Duration(ttl), time.Duration(ttl), 3)
 	proxyConf = unmarshalConfig(t)
 
-	c := &Threescale{client: httpClient, proxyCache: pc}
+	c := &Threescale{client: httpClient, proxyCache: pc, reportMetrics: true}
 	sysClient, err := c.systemClientBuilder("https://www.fake-system.3scale.net")
 	if err != nil {
 		t.Fatalf("unexpected error builoding system client")

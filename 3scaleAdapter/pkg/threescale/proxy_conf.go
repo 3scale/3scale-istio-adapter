@@ -9,7 +9,7 @@ import (
 
 	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/3scale/istio-integration/3scaleAdapter/config"
-
+	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
 	"istio.io/istio/pkg/log"
 )
 
@@ -46,6 +46,7 @@ type ProxyConfigCache struct {
 	stopFlushWorker      chan bool
 	refreshWorkerRunning int32
 	stopRefreshWorker    chan bool
+	reportMetrics        bool
 	mutex                sync.RWMutex
 	cache                map[string]proxyStore
 }
@@ -80,7 +81,7 @@ func (pc *ProxyConfigCache) RefreshCache() {
 	forRefresh := pc.markForRefresh()
 	for _, store := range forRefresh {
 		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
-		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client)
+		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.reportMetrics)
 		if err != nil {
 			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
 			pc.delete(cacheKey)
@@ -149,7 +150,7 @@ func (pc *ProxyConfigCache) get(cfg *config.Params, c *sysC.ThreeScaleClient) (s
 	pc.mutex.RUnlock()
 
 	if !ok {
-		conf, err = getFromRemote(cfg, c)
+		conf, err = getFromRemote(cfg, c, pc.reportMetrics)
 		if err == nil {
 			replayWith := cacheRefreshStore{cfg, c}
 			go pc.set(cacheKey, conf, replayWith)
@@ -157,6 +158,10 @@ func (pc *ProxyConfigCache) get(cfg *config.Params, c *sysC.ThreeScaleClient) (s
 	} else {
 		log.Debugf("proxy config fetched from cache for service id %s", cfg.ServiceId)
 		conf = e.element
+
+		if pc.reportMetrics {
+			go metrics.IncrementCacheHits()
+		}
 	}
 
 	return conf, err
@@ -254,7 +259,16 @@ func isExpired(currentTime time.Time, expiryTime time.Time) bool {
 }
 
 // Fetch the proxy config from 3scale using the client
-func getFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient) (sysC.ProxyConfigElement, error) {
+func getFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, reportMetrics bool) (sysC.ProxyConfigElement, error) {
 	log.Debugf("proxy config for service id %s is being fetching from 3scale", cfg.ServiceId)
-	return c.GetLatestProxyConfig(cfg.AccessToken, cfg.ServiceId, "production")
+
+	start := time.Now()
+	proxyConf, err := c.GetLatestProxyConfig(cfg.AccessToken, cfg.ServiceId, "production")
+	elapsed := time.Since(start)
+
+	if reportMetrics {
+		go metrics.ObserveSystemLatency(cfg.SystemUrl, cfg.ServiceId, elapsed)
+	}
+
+	return proxyConf, err
 }

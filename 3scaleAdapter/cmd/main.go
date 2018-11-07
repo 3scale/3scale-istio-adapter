@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale"
+	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
 	"github.com/spf13/viper"
 	"istio.io/istio/pkg/log"
 )

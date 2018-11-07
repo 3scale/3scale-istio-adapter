@@ -221,8 +221,9 @@ func TestHandleAuthorization(t *testing.T) {
 			}
 		})
 		c := &Threescale{
-			client:     httpClient,
-			proxyCache: nil,
+			client:        httpClient,
+			proxyCache:    nil,
+			reportMetrics: true,
 		}
 		result, _ := c.HandleAuthorization(ctx, r)
 		if result.Status.Code != input.expectStatus {
@@ -448,7 +449,7 @@ func TestHandleLogEntry(t *testing.T) {
 func Test_NewThreescale(t *testing.T) {
 
 	addr := "0"
-	s, err := NewThreescale(addr, http.DefaultClient, nil)
+	s, err := NewThreescale(addr, http.DefaultClient, nil, &MetricsConfig{true, 8080})
 	if err != nil {
 		t.Errorf("Error running threescale server %#v", err)
 	}
