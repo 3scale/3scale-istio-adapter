@@ -20,6 +20,8 @@ func init() {
 	viper.BindEnv("log_level")
 	viper.BindEnv("log_json")
 	viper.BindEnv("listen_addr")
+	viper.BindEnv("report_metrics")
+	viper.BindEnv("metrics_port")
 
 	options := log.DefaultOptions()
 
@@ -41,6 +43,7 @@ func init() {
 
 	log.Configure(options)
 	log.Infof("Logging started")
+
 }
 
 func stringToLogLevel(loglevel string) (log.Level, error) {
@@ -78,7 +81,19 @@ func main() {
 	proxyCache := threescale.NewProxyConfigCache(
 		threescale.DefaultCacheTTL, threescale.DefaultCacheRefreshBuffer, threescale.DefaultCacheLimit)
 
-	s, err := threescale.NewThreescale(addr, c, proxyCache)
+	var metricsConf *threescale.MetricsConfig
+	if viper.IsSet("report_metrics") {
+		gatherMetrics := viper.GetBool("report_metrics")
+		if gatherMetrics {
+			port := metrics.DefaultMetricsPort
+			if viper.IsSet("metrics_port") {
+				port = viper.GetInt("metrics_port")
+			}
+			metricsConf = threescale.NewMetricsConfig(gatherMetrics, port)
+		}
+	}
+
+	s, err := threescale.NewThreescale(addr, c, proxyCache, metricsConf)
 
 	if err != nil {
 		log.Errorf("Unable to start sever: %v", err)
