@@ -58,8 +58,36 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":   "/thispath?user_key=INVALID",
-						"request.method": "get",
+						"request.path":    "/thispath",
+						"request.method":  "get",
+						"request.api_key": "VALID",
+					},
+				},
+			},
+			expect: `
+        {
+         "AdapterState": null,
+         "Returns": [
+          {
+           "Check": {
+            "Status": {},
+            "ValidDuration": 60000000000,
+            "ValidUseCount": 10000
+           },
+           "Quota": null,
+           "Error": null
+          }
+         ]
+        }`,
+		},
+		{
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"request.path":    "/thispath",
+						"request.method":  "get",
+						"request.api_key": "INVALID",
 					},
 				},
 			},
@@ -71,9 +99,10 @@ func TestAuthorizationCheck(t *testing.T) {
 			            "Check":{
 			                "Status":{
 			                    "code":7,
-			                    "message":"threescalehandler.handler.istio-system:user_key_invalid"
+			                    "message":"threescale.handler.istio-system:user_key_invalid"
 			                },
-			                "ValidDuration":1000000
+			                "ValidDuration": 0,
+                            "ValidUseCount": 0
 			            },
 			            "Quota":null,
 			            "Error":null
@@ -84,28 +113,59 @@ func TestAuthorizationCheck(t *testing.T) {
 		{
 			callWith: []integration.Call{
 				{
-					CallKind: integration.CHECK,
+					CallKind: integration.REPORT,
 					Attrs: map[string]interface{}{
-						"request.path":   "/thispath?user_key=VALID",
-						"request.method": "get",
+						"request.path":    "/thispath",
+						"request.method":  "get",
+						"request.api_key": "VALID",
 					},
 				},
 			},
 			expect: `
-			{
-			    "AdapterState":null,
-			    "Returns":[
-			        {
-			            "Check":{
-			                "Status":{},
-			                "ValidDuration":1000000
-			            },
-			            "Quota":null,
-			            "Error":null
-			        }
-			    ]
-			}`,
+        {
+        "AdapterState": null,
+        "Returns": [
+         {
+          "Check": {
+           "Status": {},
+           "ValidDuration": 0,
+           "ValidUseCount": 0
+          },
+          "Quota": null,
+          "Error": null
+         }
+        ]
+        }`,
 		},
+		// // This test will fail due to something broken in the ISTIO integration tests...
+		// // with "Unable to unmarshal...Result: json: cannot unmarshal object into Go struct field Return.Error of type error"
+		//		{
+		//			callWith: []integration.Call{
+		//				{
+		//					CallKind: integration.REPORT,
+		//					Attrs: map[string]interface{}{
+		//						"request.path":    "/thispath",
+		//						"request.method":  "get",
+		//						"request.api_key": "INVALID",
+		//					},
+		//				},
+		//			},
+		//			expect: `{
+		//	"AdapterState": null,
+		//	"Returns": [{
+		//		"Check": {
+		//			"Status": {},
+		//			"ValidDuration": 0,
+		//			"ValidUseCount": 0
+		//		},
+		//		"Quota": null,
+		//		"Error": {
+		//			"code": 2,
+		//			"message": "1 error occurred:\n\t* rpc error: code = Unknown desc = report has not been successful\n\n"
+		//		}
+		//	}]
+		//}`,
+		//		},
 	}
 
 	for _, input := range inputs {
