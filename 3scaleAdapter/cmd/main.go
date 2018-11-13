@@ -63,6 +63,21 @@ func stringToLogLevel(loglevel string) (log.Level, error) {
 	return log.InfoLevel, errors.New("invalid log_level")
 }
 
+func parseMetricsConfig() *metrics.Reporter {
+	if !viper.IsSet("report_metrics") || !viper.GetBool("report_metrics") {
+		return nil
+	}
+
+	var port int
+	if viper.IsSet("metrics_port") {
+		port = viper.GetInt("metrics_port")
+	} else {
+		port = 8080
+	}
+
+	return metrics.NewMetricsReporter(true, port)
+}
+
 func main() {
 	var addr string
 
@@ -81,19 +96,8 @@ func main() {
 	proxyCache := threescale.NewProxyConfigCache(
 		threescale.DefaultCacheTTL, threescale.DefaultCacheRefreshBuffer, threescale.DefaultCacheLimit)
 
-	var metricsConf *threescale.MetricsConfig
-	if viper.IsSet("report_metrics") {
-		gatherMetrics := viper.GetBool("report_metrics")
-		if gatherMetrics {
-			port := metrics.DefaultMetricsPort
-			if viper.IsSet("metrics_port") {
-				port = viper.GetInt("metrics_port")
-			}
-			metricsConf = threescale.NewMetricsConfig(gatherMetrics, port)
-		}
-	}
-
-	s, err := threescale.NewThreescale(addr, c, proxyCache, metricsConf)
+	adapterConfig := threescale.NewAdapterConfig(proxyCache, parseMetricsConfig())
+	s, err := threescale.NewThreescale(addr, c, adapterConfig)
 
 	if err != nil {
 		log.Errorf("Unable to start sever: %v", err)

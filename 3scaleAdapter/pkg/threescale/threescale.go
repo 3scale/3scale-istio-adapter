@@ -23,7 +23,6 @@ import (
 	"github.com/3scale/istio-integration/3scaleAdapter/config"
 	prometheus "github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
 	"github.com/gogo/googleapis/google/rpc"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"istio.io/api/mixer/adapter/model/v1beta1"
 	"istio.io/istio/mixer/pkg/status"
@@ -45,15 +44,17 @@ type (
 		listener      net.Listener
 		server        *grpc.Server
 		client        *http.Client
-		proxyCache    *ProxyConfigCache
+		conf          *AdapterConfig
 		reportMetrics bool
 	}
 
-	// MetricsConfig configures Prometheus metrics settings
-	MetricsConfig struct {
-		gatherMetrics bool
-		port          int
+	// AdapterConfig wraps optional configuration for the 3scale adapter
+	AdapterConfig struct {
+		systemCache     *ProxyConfigCache
+		metricsReporter *prometheus.Reporter
 	}
+
+	reportLatency func(systemURL string, serviceID string, duration time.Duration)
 )
 
 // For this PoC I'm using the authorize template, but we should check if the quota template
@@ -111,10 +112,10 @@ func (s *Threescale) reportUsage(cfg *config.Params, instances []*logentry.Insta
 			return errors.New("missing required parameters")
 		}
 
-		if s.proxyCache != nil {
-			pce, proxyConfErr = s.proxyCache.get(cfg, c)
+		if s.conf.systemCache != nil {
+			pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 		} else {
-			pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
+			pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveBackendLatency)
 		}
 
 		if proxyConfErr != nil {
@@ -170,13 +171,9 @@ func (s *Threescale) doReport(svcID string, userKey string, path string, method 
 
 // HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
-	go func() {
-		if s.reportMetrics {
-			prometheus.IncrementTotalRequests()
-		}
-	}()
-
 	var result v1beta1.CheckResult
+
+	go s.conf.metricsReporter.IncrementTotalRequests()
 
 	log.Debugf("Got instance %+v", r.Instance)
 
@@ -243,10 +240,10 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 		return status.WithPermissionDenied("user_key must be provided as a query parameter"), nil
 	}
 
-	if s.proxyCache != nil {
-		pce, proxyConfErr = s.proxyCache.get(cfg, c)
+	if s.conf.systemCache != nil {
+		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 	} else {
-		pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
+		pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveSystemLatency)
 	}
 
 	if proxyConfErr != nil {
@@ -297,8 +294,8 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 		return status.WithPermissionDenied(resp.Reason), nil
 	}
 
-	if s.reportMetrics {
-		go prometheus.ObserveBackendLatency(conf.Content.Proxy.Backend.Endpoint, svcID, elapsed)
+	if s.conf.metricsReporter != nil {
+		go s.conf.metricsReporter.ObserveBackendLatency(conf.Content.Proxy.Backend.Endpoint, svcID, elapsed)
 	}
 
 	return status.OK, nil
@@ -398,7 +395,7 @@ func (s *Threescale) Close() error {
 }
 
 // NewThreescale returns a Server interface
-func NewThreescale(addr string, client *http.Client, proxyCache *ProxyConfigCache, metricsConf *MetricsConfig) (Server, error) {
+func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Server, error) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
 	if err != nil {
@@ -406,26 +403,15 @@ func NewThreescale(addr string, client *http.Client, proxyCache *ProxyConfigCach
 	}
 
 	s := &Threescale{
-		listener:   listener,
-		client:     client,
-		proxyCache: proxyCache,
+		listener: listener,
+		client:   client,
+		conf:     conf,
 	}
 
-	if metricsConf != nil {
-		if metricsConf.gatherMetrics {
-			s.reportMetrics = true
+	if conf != nil {
+		if conf.metricsReporter != nil {
+			conf.metricsReporter.Serve()
 		}
-
-		if proxyCache != nil {
-			proxyCache.reportMetrics = true
-		}
-
-		http.Handle("/metrics", promhttp.Handler())
-		go func() {
-			if err := http.ListenAndServe(fmt.Sprintf(":%d", metricsConf.port), nil); err != nil {
-				panic("panic")
-			}
-		}()
 	}
 
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
@@ -436,7 +422,10 @@ func NewThreescale(addr string, client *http.Client, proxyCache *ProxyConfigCach
 	return s, nil
 }
 
-// NewMetricsConfig - Creates a MetricsConfig which controls metric behaviour
-func NewMetricsConfig(gatherMetrics bool, port int) *MetricsConfig {
-	return &MetricsConfig{gatherMetrics, port}
+// NewAdapterConfig - Creates configuration for Threescale adapter
+func NewAdapterConfig(cache *ProxyConfigCache, metrics *prometheus.Reporter) *AdapterConfig {
+	if cache != nil {
+		cache.metricsReporter = metrics
+	}
+	return &AdapterConfig{cache, metrics}
 }

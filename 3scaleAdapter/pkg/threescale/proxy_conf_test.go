@@ -61,8 +61,8 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 	cfg := &pb.Params{ServiceId: "123", SystemUrl: "https://www.fake-system.3scale.net"}
 	cacheKey := pc.getCacheKeyFromCfg(cfg)
 	pc.set(cacheKey, proxyConf, cacheRefreshStore{})
-
-	c := &Threescale{client: httpClient, proxyCache: pc}
+	conf := &AdapterConfig{systemCache: pc}
+	c := &Threescale{client: httpClient, conf: conf}
 
 	inputs := []testInput{
 		{
@@ -146,25 +146,25 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 		t.Fatalf("expected only one result not fetched from cache")
 	}
 
-	testStopNotStartedErr := c.proxyCache.StopFlushWorker()
+	testStopNotStartedErr := c.conf.systemCache.StopFlushWorker()
 	if testStopNotStartedErr == nil {
 		t.Fatalf("expected to get error when stopping unstarted worker")
 	}
 
-	c.proxyCache.StartFlushWorker()
+	c.conf.systemCache.StartFlushWorker()
 
-	testStartErr := c.proxyCache.StartFlushWorker()
+	testStartErr := c.conf.systemCache.StartFlushWorker()
 	if testStartErr == nil {
 		t.Fatalf("expected only one worker to start")
 	}
 
 	<-time.After(time.Second)
-	if len(c.proxyCache.cache) > 0 {
+	if len(c.conf.systemCache.cache) > 0 {
 		t.Fatalf("expected cache to be empty")
 	}
-	c.proxyCache.StopFlushWorker()
+	c.conf.systemCache.StopFlushWorker()
 
-	testStartErr = c.proxyCache.StartFlushWorker()
+	testStartErr = c.conf.systemCache.StartFlushWorker()
 	if testStartErr != nil {
 		t.Fatalf("expected to be able to restart worker")
 	}
@@ -209,8 +209,8 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	// Create cache manager and populate
 	pc := NewProxyConfigCache(time.Duration(ttl), time.Duration(ttl), 3)
 	proxyConf = unmarshalConfig(t)
-
-	c := &Threescale{client: httpClient, proxyCache: pc, reportMetrics: true}
+	conf := &AdapterConfig{systemCache: pc}
+	c := &Threescale{client: httpClient, conf: conf, reportMetrics: true}
 	sysClient, err := c.systemClientBuilder("https://www.fake-system.3scale.net")
 	if err != nil {
 		t.Fatalf("unexpected error builoding system client")
@@ -305,12 +305,12 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 		t.Fatalf("expected only one result not fetched from cache")
 	}
 
-	err = c.proxyCache.StartRefreshWorker()
+	err = c.conf.systemCache.StartRefreshWorker()
 	if err != nil {
 		t.Fatalf("expected to be able to start the refresh worker")
 	}
 
-	err = c.proxyCache.StartRefreshWorker()
+	err = c.conf.systemCache.StartRefreshWorker()
 	if err == nil {
 		t.Fatalf("expected error when calling to start the refresh worker a second time")
 	}
@@ -320,12 +320,12 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 		t.Fatalf("expected cache to have been refreshed")
 	}
 
-	err = c.proxyCache.StopRefreshWorker()
+	err = c.conf.systemCache.StopRefreshWorker()
 	if err != nil {
 		t.Fatalf("unexpected error when stopping refresh worker")
 	}
 
-	err = c.proxyCache.StopRefreshWorker()
+	err = c.conf.systemCache.StopRefreshWorker()
 	if err == nil {
 		t.Fatalf("unexpected error when stopping refresh worker again")
 	}
