@@ -920,6 +920,7 @@
     "github.com/spf13/viper",
     "google.golang.org/grpc",
     "istio.io/api/mixer/adapter/model/v1beta1",
+    "istio.io/api/policy/v1beta1",
     "istio.io/istio/mixer/pkg/adapter/test",
     "istio.io/istio/mixer/pkg/status",
     "istio.io/istio/mixer/template/authorization",
