@@ -13,7 +13,7 @@ spec:
     cache_valid_hits: "0"
     cache_valid_seconds: "0"
   connection:
-    address: "[::]:3333"
+    address: "threescale-istio-adapter:3333"
 ---
 
 # instance for template authorization

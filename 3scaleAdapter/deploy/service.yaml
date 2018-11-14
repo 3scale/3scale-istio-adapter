@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: threescaleistioadapter
+  name: threescale-istio-adapter
 spec:
   ports:
     - port: 3333
