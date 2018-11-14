@@ -10,7 +10,6 @@
   version = "v0.32.0"
 
 [[projects]]
-  branch = "master"
   digest = "1:32df7d3dd7cc8377800dc507078744d1f319bdfc26db8c0f74d3121ce71c3e35"
   name = "github.com/3scale/3scale-go-client"
   packages = [
@@ -19,9 +18,9 @@
   ]
   pruneopts = "T"
   revision = "cba0fb14443d90b0749638e87052bfb7cb35a19d"
+  version = "v0.0.1"
 
 [[projects]]
-  branch = "master"
   digest = "1:f0f146d09e40dd223ca8015da2211ae0fb5a2210aa80e94c711e4102a7b2bd04"
   name = "github.com/3scale/3scale-porta-go-client"
   packages = [
@@ -30,6 +29,7 @@
   ]
   pruneopts = "T"
   revision = "961a9115b98606e16e632f3d367844567358484c"
+  version = "v0.0.1"
 
 [[projects]]
   branch = "master"
@@ -920,6 +920,7 @@
     "github.com/spf13/viper",
     "google.golang.org/grpc",
     "istio.io/api/mixer/adapter/model/v1beta1",
+    "istio.io/api/policy/v1beta1",
     "istio.io/istio/mixer/pkg/adapter/test",
     "istio.io/istio/mixer/pkg/status",
     "istio.io/istio/mixer/template/authorization",
