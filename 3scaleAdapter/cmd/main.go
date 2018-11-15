@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale"
+	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
 	"github.com/spf13/viper"
 	"istio.io/istio/pkg/log"
 )
@@ -19,6 +20,8 @@ func init() {
 	viper.BindEnv("log_level")
 	viper.BindEnv("log_json")
 	viper.BindEnv("listen_addr")
+	viper.BindEnv("report_metrics")
+	viper.BindEnv("metrics_port")
 
 	options := log.DefaultOptions()
 
@@ -40,6 +43,7 @@ func init() {
 
 	log.Configure(options)
 	log.Infof("Logging started")
+
 }
 
 func stringToLogLevel(loglevel string) (log.Level, error) {
@@ -57,6 +61,21 @@ func stringToLogLevel(loglevel string) (log.Level, error) {
 	}
 
 	return log.InfoLevel, errors.New("invalid log_level")
+}
+
+func parseMetricsConfig() *metrics.Reporter {
+	if !viper.IsSet("report_metrics") || !viper.GetBool("report_metrics") {
+		return nil
+	}
+
+	var port int
+	if viper.IsSet("metrics_port") {
+		port = viper.GetInt("metrics_port")
+	} else {
+		port = 8080
+	}
+
+	return metrics.NewMetricsReporter(true, port)
 }
 
 func main() {
@@ -77,7 +96,8 @@ func main() {
 	proxyCache := threescale.NewProxyConfigCache(
 		threescale.DefaultCacheTTL, threescale.DefaultCacheRefreshBuffer, threescale.DefaultCacheLimit)
 
-	s, err := threescale.NewThreescale(addr, c, proxyCache)
+	adapterConfig := threescale.NewAdapterConfig(proxyCache, parseMetricsConfig())
+	s, err := threescale.NewThreescale(addr, c, adapterConfig)
 
 	if err != nil {
 		log.Errorf("Unable to start sever: %v", err)

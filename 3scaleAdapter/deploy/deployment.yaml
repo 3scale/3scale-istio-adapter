@@ -29,9 +29,17 @@ spec:
         ports:
         - containerPort: 3333
           protocol: TCP
+          name: adapter
+        - containerPort: 8080
+          protocol: TCP
+          name: prometheus
         env:
         - name: "THREESCALE_LOG_JSON"
           value: "true"
+        - name: "THREESCALE_REPORT_METRICS"
+          value: "true"
+        - name: "THREESCALE_METRICS_PORT"
+          value: "8080"
         resources: {}
         terminationMessagePath: /dev/termination-log
       dnsPolicy: ClusterFirst

@@ -22,6 +22,7 @@ COPY --from=build /tmp/3scaleAdapter /app/
 COPY --from=debugger /go/bin/dlv /app/
 
 EXPOSE 3333
+EXPOSE 8080
 EXPOSE 40000
 
 CMD ["/app/dlv", "--listen=:40000", "--headless=true", "--api-version=2", "exec", "/app/3scaleAdapter"]

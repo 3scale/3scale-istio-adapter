@@ -15,5 +15,6 @@ WORKDIR /app
 COPY --from=build /tmp/3scaleAdapter /app/
 ENV THREESCALE_LISTEN_ADDR 3333
 EXPOSE 3333
+EXPOSE 8080
 ENTRYPOINT ./3scaleAdapter
 

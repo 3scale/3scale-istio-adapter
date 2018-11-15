@@ -2,10 +2,18 @@ apiVersion: v1
 kind: Service
 metadata:
   name: threescale-istio-adapter
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/scheme: http
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
 spec:
   ports:
     - port: 3333
       targetPort: 3333
       name: adapter
+    - port: 8080
+      targetPort: 8080
+      name: prometheus
   selector:
     app: 3scale-istio-adapter

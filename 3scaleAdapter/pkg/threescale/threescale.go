@@ -21,6 +21,7 @@ import (
 	backendC "github.com/3scale/3scale-go-client/client"
 	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/3scale/istio-integration/3scaleAdapter/config"
+	prometheus "github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
 	"github.com/gogo/googleapis/google/rpc"
 	"google.golang.org/grpc"
 	"istio.io/api/mixer/adapter/model/v1beta1"
@@ -40,11 +41,20 @@ type (
 
 	// Threescale contains the Listener and the server
 	Threescale struct {
-		listener   net.Listener
-		server     *grpc.Server
-		client     *http.Client
-		proxyCache *ProxyConfigCache
+		listener      net.Listener
+		server        *grpc.Server
+		client        *http.Client
+		conf          *AdapterConfig
+		reportMetrics bool
 	}
+
+	// AdapterConfig wraps optional configuration for the 3scale adapter
+	AdapterConfig struct {
+		systemCache     *ProxyConfigCache
+		metricsReporter *prometheus.Reporter
+	}
+
+	reportLatency func(systemURL string, serviceID string, duration time.Duration)
 )
 
 // For this PoC I'm using the authorize template, but we should check if the quota template
@@ -102,10 +112,10 @@ func (s *Threescale) reportUsage(cfg *config.Params, instances []*logentry.Insta
 			return errors.New("missing required parameters")
 		}
 
-		if s.proxyCache != nil {
-			pce, proxyConfErr = s.proxyCache.get(cfg, c)
+		if s.conf.systemCache != nil {
+			pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 		} else {
-			pce, proxyConfErr = getFromRemote(cfg, c)
+			pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveBackendLatency)
 		}
 
 		if proxyConfErr != nil {
@@ -162,6 +172,8 @@ func (s *Threescale) doReport(svcID string, userKey string, path string, method 
 // HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
+
+	go s.conf.metricsReporter.IncrementTotalRequests()
 
 	log.Debugf("Got instance %+v", r.Instance)
 
@@ -228,10 +240,10 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 		return status.WithPermissionDenied("user_key must be provided as a query parameter"), nil
 	}
 
-	if s.proxyCache != nil {
-		pce, proxyConfErr = s.proxyCache.get(cfg, c)
+	if s.conf.systemCache != nil {
+		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 	} else {
-		pce, proxyConfErr = getFromRemote(cfg, c)
+		pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveSystemLatency)
 	}
 
 	if proxyConfErr != nil {
@@ -261,6 +273,7 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 			request.Action.Method, request.Action.Path)), nil
 	}
 
+	start := time.Now()
 	switch conf.Content.BackendAuthenticationType {
 
 	case "provider_key", "service_token":
@@ -271,6 +284,7 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 	default:
 		return status.WithInvalidArgument("invalid authentication type"), nil
 	}
+	elapsed := time.Since(start)
 
 	if apiErr != nil {
 		return status.WithMessage(2, fmt.Sprintf("error calling 3scale Auth -  %s", apiErr.Error())), apiErr
@@ -278,6 +292,10 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 
 	if !resp.Success {
 		return status.WithPermissionDenied(resp.Reason), nil
+	}
+
+	if s.conf.metricsReporter != nil {
+		go s.conf.metricsReporter.ObserveBackendLatency(conf.Content.Proxy.Backend.Endpoint, svcID, elapsed)
 	}
 
 	return status.OK, nil
@@ -377,7 +395,7 @@ func (s *Threescale) Close() error {
 }
 
 // NewThreescale returns a Server interface
-func NewThreescale(addr string, client *http.Client, proxyCache *ProxyConfigCache) (Server, error) {
+func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Server, error) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
 	if err != nil {
@@ -385,9 +403,15 @@ func NewThreescale(addr string, client *http.Client, proxyCache *ProxyConfigCach
 	}
 
 	s := &Threescale{
-		listener:   listener,
-		client:     client,
-		proxyCache: proxyCache,
+		listener: listener,
+		client:   client,
+		conf:     conf,
+	}
+
+	if conf != nil {
+		if conf.metricsReporter != nil {
+			conf.metricsReporter.Serve()
+		}
 	}
 
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
@@ -396,4 +420,12 @@ func NewThreescale(addr string, client *http.Client, proxyCache *ProxyConfigCach
 	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
 	logentry.RegisterHandleLogEntryServiceServer(s.server, s)
 	return s, nil
+}
+
+// NewAdapterConfig - Creates configuration for Threescale adapter
+func NewAdapterConfig(cache *ProxyConfigCache, metrics *prometheus.Reporter) *AdapterConfig {
+	if cache != nil {
+		cache.metricsReporter = metrics
+	}
+	return &AdapterConfig{cache, metrics}
 }
