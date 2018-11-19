@@ -1,10 +1,9 @@
 package metrics
 
 import (
+	"math/rand"
 	"testing"
 	"time"
-
-	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
@@ -102,7 +101,7 @@ func TestServe(t *testing.T) {
 
 func randCounterInc(t *testing.T, inc func()) int {
 	t.Helper()
-	incrementBy := rand.IntnRange(1, 10)
+	incrementBy := int(rand.Int31n(9) + 1)
 	for i := 1; i <= incrementBy; i++ {
 		inc()
 	}
