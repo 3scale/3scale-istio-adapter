@@ -825,7 +825,6 @@
     "pkg/util/intstr",
     "pkg/util/json",
     "pkg/util/net",
-    "pkg/util/rand",
     "pkg/util/runtime",
     "pkg/util/sets",
     "pkg/util/validation",
@@ -931,7 +930,6 @@
     "istio.io/istio/mixer/template/authorization",
     "istio.io/istio/mixer/template/logentry",
     "istio.io/istio/pkg/log",
-    "k8s.io/apimachinery/pkg/util/rand",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
