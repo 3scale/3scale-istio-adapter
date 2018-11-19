@@ -2,11 +2,17 @@ package metrics
 
 import (
 	"math/rand"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
+
+const url = "www.fake.com"
+const serviceID = "123"
 
 func TestObserveSystemLatency(t *testing.T) {
 	const metricName = "threescale_system_latency"
@@ -29,7 +35,8 @@ func TestObserveSystemLatency(t *testing.T) {
 
         `
 	r := NewMetricsReporter(true, 8080)
-	r.ObserveSystemLatency("www.fake.com", "123", time.Second+time.Millisecond)
+	l := NewLatencyReport("", time.Second+time.Millisecond, url, System)
+	r.ObserveLatency(serviceID, l)
 	// TODO - Uncomment when https://github.com/prometheus/client_golang/issues/498 is resolved
 	//err := testutil.CollectAndCompare(systemLatency, strings.NewReader(expect), metricName)
 	//if err != nil {
@@ -59,12 +66,88 @@ func TestObserveBackendLatency(t *testing.T) {
 
 	`
 	r := NewMetricsReporter(true, 8080)
-	r.ObserveBackendLatency("www.fake.com", "123", time.Second)
+	l := LatencyReport{
+		Endpoint:  "Authorise",
+		TimeTaken: time.Second,
+		URL:       url,
+		Target:    Backend,
+	}
+	r.ObserveLatency(serviceID, l)
 	// TODO - Uncomment when https://github.com/prometheus/client_golang/issues/498 is resolved
 	//err := testutil.CollectAndCompare(backendLatency, strings.NewReader(expect), metricName)
 	//if err != nil {
 	//	t.Fatalf(err.Error())
 	//}
+}
+
+func TestReportStatus(t *testing.T) {
+	inputs := []struct {
+		name       string
+		metricName string
+		expect     string
+		expectErr  bool
+		collector  *prometheus.CounterVec
+		code       int
+		t          Target
+	}{
+		{
+			name:       "Test invalid status code",
+			metricName: "backend_http_status",
+			expect:     ``,
+			expectErr:  true,
+			collector:  backendStatusCodes,
+		},
+		{
+			name:       "Test Report unsupported target",
+			metricName: "backend_http_status",
+			expect:     ``,
+			collector:  backendStatusCodes,
+			expectErr:  true,
+			code:       http.StatusOK,
+			t:          "unknown",
+		},
+		{
+			name:       "Test Report Backend HTTP Status",
+			metricName: "backend_http_status",
+			expect: `
+		               # HELP backend_http_status HTTP Status response codes for requests to 3scale backend
+		               # TYPE backend_http_status counter
+		               backend_http_status{backendURL="www.fake.com",code="200",serviceID="123"} 1
+		       `,
+			collector: backendStatusCodes,
+			code:      http.StatusOK,
+			t:         Backend,
+		},
+	}
+
+	for _, input := range inputs {
+		t.Run(input.name, func(t *testing.T) {
+
+			desc := make(chan *prometheus.Desc, 1)
+			input.collector.Describe(desc)
+			d := <-desc
+
+			s := NewStatusReport("Authorise", input.code, url, input.t)
+			r := NewMetricsReporter(true, 8080)
+			err := r.ReportStatus(serviceID, s)
+			if err != nil {
+				if input.expectErr {
+					return
+				}
+				t.Fatalf("unexpected error")
+			}
+
+			err = testutil.CollectAndCompare(input.collector, strings.NewReader(input.expect), input.metricName)
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			if testutil.ToFloat64(input.collector) != 1 {
+				t.Fatalf("unexpected counter value for %s", d.String())
+			}
+			input.collector.Reset()
+		})
+	}
 }
 
 func TestIncrementTotalRequests(t *testing.T) {
