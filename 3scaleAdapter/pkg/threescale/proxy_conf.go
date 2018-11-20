@@ -81,7 +81,7 @@ func (pc *ProxyConfigCache) RefreshCache() {
 	forRefresh := pc.markForRefresh()
 	for _, store := range forRefresh {
 		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
-		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ObserveSystemLatency)
+		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ObserveLatency)
 		if err != nil {
 			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
 			pc.delete(cacheKey)
@@ -150,7 +150,7 @@ func (pc *ProxyConfigCache) get(cfg *config.Params, c *sysC.ThreeScaleClient) (s
 	pc.mutex.RUnlock()
 
 	if !ok {
-		conf, err = getFromRemote(cfg, c, pc.metricsReporter.ObserveSystemLatency)
+		conf, err = getFromRemote(cfg, c, pc.metricsReporter.ObserveLatency)
 		if err == nil {
 			replayWith := cacheRefreshStore{cfg, c}
 			go pc.set(cacheKey, conf, replayWith)
@@ -263,7 +263,12 @@ func getFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportLa
 	proxyConf, err := c.GetLatestProxyConfig(cfg.AccessToken, cfg.ServiceId, "production")
 	elapsed := time.Since(start)
 
-	go report(cfg.SystemUrl, cfg.ServiceId, elapsed)
+	l := metrics.LatencyReport{
+		TimeTaken: elapsed,
+		URL:       cfg.SystemUrl,
+		Target:    metrics.System,
+	}
+	go report(cfg.SystemUrl, l)
 
 	return proxyConf, err
 }

@@ -160,21 +160,8 @@ func (s *Threescale) doReport(svcID string, userKey string, path string, method 
 	resp, apiErr = bc.AuthRepUserKey(auth, userKey, svcID, params)
 	elapsed := time.Since(start)
 
-	if s.conf.metricsReporter != nil {
-		go s.conf.metricsReporter.ObserveLatency(svcID, prometheus.LatencyReport{
-			Endpoint:  endpoint,
-			TimeTaken: elapsed,
-			URL:       conf.Content.Proxy.Backend.Endpoint,
-			Target:    target,
-		})
-
-		go s.conf.metricsReporter.ReportStatus(svcID, prometheus.StatusReport{
-			Endpoint: endpoint,
-			Code:     resp.StatusCode,
-			URL:      conf.Content.Proxy.Backend.Endpoint,
-			Target:   target,
-		})
-	}
+	go s.reportMetrics(svcID, prometheus.NewLatencyReport(endpoint, elapsed, conf.Content.Proxy.Backend.Endpoint, target),
+		prometheus.NewStatusReport(endpoint, resp.StatusCode, conf.Content.Proxy.Backend.Endpoint, target))
 
 	if apiErr != nil {
 		return apiErr
@@ -307,23 +294,8 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 	}
 	elapsed := time.Since(start)
 
-	if s.conf.metricsReporter != nil {
-		if s.conf.metricsReporter != nil {
-			go s.conf.metricsReporter.ObserveLatency(svcID, prometheus.LatencyReport{
-				Endpoint:  endpoint,
-				TimeTaken: elapsed,
-				URL:       conf.Content.Proxy.Backend.Endpoint,
-				Target:    target,
-			})
-
-			go s.conf.metricsReporter.ReportStatus(svcID, prometheus.StatusReport{
-				Endpoint: endpoint,
-				Code:     resp.StatusCode,
-				URL:      conf.Content.Proxy.Backend.Endpoint,
-				Target:   target,
-			})
-		}
-	}
+	go s.reportMetrics(svcID, prometheus.NewLatencyReport(endpoint, elapsed, conf.Content.Proxy.Backend.Endpoint, target),
+		prometheus.NewStatusReport(endpoint, resp.StatusCode, conf.Content.Proxy.Backend.Endpoint, target))
 
 	if apiErr != nil {
 		return status.WithMessage(2, fmt.Sprintf("error calling 3scale Auth -  %s", apiErr.Error())), apiErr
@@ -334,6 +306,15 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 	}
 
 	return status.OK, nil
+}
+
+// reportMetrics - report metrics for 3scale adapter to Prometheus. Function is safe to call if
+// a reporter has not been configured
+func (s *Threescale) reportMetrics(svcID string, l prometheus.LatencyReport, sr prometheus.StatusReport) {
+	if s.conf != nil {
+		s.conf.metricsReporter.ObserveLatency(svcID, l)
+		s.conf.metricsReporter.ReportStatus(svcID, sr)
+	}
 }
 
 func generateMetrics(path string, method string, conf sysC.ProxyConfig) backendC.Metrics {
