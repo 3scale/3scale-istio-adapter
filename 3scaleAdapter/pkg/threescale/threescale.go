@@ -64,73 +64,74 @@ var _ logentry.HandleLogEntryServiceServer = &Threescale{}
 
 func (s *Threescale) HandleLogEntry(ctx context.Context, l *logentry.HandleLogEntryRequest) (*v1beta1.ReportResult, error) {
 	var report v1beta1.ReportResult
-	var err error
 
-	if l.AdapterConfig == nil {
-		return &report, fmt.Errorf("adapter config not available")
-	}
+	go func() {
+		var err error
 
-	cfg := &config.Params{}
-	if err := cfg.Unmarshal(l.AdapterConfig.Value); err != nil {
-		log.Errorf("error unmarshalling adapter config: %v", err)
-		return &report, err
-	}
+		if l.AdapterConfig == nil {
+			err = errors.New("adapter config not available")
+		}
 
-	systemC, err := s.systemClientBuilder(cfg.SystemUrl)
+		cfg := &config.Params{}
+		if err := cfg.Unmarshal(l.AdapterConfig.Value); err != nil {
+			log.Errorf("error unmarshalling adapter config: %v", err)
+		}
 
-	if err != nil {
-		log.Errorf("error building HTTP client for 3scale system - %s", err.Error())
-		return &report, err
-	}
+		systemC, err := s.systemClientBuilder(cfg.SystemUrl)
 
-	err = s.reportUsage(cfg, l.Instances, systemC)
-
-	if err != nil {
-		log.Errorf("error reporting usage - %s", err.Error())
-	}
-
-	return &report, err
-}
-func (s *Threescale) reportUsage(cfg *config.Params, instances []*logentry.InstanceMsg, c *sysC.ThreeScaleClient) error {
-	for _, instance := range instances {
-		var pce sysC.ProxyConfigElement
-		var proxyConfErr error
-
-		urlWithPath := instance.Variables["url"].GetStringValue()
-		userKey := instance.Variables["user"].GetStringValue()
-		method := instance.Variables["method"].GetStringValue()
-
-		//TODO: Report proper timestamp
-		//timestamp := request.Timestamp.GetValue()
-
-		u, err := url.Parse(urlWithPath)
 		if err != nil {
-			return err
+			log.Errorf("error building HTTP client for 3scale system - %s", err.Error())
+		}
+		for _, instance := range l.Instances {
+
+			err = s.reportUsage(cfg, instance, systemC)
+
+			if err != nil {
+				log.Errorf("error reporting usage - %s", err.Error())
+			}
 		}
 
-		if urlWithPath == "" || userKey == "" || method == "" {
-			return errors.New("missing required parameters")
-		}
+	}()
 
-		if s.conf.systemCache != nil {
-			pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
-		} else {
-			pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveBackendLatency)
-		}
+	return &report, nil
+}
+func (s *Threescale) reportUsage(cfg *config.Params, instance *logentry.InstanceMsg, c *sysC.ThreeScaleClient) error {
+	var pce sysC.ProxyConfigElement
+	var proxyConfErr error
 
-		if proxyConfErr != nil {
-			return errors.New("internal error - unable to unmarshal adapter config")
-		}
+	urlWithPath := instance.Variables["url"].GetStringValue()
+	userKey := instance.Variables["user"].GetStringValue()
+	method := instance.Variables["method"].GetStringValue()
 
-		authType := pce.ProxyConfig.Content.BackendAuthenticationType
+	//TODO: Report proper timestamp
+	//timestamp := request.Timestamp.GetValue()
 
-		switch authType {
-		case "provider_key", "service_token":
-			return s.doReport(cfg.ServiceId, userKey, u.Path, method, pce.ProxyConfig)
-		default:
-			return fmt.Errorf("unsupported auth type for service %s", cfg.ServiceId)
+	u, err := url.Parse(urlWithPath)
+	if err != nil {
+		return err
+	}
 
-		}
+	if urlWithPath == "" || userKey == "" || method == "" {
+		return errors.New("missing required parameters")
+	}
+
+	if s.conf.systemCache != nil {
+		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
+	} else {
+		pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveBackendLatency)
+	}
+
+	if proxyConfErr != nil {
+		return errors.New("internal error - unable to unmarshal adapter config")
+	}
+
+	authType := pce.ProxyConfig.Content.BackendAuthenticationType
+
+	switch authType {
+	case "provider_key", "service_token":
+		return s.doReport(cfg.ServiceId, userKey, u.Path, method, pce.ProxyConfig)
+	default:
+		return fmt.Errorf("unsupported auth type for service %s", cfg.ServiceId)
 	}
 	return nil
 }
@@ -253,6 +254,7 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 
 	return s.doAuth(cfg.ServiceId, userKey, request, pce.ProxyConfig)
 }
+
 func (s *Threescale) doAuth(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (rpc.Status, error) {
 	var resp backendC.ApiResponse
 	var apiErr error
