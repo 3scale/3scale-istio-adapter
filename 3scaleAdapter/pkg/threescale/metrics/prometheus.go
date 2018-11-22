@@ -1,9 +1,11 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,6 +18,35 @@ type Reporter struct {
 	shouldReport bool
 	serveOnPort  int
 }
+
+// LatencyReport defines the time taken for a report to 3scale
+// Endpoint should be set as "Authorize" or "Report" for backend requests
+// Target must be one of "Backend" or "System" for a report to be processed
+type LatencyReport struct {
+	Endpoint  string
+	TimeTaken time.Duration
+	URL       string
+	Target    Target
+}
+
+// StatusReport defines a HTTP status code report from 3scale
+// Endpoint should be set as "Authorize" or "Report" for backend requests
+// Currently only "Backend" Target supported
+type StatusReport struct {
+	Endpoint string
+	Code     int
+	URL      string
+	Target   Target
+}
+
+// Target is a legitimate target to report 3scale metrics from
+type Target string
+
+// Backend target should be used when reporting latency or status codes from 3scale backend
+const Backend Target = "Backend"
+
+// System target should be used when reporting latency or status codes from 3scale system
+const System Target = "System"
 
 // defaultMetricsPort - Default port that metrics endpoint will be served on
 const defaultMetricsPort = 8080
@@ -42,7 +73,15 @@ var (
 			Help:    "Request latency for requests to 3scale backend",
 			Buckets: defaultBackendBucket,
 		},
-		[]string{"backendURL", "serviceID"},
+		[]string{"backendURL", "serviceID", "endpoint"},
+	)
+
+	backendStatusCodes = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "backend_http_status",
+			Help: "HTTP Status response codes for requests to 3scale backend",
+		},
+		[]string{"backendURL", "serviceID", "code"},
 	)
 
 	totalRequests = prometheus.NewCounter(
@@ -65,18 +104,59 @@ func NewMetricsReporter(reportMetrics bool, serveOnPort int) *Reporter {
 	return &Reporter{reportMetrics, serveOnPort}
 }
 
-// ObserveSystemLatency reports a metric to system latency histogram
-func (r *Reporter) ObserveSystemLatency(sysURL string, serviceID string, observed time.Duration) {
-	if r != nil && r.shouldReport {
-		systemLatency.WithLabelValues(sysURL, serviceID).Observe(observed.Seconds())
+// NewLatencyReport creates a LatencyReport
+func NewLatencyReport(endpoint string, duration time.Duration, url string, target Target) LatencyReport {
+	return LatencyReport{
+		Endpoint:  endpoint,
+		TimeTaken: duration,
+		URL:       url,
+		Target:    target,
 	}
 }
 
-// ObserveBackendLatency reports a metric to backend latency histogram
-func (r *Reporter) ObserveBackendLatency(backendURL string, serviceID string, observed time.Duration) {
-	if r != nil && r.shouldReport {
-		backendLatency.WithLabelValues(backendURL, serviceID).Observe(observed.Seconds())
+// NewStatusReport creates a StatusReport
+func NewStatusReport(endpoint string, code int, url string, target Target) StatusReport {
+	return StatusReport{
+		Endpoint: endpoint,
+		Code:     code,
+		URL:      url,
+		Target:   target,
 	}
+}
+
+// ObserveLatency reports a metric to a latency histogram
+func (r *Reporter) ObserveLatency(serviceID string, l LatencyReport) error {
+	if r != nil && r.shouldReport {
+		o, err := l.getObserver(serviceID)
+		if err != nil {
+			log.Errorf(err.Error())
+			return err
+		}
+
+		o.Observe(l.TimeTaken.Seconds())
+	}
+	return nil
+}
+
+// ReportStatus reports a hit to 3scale backend and reports status code of the result
+func (r *Reporter) ReportStatus(serviceID string, s StatusReport) error {
+	if r != nil && r.shouldReport {
+		codeStr := strconv.Itoa(s.Code)
+		if len(codeStr) != 3 {
+			return errors.New("invalid status code reported")
+		}
+
+		switch s.Target {
+		case Backend:
+			if s.Endpoint != "" {
+				backendStatusCodes.WithLabelValues(s.URL, serviceID, codeStr).Inc()
+			}
+
+		default:
+			return fmt.Errorf("unknown target %s", s.Target)
+		}
+	}
+	return nil
 }
 
 // IncrementTotalRequests increments the request count for authorization handler
@@ -106,4 +186,31 @@ func (r *Reporter) Serve() {
 	}
 	go http.Serve(listener, nil)
 	log.Infof("Serving metrics on port %d", r.serveOnPort)
+}
+
+// getObserver generates a Prometheus Observer from the fields of a LatencyReport
+// Returns an error in cases where the LatencyReport contains missing or incomplete
+// data for the chosen Target
+func (l LatencyReport) getObserver(serviceID string) (prometheus.Observer, error) {
+	var o prometheus.Observer
+	var err error
+
+	if l.URL == "" {
+		return o, fmt.Errorf("url label must be set when reporting request latency")
+	}
+
+	switch l.Target {
+	case Backend:
+		if l.Endpoint != "" {
+			o = backendLatency.WithLabelValues(l.URL, serviceID, l.Endpoint)
+		} else {
+			err = fmt.Errorf("reporting latency to 3scale backend requires an endpoint label to be set")
+		}
+	case System:
+		o = systemLatency.WithLabelValues(l.URL, serviceID)
+	default:
+		err = fmt.Errorf("unsupported target %s", l.Target)
+	}
+
+	return o, err
 }

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
+
 	"github.com/3scale/3scale-go-client/fake"
 	sysFake "github.com/3scale/3scale-porta-go-client/fake"
 	pb "github.com/3scale/istio-integration/3scaleAdapter/config"
@@ -220,10 +222,12 @@ func TestHandleAuthorization(t *testing.T) {
 				}
 			}
 		})
+		reporter := metrics.NewMetricsReporter(true, 8080)
 		c := &Threescale{
-			client:        httpClient,
-			conf:          &AdapterConfig{},
-			reportMetrics: true,
+			client: httpClient,
+			conf: &AdapterConfig{
+				metricsReporter: reporter,
+			},
 		}
 		result, _ := c.HandleAuthorization(ctx, r)
 		if result.Status.Code != input.expectStatus {
@@ -420,9 +424,12 @@ func TestHandleLogEntry(t *testing.T) {
 				}
 			}
 		})
+		reporter := metrics.NewMetricsReporter(true, 8080)
 		c := &Threescale{
 			client: httpClient,
-			conf:   &AdapterConfig{},
+			conf: &AdapterConfig{
+				metricsReporter: reporter,
+			},
 		}
 		_, err := c.HandleLogEntry(ctx, l)
 

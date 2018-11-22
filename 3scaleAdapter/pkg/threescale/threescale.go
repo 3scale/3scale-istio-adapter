@@ -41,11 +41,10 @@ type (
 
 	// Threescale contains the Listener and the server
 	Threescale struct {
-		listener      net.Listener
-		server        *grpc.Server
-		client        *http.Client
-		conf          *AdapterConfig
-		reportMetrics bool
+		listener net.Listener
+		server   *grpc.Server
+		client   *http.Client
+		conf     *AdapterConfig
 	}
 
 	// AdapterConfig wraps optional configuration for the 3scale adapter
@@ -54,7 +53,7 @@ type (
 		metricsReporter *prometheus.Reporter
 	}
 
-	reportLatency func(systemURL string, serviceID string, duration time.Duration)
+	reportLatency func(serviceID string, l prometheus.LatencyReport) error
 )
 
 // For this PoC I'm using the authorize template, but we should check if the quota template
@@ -115,7 +114,7 @@ func (s *Threescale) reportUsage(cfg *config.Params, instances []*logentry.Insta
 		if s.conf.systemCache != nil {
 			pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 		} else {
-			pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveBackendLatency)
+			pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveLatency)
 		}
 
 		if proxyConfErr != nil {
@@ -136,6 +135,8 @@ func (s *Threescale) reportUsage(cfg *config.Params, instances []*logentry.Insta
 }
 
 func (s *Threescale) doReport(svcID string, userKey string, path string, method string, conf sysC.ProxyConfig) error {
+	const endpoint = "Report"
+	const target = prometheus.Backend
 	var resp backendC.ApiResponse
 	var apiErr error
 
@@ -155,8 +156,12 @@ func (s *Threescale) doReport(svcID string, userKey string, path string, method 
 		Type:  conf.Content.BackendAuthenticationType,
 		Value: conf.Content.BackendAuthenticationValue,
 	}
-
+	start := time.Now()
 	resp, apiErr = bc.AuthRepUserKey(auth, userKey, svcID, params)
+	elapsed := time.Since(start)
+
+	go s.reportMetrics(svcID, prometheus.NewLatencyReport(endpoint, elapsed, conf.Content.Proxy.Backend.Endpoint, target),
+		prometheus.NewStatusReport(endpoint, resp.StatusCode, conf.Content.Proxy.Backend.Endpoint, target))
 
 	if apiErr != nil {
 		return apiErr
@@ -243,7 +248,7 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 	if s.conf.systemCache != nil {
 		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 	} else {
-		pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveSystemLatency)
+		pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveLatency)
 	}
 
 	if proxyConfErr != nil {
@@ -253,7 +258,10 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 
 	return s.doAuth(cfg.ServiceId, userKey, request, pce.ProxyConfig)
 }
+
 func (s *Threescale) doAuth(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (rpc.Status, error) {
+	const endpoint = "Authorise"
+	const target = prometheus.Backend
 	var resp backendC.ApiResponse
 	var apiErr error
 
@@ -286,6 +294,9 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 	}
 	elapsed := time.Since(start)
 
+	go s.reportMetrics(svcID, prometheus.NewLatencyReport(endpoint, elapsed, conf.Content.Proxy.Backend.Endpoint, target),
+		prometheus.NewStatusReport(endpoint, resp.StatusCode, conf.Content.Proxy.Backend.Endpoint, target))
+
 	if apiErr != nil {
 		return status.WithMessage(2, fmt.Sprintf("error calling 3scale Auth -  %s", apiErr.Error())), apiErr
 	}
@@ -294,11 +305,16 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 		return status.WithPermissionDenied(resp.Reason), nil
 	}
 
-	if s.conf.metricsReporter != nil {
-		go s.conf.metricsReporter.ObserveBackendLatency(conf.Content.Proxy.Backend.Endpoint, svcID, elapsed)
-	}
-
 	return status.OK, nil
+}
+
+// reportMetrics - report metrics for 3scale adapter to Prometheus. Function is safe to call if
+// a reporter has not been configured
+func (s *Threescale) reportMetrics(svcID string, l prometheus.LatencyReport, sr prometheus.StatusReport) {
+	if s.conf != nil {
+		s.conf.metricsReporter.ObserveLatency(svcID, l)
+		s.conf.metricsReporter.ReportStatus(svcID, sr)
+	}
 }
 
 func generateMetrics(path string, method string, conf sysC.ProxyConfig) backendC.Metrics {
