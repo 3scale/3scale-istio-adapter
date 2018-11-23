@@ -21,15 +21,15 @@
   version = "v0.0.1"
 
 [[projects]]
-  digest = "1:f0f146d09e40dd223ca8015da2211ae0fb5a2210aa80e94c711e4102a7b2bd04"
+  digest = "1:823eb84bed63a85ae91b1c2311b4de3ea4c5a6b668510a1a108584d736b10e4c"
   name = "github.com/3scale/3scale-porta-go-client"
   packages = [
     "client",
     "fake",
   ]
   pruneopts = "T"
-  revision = "961a9115b98606e16e632f3d367844567358484c"
-  version = "v0.0.1"
+  revision = "91f46f5fe308b7ad92068b92bdece0721be09ca1"
+  version = "v0.0.2"
 
 [[projects]]
   branch = "master"

@@ -18,7 +18,7 @@
 
 [[constraint]]
   name = "github.com/3scale/3scale-porta-go-client"
-  version = "v0.0.1"
+  version = "v0.0.2"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"
