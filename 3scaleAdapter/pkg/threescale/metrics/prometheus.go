@@ -124,7 +124,18 @@ func NewStatusReport(endpoint string, code int, url string, target Target) Statu
 	}
 }
 
-// ObserveLatency reports a metric to a latency histogram
+// ReportMetrics reports a LatencyReport and StatusReport to Prometheus.
+// It ignores errors from creating metrics so if the error needs to be handled outside
+// of being logged, the metrics should be reported directly.
+func (r *Reporter) ReportMetrics(serviceID string, l LatencyReport, s StatusReport) {
+	if r != nil && r.shouldReport {
+		r.ObserveLatency(serviceID, l)
+		r.ReportStatus(serviceID, s)
+	}
+}
+
+// ObserveLatency reports a metric to a latency histogram.
+// Logs and returns an error in cases where the metric has not been reported.
 func (r *Reporter) ObserveLatency(serviceID string, l LatencyReport) error {
 	if r != nil && r.shouldReport {
 		o, err := l.getObserver(serviceID)
@@ -139,6 +150,7 @@ func (r *Reporter) ObserveLatency(serviceID string, l LatencyReport) error {
 }
 
 // ReportStatus reports a hit to 3scale backend and reports status code of the result
+// Logs and returns an error in cases where the metric has not been reported.
 func (r *Reporter) ReportStatus(serviceID string, s StatusReport) error {
 	if r != nil && r.shouldReport {
 		codeStr := strconv.Itoa(s.Code)
