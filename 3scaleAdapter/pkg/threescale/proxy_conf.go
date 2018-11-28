@@ -3,6 +3,7 @@ package threescale
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -81,7 +82,7 @@ func (pc *ProxyConfigCache) RefreshCache() {
 	forRefresh := pc.markForRefresh()
 	for _, store := range forRefresh {
 		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
-		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ObserveLatency)
+		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ReportMetrics)
 		if err != nil {
 			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
 			pc.delete(cacheKey)
@@ -150,7 +151,7 @@ func (pc *ProxyConfigCache) get(cfg *config.Params, c *sysC.ThreeScaleClient) (s
 	pc.mutex.RUnlock()
 
 	if !ok {
-		conf, err = getFromRemote(cfg, c, pc.metricsReporter.ObserveLatency)
+		conf, err = getFromRemote(cfg, c, pc.metricsReporter.ReportMetrics)
 		if err == nil {
 			replayWith := cacheRefreshStore{cfg, c}
 			go pc.set(cacheKey, conf, replayWith)
@@ -256,19 +257,23 @@ func isExpired(currentTime time.Time, expiryTime time.Time) bool {
 }
 
 // Fetch the proxy config from 3scale using the client
-func getFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportLatency) (sysC.ProxyConfigElement, error) {
+func getFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportMetrics) (sysC.ProxyConfigElement, error) {
 	log.Debugf("proxy config for service id %s is being fetching from 3scale", cfg.ServiceId)
 
 	start := time.Now()
 	proxyConf, err := c.GetLatestProxyConfig(cfg.AccessToken, cfg.ServiceId, "production")
 	elapsed := time.Since(start)
 
-	l := metrics.LatencyReport{
-		TimeTaken: elapsed,
-		URL:       cfg.SystemUrl,
-		Target:    metrics.System,
-	}
-	go report(cfg.SystemUrl, l)
+	go func() {
+		status := http.StatusOK
+		if err != nil {
+			apiErr := err.(sysC.ApiErr)
+			status = apiErr.Code()
+		}
+
+		report(cfg.SystemUrl, metrics.NewLatencyReport("", elapsed, cfg.SystemUrl, metrics.System),
+			metrics.NewStatusReport("", status, cfg.SystemUrl, metrics.System))
+	}()
 
 	return proxyConf, err
 }

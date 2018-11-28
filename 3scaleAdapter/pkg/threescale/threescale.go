@@ -53,7 +53,7 @@ type (
 		metricsReporter *prometheus.Reporter
 	}
 
-	reportLatency func(serviceID string, l prometheus.LatencyReport) error
+	reportMetrics func(serviceID string, l prometheus.LatencyReport, s prometheus.StatusReport)
 )
 
 // For this PoC I'm using the authorize template, but we should check if the quota template
@@ -114,7 +114,7 @@ func (s *Threescale) reportUsage(cfg *config.Params, instances []*logentry.Insta
 		if s.conf.systemCache != nil {
 			pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 		} else {
-			pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveLatency)
+			pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
 		}
 
 		if proxyConfErr != nil {
@@ -248,7 +248,7 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 	if s.conf.systemCache != nil {
 		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 	} else {
-		pce, proxyConfErr = getFromRemote(cfg, c, s.conf.metricsReporter.ObserveLatency)
+		pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
 	}
 
 	if proxyConfErr != nil {
@@ -312,8 +312,7 @@ func (s *Threescale) doAuth(svcID string, userKey string, request authorization.
 // a reporter has not been configured
 func (s *Threescale) reportMetrics(svcID string, l prometheus.LatencyReport, sr prometheus.StatusReport) {
 	if s.conf != nil {
-		s.conf.metricsReporter.ObserveLatency(svcID, l)
-		s.conf.metricsReporter.ReportStatus(svcID, sr)
+		s.conf.metricsReporter.ReportMetrics(svcID, l, sr)
 	}
 }
 
