@@ -1,11 +1,20 @@
-
-
 # Development and testing
 
 This document provides some instructions that may be helpfully when contributing changes and testing the adapter locally.
 
 You will need a working Go environment to test and contribute to this project.
 This project uses `dep` for dependency management. Follow the [installation instructions](https://golang.github.io/dep/docs/installation.html) for your operating system.
+
+  * [Testing the adapter](#testing-the-adapter)
+    * [Running tests](#running-tests)
+    * [Running tests against real data](#running-tests-against-real-data)
+      * [Build Mixer server and client](#build-mixer-server-and-client)
+      * [Get your 3scale account](#get-your-3scale-account)
+      * [Run a local instance of the adapter](#run-a-local-instance-of-the-adapter)
+      * [Run Mixer](#run-mixer)
+      * [Test the adapter](#test-the-adapter)
+  * [Creating a debuggable adapter](#creating-a-debuggable-adapter)
+
 
 ## Testing the adapter
 
@@ -40,7 +49,8 @@ Compile `mixc` and `mixs`:
 
 ```
 pushd $ISTIO/istio
-make mixs && make mixc
+make mixs DEBUG=1
+make mixc
 ```
 
 Make sure you have the `$GOPATH/bin/` in your `$PATH` var.
@@ -76,7 +86,7 @@ make build
 ```
 
 
-Modify the testdata with you 3scale account information:
+Modify the `testdata` with your 3scale account information:
 
 ```
 vi testdata/threescale-adapter-config.yaml
@@ -111,18 +121,22 @@ make docker-test
 ```
 
 #### Run Mixer
+If you followed the previous steps, `mixs` will have been built with debugging enabled, making it possible to attach a debugger to the process if required. 
+Run `mixs server -h` to see the various flags that can be set for mixer.
 
-Start `mixs`:
+Start `mixs` with the `testdata` configuration. 
+ 
 ```
-make mixer
+make run-mixer-server
 ```
 
 #### Test the adapter
 
-Run `mixc` with the desired request.path:
+Run `mixc` and pass the desired or required attributes.
 
 ```
-mixc check -s request.path="/thepath?user_key=XXXXXXXXXXXXXXXXXXXXXXX"
+mixc check -s request.path="/thepath?api_key=XXXXXXXXXXXXXXXXXXXXXXX" \
+    --stringmap_attributes destination.labels=service-mesh.3scale.net:true
 ```
 
 With this, you should be able to simulate the istio -> mixer -> adapter -> 3scale path.

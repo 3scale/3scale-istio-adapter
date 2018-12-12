@@ -61,7 +61,7 @@ metadata:
   name: threescale
   namespace: istio-system
 spec:
-  match: destination.namespace == "myproject" && context.reporter.kind == "inbound"
+  match: destination.labels["service-mesh.3scale.net"] == "true"
   actions:
   - handler: threescale.handler.istio-system
     instances:
