@@ -3,29 +3,29 @@ IMAGE_NAME = 3scaleistioadapter:$(TAG)
 REGISTRY ?= quay.io/3scale
 LISTEN_ADDR ?= 3333
 
-build: ## Build go binary
+build: ## Build the adapter binary
 	dep ensure
 	go build -o _output/3scaleAdapter cmd/main.go
 
-adapter: ## run the adapter
+run-adapter: ## Run the adapter
 	THREESCALE_LISTEN_ADDR=${LISTEN_ADDR} go run cmd/main.go
 
-mixer: ## Run the mixer server
+run-mixer-server: ## Run the mixer server with test configuration
 	mixs server --configStoreURL=fs://$(CURDIR)/testdata
 
 unit: ## Run unit tests
 	mkdir -p "$(CURDIR)/_output"
 	go test ./... -covermode=count -test.coverprofile="$(CURDIR)/_output/unit.cov"
 
-integration:
+integration: ## Run integration tests
 	go test ./... -covermode=count -tags integration -test.coverprofile="$(CURDIR)/_output/integration.cov"
 
-test: unit integration
+test: unit integration ## Runs all tests
 
-unit_coverage: unit
+unit_coverage: unit ## Runs unit tests and generates a html coverage report
 	go tool cover -html="$(CURDIR)/_output/unit.cov"
 
-integration_coverage: integration
+integration_coverage: integration ## Runs integration tests and generates a html coverage report
 	go tool cover -html="$(CURDIR)/_output/integration.cov"
 
 debug-image: ## Builds a debuggable image which is started via Delve
