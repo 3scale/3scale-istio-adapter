@@ -72,11 +72,9 @@ oc create -f istio/ -n istio-system
 In order to drive traffic for your service through the adapter and be managed by 3scale, we need to match the rule
 `destination.labels["service-mesh.3scale.net"] == "true"` we previously created in the configuration, in the `kind: rule` resource.
 
-To do so, we need to update the service definition for the service. For example, we have a `productpage` service in the `bookinfo` namespace, we can run the following command to have the adapter authorise requests to this service.
-
-```bash
-oc label service productpage service-mesh.3scale.net=true -n bookinfo
-```
+To do so, we need to add a label to the PodTemplateSpec on the Deployment of the target workload. 
+For example, if we have a `productpage` service, whose Pod is managed by the `productpage-v1` deployment, 
+by adding the above label under `spec.template.labels` in `productpage-v1`, we can have the adapter authorise requests to this service.
 
 ## Authenticating requests
 
@@ -86,7 +84,10 @@ TODO - Describe the various supported authentication methods
 
 ## Adapter metrics
 
-TODO - Describe the metrics that are available
+The adapter, by default reports various Prometheus metrics which are exposed on port `8080` at the `/metrics` endpoint.
+These allow some insight into how the interactions between the adapter and 3scale are performing. The service is labelled
+to be automatically discovered and scraped by Prometheus.
+
 
 ## Development and contributing
 
