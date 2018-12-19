@@ -99,8 +99,11 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	// Caching at Mixer/Envoy layer needs to be disabled currently since we would miss reporting
 	// cached requests. We can determine caching values going forward by splitting the check
 	// and report functionality and using cache values obtained from 3scale extension api
+
+	// Setting a negative value will invalidate the cache - it seems from integration test
+	// and manual testing that zero values for a successful check set a large default value
 	result.ValidDuration = 0 * time.Second
-	result.ValidUseCount = 0
+	result.ValidUseCount = -1
 
 	return &result, err
 }
@@ -111,14 +114,13 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 	var pce sysC.ProxyConfigElement
 	var proxyConfErr error
 
-	userKey := request.Subject.User
-
-	if userKey == "" {
-		return status.WithPermissionDenied("api_key required"), nil
-	}
-
 	if request.Action.Path == "" {
 		return status.WithInvalidArgument("missing request path"), nil
+	}
+
+	userKey, err := parseActionPath(request.Action.Path)
+	if err != nil {
+		return status.WithPermissionDenied(err.Error()), nil
 	}
 
 	if s.conf.systemCache != nil {
@@ -268,6 +270,20 @@ func parseURL(url *url.URL) (string, string, int) {
 
 	p, _ := strconv.Atoi(port)
 	return scheme, host, p
+}
+
+func parseActionPath(path string) (string, error) {
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", fmt.Errorf("error parsing request path - %s", err.Error())
+	}
+
+	v, err := url.ParseQuery(u.RawQuery)
+	userKey := v.Get("user_key")
+	if err != nil || userKey == "" {
+		return "", errors.New("user_key required as query parameter")
+	}
+	return userKey, nil
 }
 
 // Addr returns the Threescale addrs as a string
