@@ -19,7 +19,7 @@ const (
 	DefaultCacheTTL = time.Duration(time.Minute * 5)
 
 	// DefaultCacheRefreshBuffer - Default time difference to refresh the cache element before expiry time
-	DefaultCacheRefreshBuffer = time.Duration(time.Minute * 1)
+	DefaultCacheRefreshBuffer = time.Duration(time.Minute * 3)
 
 	// DefaultCacheLimit - Default max number of items that can be stored in the cache at any time
 	DefaultCacheLimit = 1000
