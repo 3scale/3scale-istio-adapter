@@ -23,6 +23,9 @@ func init() {
 	viper.BindEnv("listen_addr")
 	viper.BindEnv("report_metrics")
 	viper.BindEnv("metrics_port")
+	viper.BindEnv("cache_ttl_seconds")
+	viper.BindEnv("cache_refresh_seconds")
+	viper.BindEnv("cache_entries_max")
 
 	options := log.DefaultOptions()
 
@@ -79,6 +82,26 @@ func parseMetricsConfig() *metrics.Reporter {
 	return metrics.NewMetricsReporter(true, port)
 }
 
+func cacheConfigBuilder() *threescale.ProxyConfigCache {
+	cacheTTL := threescale.DefaultCacheTTL
+	cacheRefreshInterval := threescale.DefaultCacheRefreshBuffer
+	cacheEntriesMax := threescale.DefaultCacheLimit
+
+	if viper.IsSet("cache_ttl_seconds") {
+		cacheTTL = time.Duration(viper.GetInt("cache_ttl_seconds")) * time.Second
+	}
+
+	if viper.IsSet("cache_refresh_seconds") {
+		cacheRefreshInterval = time.Duration(viper.GetInt("cache_refresh_seconds")) * time.Second
+	}
+
+	if viper.IsSet("cache_entries_max") {
+		cacheEntriesMax = viper.GetInt("cache_entries_max")
+	}
+	return threescale.NewProxyConfigCache(cacheTTL, cacheRefreshInterval, cacheEntriesMax)
+
+}
+
 func main() {
 	var addr string
 
@@ -94,8 +117,7 @@ func main() {
 		Timeout: time.Duration(time.Second * 10),
 	}
 
-	proxyCache := threescale.NewProxyConfigCache(
-		threescale.DefaultCacheTTL, threescale.DefaultCacheRefreshBuffer, threescale.DefaultCacheLimit)
+	proxyCache := cacheConfigBuilder()
 
 	adapterConfig := threescale.NewAdapterConfig(proxyCache, parseMetricsConfig())
 	s, err := threescale.NewThreescale(addr, c, adapterConfig)
