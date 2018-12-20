@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -56,7 +57,7 @@ func stringToLogLevel(loglevel string) (log.Level, error) {
 		"none":  log.NoneLevel,
 	}
 
-	if val, ok := stringToLevel[loglevel]; ok {
+	if val, ok := stringToLevel[strings.ToLower(loglevel)]; ok {
 		return val, nil
 	}
 
