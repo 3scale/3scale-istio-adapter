@@ -217,7 +217,7 @@ func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
 			}
 		default:
 			pc.RefreshCache()
-			<-time.After(pc.ttl)
+			<-time.After(pc.refreshBuffer)
 		}
 	}
 }
