@@ -14,7 +14,7 @@ This project uses `dep` for dependency management. Follow the [installation inst
       * [Run Mixer](#run-mixer)
       * [Test the adapter](#test-the-adapter)
   * [Creating a debuggable adapter](#creating-a-debuggable-adapter)
-
+  * [Making changes to configuration](#making-changes-to-configuration)
 
 ## Testing the adapter
 
@@ -177,5 +177,16 @@ oc port-forward ${POD_NAME} 40000 -n istio-system
 ```
 
 Connect a remote debugger to `localhost:40000` and the adapter will begin to listen on `3333` as normal.
+
+__________________________________
+
+## Making changes to configuration
+
+This adapter integrates with the Istio Mixer via gRPC. This model is referred to as an
+[Out Of Process or OOP adapter](https://github.com/istio/istio/wiki/Mixer-Out-Of-Process-Adapter-Dev-Guide).
+
+The project already contains the necessary generated files, templates and manifests, however there may at some
+point be a need to extend or modify those. To do so, follow the [OOP adapter walk-through](https://github.com/istio/istio/wiki/Mixer-Out-Of-Process-Adapter-Walkthrough)
+and copy the required changes to this code base. This generally relates to the files within the `config` directory.
 
 __________________________________
