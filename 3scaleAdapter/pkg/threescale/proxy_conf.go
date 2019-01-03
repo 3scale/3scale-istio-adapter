@@ -3,6 +3,9 @@ package threescale
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,7 +26,8 @@ const (
 	// DefaultCacheLimit - Default max number of items that can be stored in the cache at any time
 	DefaultCacheLimit = 1000
 
-	cacheKey = "%s-%s"
+	cacheKeySeparator = "_"
+	cacheKey          = "%s" + cacheKeySeparator + "%s"
 )
 
 type proxyStore struct {
@@ -47,6 +51,7 @@ type ProxyConfigCache struct {
 	refreshWorkerRunning int32
 	stopRefreshWorker    chan bool
 	metricsReporter      *metrics.Reporter
+	misbehavingHosts     map[string]bool
 	mutex                sync.RWMutex
 	cache                map[string]proxyStore
 }
@@ -61,6 +66,7 @@ func NewProxyConfigCache(cacheTTL time.Duration, refreshBuffer time.Duration, li
 		ttl:                  cacheTTL,
 		refreshBuffer:        refreshBuffer,
 		cache:                make(map[string]proxyStore, limit),
+		misbehavingHosts:     make(map[string]bool),
 		flushWorkerRunning:   0,
 		refreshWorkerRunning: 0,
 	}
@@ -80,15 +86,31 @@ func (pc *ProxyConfigCache) RefreshCache() {
 	log.Debugf("refreshing cache for existing proxy config entries")
 	forRefresh := pc.markForRefresh()
 	for _, store := range forRefresh {
+
 		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
+		host := pc.splitHostFromCacheKey(cacheKey)
+		if pc.isMisbehaving(host) {
+			continue
+		}
+
 		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ReportMetrics)
 		if err != nil {
 			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
-			pc.delete(cacheKey)
-			break
+			pc.addMisbehavingHost(host, err)
+			continue
 		}
 		pc.set(cacheKey, pce, store.replayWith)
 	}
+
+	// this will cause failed hosts to have a chance to refresh their cached
+	// config a single time before they will be purged in the next loop
+	if len(pc.misbehavingHosts) > 0 {
+		pc.misbehavingHosts = make(map[string]bool)
+		go func() {
+			pc.refreshCacheFuture((pc.ttl - pc.refreshBuffer) / 2)
+		}()
+	}
+
 }
 
 // StartFlushWorker starts a background process that periodically carries out the
@@ -187,7 +209,13 @@ func (pc *ProxyConfigCache) delete(key ...string) {
 }
 
 func (pc *ProxyConfigCache) getCacheKeyFromCfg(cfg *config.Params) string {
-	return fmt.Sprintf(cacheKey, cfg.SystemUrl, cfg.ServiceId)
+	// safe to ignore error here as this was parsed when building the client
+	u, _ := url.Parse(cfg.GetSystemUrl())
+	return fmt.Sprintf(cacheKey, u.Host, cfg.ServiceId)
+}
+
+func (pc *ProxyConfigCache) splitHostFromCacheKey(cacheKey string) string {
+	return strings.Split(cacheKey, cacheKeySeparator)[0]
 }
 
 func (pc *ProxyConfigCache) flushCache(exitC chan bool) {
@@ -207,6 +235,8 @@ func (pc *ProxyConfigCache) flushCache(exitC chan bool) {
 }
 
 func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
+	pc.RefreshCache()
+
 	for {
 		select {
 		case stop := <-exitC:
@@ -215,10 +245,14 @@ func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
 				return
 			}
 		default:
-			pc.RefreshCache()
-			<-time.After(pc.refreshBuffer)
+			pc.refreshCacheFuture(pc.refreshBuffer)
 		}
 	}
+}
+
+func (pc *ProxyConfigCache) refreshCacheFuture(d time.Duration) {
+	<-time.After(d)
+	pc.RefreshCache()
 }
 
 func (pc *ProxyConfigCache) markForDeletion() []string {
@@ -249,6 +283,31 @@ func (pc *ProxyConfigCache) markForRefresh() []proxyStore {
 
 func (pc *ProxyConfigCache) shouldRefresh(currentTime time.Time, expiryTime time.Time) bool {
 	return currentTime.Add(pc.refreshBuffer).After(expiryTime)
+}
+
+func (pc *ProxyConfigCache) addMisbehavingHost(host string, err error) {
+	var misbehaving bool
+
+	switch errT := err.(type) {
+	case net.Error:
+		if errT.Timeout() {
+			misbehaving = true
+		}
+	case sysC.ApiErr:
+		if errT.Code() >= 500 && errT.Code() < 600 {
+			misbehaving = true
+		}
+	}
+	if misbehaving {
+		pc.misbehavingHosts[host] = true
+	}
+}
+
+func (pc *ProxyConfigCache) isMisbehaving(host string) bool {
+	if _, ok := pc.misbehavingHosts[host]; ok {
+		return true
+	}
+	return false
 }
 
 func isExpired(currentTime time.Time, expiryTime time.Time) bool {
