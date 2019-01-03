@@ -3,7 +3,6 @@ package threescale
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -265,14 +264,10 @@ func getFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportMe
 	elapsed := time.Since(start)
 
 	go func() {
-		status := http.StatusOK
-		if err != nil {
-			apiErr := err.(sysC.ApiErr)
-			status = apiErr.Code()
+		if apiErr, ok := err.(sysC.ApiErr); ok {
+			report(cfg.SystemUrl, metrics.NewLatencyReport("", elapsed, cfg.SystemUrl, metrics.System),
+				metrics.NewStatusReport("", apiErr.Code(), cfg.SystemUrl, metrics.System))
 		}
-
-		report(cfg.SystemUrl, metrics.NewLatencyReport("", elapsed, cfg.SystemUrl, metrics.System),
-			metrics.NewStatusReport("", status, cfg.SystemUrl, metrics.System))
 	}()
 
 	return proxyConf, err

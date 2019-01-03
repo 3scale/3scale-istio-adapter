@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,9 +24,13 @@ func init() {
 	viper.BindEnv("listen_addr")
 	viper.BindEnv("report_metrics")
 	viper.BindEnv("metrics_port")
+
 	viper.BindEnv("cache_ttl_seconds")
 	viper.BindEnv("cache_refresh_seconds")
 	viper.BindEnv("cache_entries_max")
+
+	viper.BindEnv("client_timeout_seconds")
+	viper.BindEnv("allow_insecure_conn")
 
 	options := log.DefaultOptions()
 
@@ -82,6 +87,26 @@ func parseMetricsConfig() *metrics.Reporter {
 	return metrics.NewMetricsReporter(true, port)
 }
 
+func parseClientConfig() *http.Client {
+	c := &http.Client{
+		// Setting some sensible default here for http timeouts
+		Timeout: time.Duration(time.Second * 10),
+	}
+
+	if viper.IsSet("client_timeout_seconds") {
+		c.Timeout = time.Duration(viper.GetInt("client_timeout_seconds")) * time.Second
+	}
+
+	if viper.IsSet("allow_insecure_conn") {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: viper.GetBool("allow_insecure_conn")},
+		}
+		c.Transport = tr
+	}
+
+	return c
+}
+
 func cacheConfigBuilder() *threescale.ProxyConfigCache {
 	cacheTTL := threescale.DefaultCacheTTL
 	cacheRefreshInterval := threescale.DefaultCacheRefreshBuffer
@@ -98,8 +123,8 @@ func cacheConfigBuilder() *threescale.ProxyConfigCache {
 	if viper.IsSet("cache_entries_max") {
 		cacheEntriesMax = viper.GetInt("cache_entries_max")
 	}
-	return threescale.NewProxyConfigCache(cacheTTL, cacheRefreshInterval, cacheEntriesMax)
 
+	return threescale.NewProxyConfigCache(cacheTTL, cacheRefreshInterval, cacheEntriesMax)
 }
 
 func main() {
@@ -111,16 +136,10 @@ func main() {
 		addr = "0"
 	}
 
-	c := &http.Client{
-		// Setting some sensible default here for http timeouts
-		// This should probably come from a flag/env
-		Timeout: time.Duration(time.Second * 10),
-	}
-
 	proxyCache := cacheConfigBuilder()
 
 	adapterConfig := threescale.NewAdapterConfig(proxyCache, parseMetricsConfig())
-	s, err := threescale.NewThreescale(addr, c, adapterConfig)
+	s, err := threescale.NewThreescale(addr, parseClientConfig(), adapterConfig)
 
 	if err != nil {
 		log.Errorf("Unable to start sever: %v", err)
