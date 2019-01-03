@@ -58,37 +58,35 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":    "/thispath",
-						"request.method":  "get",
-						"request.api_key": "VALID",
+						"request.path":       "/thispath?user_key=VALID",
+						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
 					},
 				},
 			},
 			expect: `
-        {
-         "AdapterState": null,
-         "Returns": [
-          {
-           "Check": {
-            "Status": {},
-            "ValidDuration": 60000000000,
-            "ValidUseCount": 10000
-           },
-           "Quota": null,
-           "Error": null
-          }
-         ]
-        }`,
+			{
+			    "AdapterState":null,
+			    "Returns":[
+				{
+				    "Check":{
+					"Status":{},
+					"ValidDuration": 0,
+					"ValidUseCount": -1
+				    },
+				    "Quota":null,
+				    "Error":null
+				}
+			    ]
+			}`,
 		},
 		{
 			callWith: []integration.Call{
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":    "/thispath",
-						"request.method":  "get",
-						"request.api_key": "INVALID",
+						"request.path":       "/thispath?user_key=INVALID",
+						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
 					},
 				},
@@ -104,7 +102,7 @@ func TestAuthorizationCheck(t *testing.T) {
 			                    "message":"threescale.handler.istio-system:user_key_invalid"
 			                },
 			                "ValidDuration": 0,
-                            "ValidUseCount": 0
+                                        "ValidUseCount": -1
 			            },
 			            "Quota":null,
 			            "Error":null
@@ -115,60 +113,33 @@ func TestAuthorizationCheck(t *testing.T) {
 		{
 			callWith: []integration.Call{
 				{
-					CallKind: integration.REPORT,
+					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":    "/thispath",
-						"request.method":  "get",
-						"request.api_key": "VALID",
+						"request.path":       "/thispath",
+						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
 					},
 				},
 			},
 			expect: `
-        {
-        "AdapterState": null,
-        "Returns": [
-         {
-          "Check": {
-           "Status": {},
-           "ValidDuration": 0,
-           "ValidUseCount": 0
-          },
-          "Quota": null,
-          "Error": null
-         }
-        ]
-        }`,
+			{
+			    "AdapterState":null,
+			    "Returns":[
+			        {
+			            "Check":{
+			                "Status":{
+			                    "code":7,
+			                    "message":"threescale.handler.istio-system:user_key required as query parameter"
+			                },
+			                "ValidDuration": 0,
+                                        "ValidUseCount": -1
+			            },
+			            "Quota":null,
+			            "Error":null
+			        }
+			    ]
+			}`,
 		},
-		// // This test will fail due to something broken in the ISTIO integration tests...
-		// // with "Unable to unmarshal...Result: json: cannot unmarshal object into Go struct field Return.Error of type error"
-		//		{
-		//			callWith: []integration.Call{
-		//				{
-		//					CallKind: integration.REPORT,
-		//					Attrs: map[string]interface{}{
-		//						"request.path":    "/thispath",
-		//						"request.method":  "get",
-		//						"request.api_key": "INVALID",
-		//					},
-		//				},
-		//			},
-		//			expect: `{
-		//	"AdapterState": null,
-		//	"Returns": [{
-		//		"Check": {
-		//			"Status": {},
-		//			"ValidDuration": 0,
-		//			"ValidUseCount": 0
-		//		},
-		//		"Quota": null,
-		//		"Error": {
-		//			"code": 2,
-		//			"message": "1 error occurred:\n\t* rpc error: code = Unknown desc = report has not been successful\n\n"
-		//		}
-		//	}]
-		//}`,
-		//		},
 	}
 
 	for _, input := range inputs {
@@ -221,7 +192,6 @@ func startTestBackends(t *testing.T) (*httptest.Server, *httptest.Server) {
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, strings.Replace(sysFake.GetProxyConfigLatestJson(), "https://su1.3scale.net", "http://127.0.0.1:8091", -1))
 	}))
-
 	ts.Listener.Close()
 	ts.Listener = sysListener
 	ts.Start()
@@ -234,6 +204,7 @@ func startTestBackends(t *testing.T) (*httptest.Server, *httptest.Server) {
 		io.WriteString(w, fake.GetAuthSuccess())
 		return
 	}))
+
 	bs.Listener.Close()
 	bs.Listener = backendListener
 	bs.Start()

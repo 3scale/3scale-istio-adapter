@@ -10,8 +10,6 @@ spec:
     service_id: "123456"
     system_url: "http://127.0.0.1:8090"
     access_token: "secret-token"
-    cache_valid_hits: "0"
-    cache_valid_seconds: "0"
   connection:
     address: "[::]:3333"
 ---
@@ -29,29 +27,10 @@ metadata:
 spec:
   template: authorization
   params:
-    subject:
-      user: request.api_key | request.headers["api-key"] | ""
     action:
       path: request.path | "/"
       method: request.method | "get"
 
----
-# instance configuration for template 'logentry'
-
-apiVersion: config.istio.io/v1alpha2
-kind: instance
-metadata:
-  name: threescale-logentry
-  namespace: istio-system
-spec:
-  template: logentry
-  params:
-    severity: '"Default"'
-    variables:
-      user: request.api_key | request.headers["api-key"] | ""
-      method: request.method | ""
-      url: request.path | ""
-    monitored_resource_type: '"UNSPECIFIED"'
 ---
 
 # rule to dispatch to handler threescalehandler
@@ -66,5 +45,4 @@ spec:
   - handler: threescale.handler.istio-system
     instances:
     - threescale-authorization
-    - threescale-logentry
 ---

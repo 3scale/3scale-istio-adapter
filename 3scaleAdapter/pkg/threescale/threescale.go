@@ -27,7 +27,6 @@ import (
 	"istio.io/api/mixer/adapter/model/v1beta1"
 	"istio.io/istio/mixer/pkg/status"
 	"istio.io/istio/mixer/template/authorization"
-	"istio.io/istio/mixer/template/logentry"
 	"istio.io/istio/pkg/log"
 )
 
@@ -56,123 +55,8 @@ type (
 	reportMetrics func(serviceID string, l prometheus.LatencyReport, s prometheus.StatusReport)
 )
 
-// For this PoC I'm using the authorize template, but we should check if the quota template
-// is more convenient and we can do some optimizations around.
+// Implement required interface
 var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
-var _ logentry.HandleLogEntryServiceServer = &Threescale{}
-
-func (s *Threescale) HandleLogEntry(ctx context.Context, l *logentry.HandleLogEntryRequest) (*v1beta1.ReportResult, error) {
-	var report v1beta1.ReportResult
-	var err error
-
-	if l.AdapterConfig == nil {
-		return &report, fmt.Errorf("adapter config not available")
-	}
-
-	cfg := &config.Params{}
-	if err := cfg.Unmarshal(l.AdapterConfig.Value); err != nil {
-		log.Errorf("error unmarshalling adapter config: %v", err)
-		return &report, err
-	}
-
-	systemC, err := s.systemClientBuilder(cfg.SystemUrl)
-
-	if err != nil {
-		log.Errorf("error building HTTP client for 3scale system - %s", err.Error())
-		return &report, err
-	}
-
-	err = s.reportUsage(cfg, l.Instances, systemC)
-
-	if err != nil {
-		log.Errorf("error reporting usage - %s", err.Error())
-	}
-
-	return &report, err
-}
-func (s *Threescale) reportUsage(cfg *config.Params, instances []*logentry.InstanceMsg, c *sysC.ThreeScaleClient) error {
-	for _, instance := range instances {
-		var pce sysC.ProxyConfigElement
-		var proxyConfErr error
-
-		urlWithPath := instance.Variables["url"].GetStringValue()
-		userKey := instance.Variables["user"].GetStringValue()
-		method := instance.Variables["method"].GetStringValue()
-
-		//TODO: Report proper timestamp
-		//timestamp := request.Timestamp.GetValue()
-
-		u, err := url.Parse(urlWithPath)
-		if err != nil {
-			return err
-		}
-
-		if urlWithPath == "" || userKey == "" || method == "" {
-			return errors.New("missing required parameters")
-		}
-
-		if s.conf.systemCache != nil {
-			pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
-		} else {
-			pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
-		}
-
-		if proxyConfErr != nil {
-			return errors.New("internal error - unable to unmarshal adapter config")
-		}
-
-		authType := pce.ProxyConfig.Content.BackendAuthenticationType
-
-		switch authType {
-		case "provider_key", "service_token":
-			return s.doReport(cfg.ServiceId, userKey, u.Path, method, pce.ProxyConfig)
-		default:
-			return fmt.Errorf("unsupported auth type for service %s", cfg.ServiceId)
-
-		}
-	}
-	return nil
-}
-
-func (s *Threescale) doReport(svcID string, userKey string, path string, method string, conf sysC.ProxyConfig) error {
-	const endpoint = "Report"
-	const target = prometheus.Backend
-	var resp backendC.ApiResponse
-	var apiErr error
-
-	bc, err := s.backendClientBuilder(conf.Content.Proxy.Backend.Endpoint)
-	if err != nil {
-		return err
-	}
-
-	metrics := generateMetrics(path, method, conf)
-	if len(metrics) == 0 {
-		return errors.New("report failed, no matching mapping rule")
-	}
-
-	params := backendC.NewAuthRepParamsUserKey("", "", metrics, nil)
-
-	auth := backendC.TokenAuth{
-		Type:  conf.Content.BackendAuthenticationType,
-		Value: conf.Content.BackendAuthenticationValue,
-	}
-	start := time.Now()
-	resp, apiErr = bc.AuthRepUserKey(auth, userKey, svcID, params)
-	elapsed := time.Since(start)
-
-	go s.reportMetrics(svcID, prometheus.NewLatencyReport(endpoint, elapsed, conf.Content.Proxy.Backend.Endpoint, target),
-		prometheus.NewStatusReport(endpoint, resp.StatusCode, conf.Content.Proxy.Backend.Endpoint, target))
-
-	if apiErr != nil {
-		return apiErr
-	}
-
-	if !resp.Success {
-		return errors.New("report has not been successful")
-	}
-
-	return nil
-}
 
 // HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
@@ -181,12 +65,6 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	go s.conf.metricsReporter.IncrementTotalRequests()
 
 	log.Debugf("Got instance %+v", r.Instance)
-
-	// We set the result to 1 ms valid duration to avoid
-	// Mixer caching the request and not reporting everything
-	// This is a hack, we should fine a better way to do this.
-	// Same happens with ValidUseCount, we need to investigate more.
-	result.ValidDuration = 0 * time.Second
 
 	if r.AdapterConfig == nil {
 		err := errors.New("internal error - adapter config is not available")
@@ -218,17 +96,14 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 
 	result.Status = returnedStatus
 
-	// Add caching to valid calls.
-	if returnedStatus.Code == 0 {
-		seconds, _ := strconv.Atoi(cfg.CacheValidSeconds)
-		hits, _ := strconv.Atoi(cfg.CacheValidHits)
-		result.ValidDuration = time.Duration(seconds) * time.Second
-		result.ValidUseCount = int32(hits)
-	} else {
-		// No Cache for failed auth
-		result.ValidDuration = 0 * time.Second
-		result.ValidUseCount = 0
-	}
+	// Caching at Mixer/Envoy layer needs to be disabled currently since we would miss reporting
+	// cached requests. We can determine caching values going forward by splitting the check
+	// and report functionality and using cache values obtained from 3scale extension api
+
+	// Setting a negative value will invalidate the cache - it seems from integration test
+	// and manual testing that zero values for a successful check set a large default value
+	result.ValidDuration = 0 * time.Second
+	result.ValidUseCount = -1
 
 	return &result, err
 }
@@ -239,10 +114,13 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 	var pce sysC.ProxyConfigElement
 	var proxyConfErr error
 
-	userKey := request.Subject.User
+	if request.Action.Path == "" {
+		return status.WithInvalidArgument("missing request path"), nil
+	}
 
-	if userKey == "" {
-		return status.WithPermissionDenied("user_key must be provided as a query parameter"), nil
+	userKey, err := parseActionPath(request.Action.Path)
+	if err != nil {
+		return status.WithPermissionDenied(err.Error()), nil
 	}
 
 	if s.conf.systemCache != nil {
@@ -256,56 +134,64 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 			9, fmt.Sprintf("currently unable to fetch required data from 3scale system - %s", proxyConfErr.Error())), proxyConfErr
 	}
 
-	return s.doAuth(cfg.ServiceId, userKey, request, pce.ProxyConfig)
+	return s.doAuthRep(cfg.ServiceId, userKey, request, pce.ProxyConfig)
 }
 
-func (s *Threescale) doAuth(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (rpc.Status, error) {
-	const endpoint = "Authorise"
+func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (rpcStatus rpc.Status, authRepErr error) {
+	const endpoint = "AuthRep"
 	const target = prometheus.Backend
-	var resp backendC.ApiResponse
-	var apiErr error
-
-	if request.Action.Path == "" {
-		return status.WithInvalidArgument("missing request path"), nil
-	}
+	var (
+		start   time.Time
+		elapsed time.Duration
+		metrics backendC.Metrics
+		params  backendC.AuthRepParams
+		resp    backendC.ApiResponse
+		auth    backendC.TokenAuth
+		apiErr  error
+	)
 
 	bc, err := s.backendClientBuilder(conf.Content.Proxy.Backend.Endpoint)
 	if err != nil {
-		return status.WithInvalidArgument(
-			fmt.Sprintf("error creating 3scale backend client - %s", err.Error())), err
+		rpcStatus = status.WithInvalidArgument(
+			fmt.Sprintf("error creating 3scale backend client - %s", err.Error()))
+		authRepErr = err
+		goto out
 	}
 
-	metrics := generateMetrics(request.Action.Path, request.Action.Method, conf)
+	metrics = generateMetrics(request.Action.Path, request.Action.Method, conf)
 	if len(metrics) == 0 {
-		return status.WithPermissionDenied(fmt.Sprintf("no matching mapping rule for request with method %s and path %s",
-			request.Action.Method, request.Action.Path)), nil
+		rpcStatus = status.WithPermissionDenied(fmt.Sprintf("no matching mapping rule for request with method %s and path %s",
+			request.Action.Method, request.Action.Path))
+		goto out
 	}
 
-	start := time.Now()
-	switch conf.Content.BackendAuthenticationType {
-
-	case "provider_key", "service_token":
-		params := backendC.NewAuthorizeKeyParams("", "")
-		params.Metrics = metrics
-		resp, apiErr = bc.AuthorizeKey(userKey, conf.Content.BackendAuthenticationValue, svcID, params)
-
-	default:
-		return status.WithInvalidArgument("invalid authentication type"), nil
+	params = backendC.NewAuthRepParamsUserKey("", "", metrics, nil)
+	auth = backendC.TokenAuth{
+		Type:  conf.Content.BackendAuthenticationType,
+		Value: conf.Content.BackendAuthenticationValue,
 	}
-	elapsed := time.Since(start)
+
+	start = time.Now()
+	resp, apiErr = bc.AuthRepUserKey(auth, userKey, svcID, params)
+	elapsed = time.Since(start)
 
 	go s.reportMetrics(svcID, prometheus.NewLatencyReport(endpoint, elapsed, conf.Content.Proxy.Backend.Endpoint, target),
 		prometheus.NewStatusReport(endpoint, resp.StatusCode, conf.Content.Proxy.Backend.Endpoint, target))
 
 	if apiErr != nil {
-		return status.WithMessage(2, fmt.Sprintf("error calling 3scale Auth -  %s", apiErr.Error())), apiErr
+		rpcStatus = status.WithMessage(2, fmt.Sprintf("error calling 3scale Auth -  %s", apiErr.Error()))
+		authRepErr = apiErr
+		goto out
 	}
 
 	if !resp.Success {
-		return status.WithPermissionDenied(resp.Reason), nil
+		rpcStatus = status.WithPermissionDenied(resp.Reason)
+		goto out
 	}
 
-	return status.OK, nil
+	goto out
+out:
+	return rpcStatus, authRepErr
 }
 
 // reportMetrics - report metrics for 3scale adapter to Prometheus. Function is safe to call if
@@ -386,6 +272,20 @@ func parseURL(url *url.URL) (string, string, int) {
 	return scheme, host, p
 }
 
+func parseActionPath(path string) (string, error) {
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", fmt.Errorf("error parsing request path - %s", err.Error())
+	}
+
+	v, err := url.ParseQuery(u.RawQuery)
+	userKey := v.Get("user_key")
+	if err != nil || userKey == "" {
+		return "", errors.New("user_key required as query parameter")
+	}
+	return userKey, nil
+}
+
 // Addr returns the Threescale addrs as a string
 func (s *Threescale) Addr() string {
 	return s.listener.Addr().String()
@@ -433,7 +333,6 @@ func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Serve
 
 	s.server = grpc.NewServer()
 	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
-	logentry.RegisterHandleLogEntryServiceServer(s.server, s)
 	return s, nil
 }
 

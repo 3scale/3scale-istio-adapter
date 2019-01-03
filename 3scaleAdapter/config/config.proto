@@ -1,23 +1,18 @@
 syntax = "proto3";
 
-// config for threescale
+// 3scale adapter configuration
 package adapter.threescale.config;
 
 import "gogoproto/gogo.proto";
 
 option go_package="config";
 
-// config for threescale
+// 3scale adapter configuration
 message Params {
-
+    // Unique identification string for the service/api
     string service_id = 1;
-
+    // Url to connect to 3scale system
     string system_url = 2;
-
+    // Access token used to authenticate against the 3scale APIs
     string access_token = 3;
-
-    string cache_valid_seconds = 4;
-
-    string cache_valid_hits = 5;
-
 }
