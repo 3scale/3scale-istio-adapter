@@ -19,20 +19,21 @@ import (
 	"istio.io/istio/mixer/template/authorization"
 )
 
+type (
+	testInput struct {
+		name     string
+		params   pb.Params
+		template authorization.InstanceMsg
+	}
+
+	testResult struct {
+		result *v1beta1.CheckResult
+		err    error
+	}
+)
+
 func TestProxyConfigCacheFlushing(t *testing.T) {
 	const ttl = time.Duration(time.Millisecond * 100)
-	type (
-		testInput struct {
-			name     string
-			params   pb.Params
-			template authorization.InstanceMsg
-		}
-
-		testResult struct {
-			result *v1beta1.CheckResult
-			err    error
-		}
-	)
 
 	var (
 		proxyConf         client.ProxyConfigElement
@@ -173,62 +174,54 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 
 func TestProxyConfigCacheRefreshing(t *testing.T) {
 	const ttl = time.Duration(time.Second * 10)
-	type (
-		testInput struct {
-			name     string
-			params   pb.Params
-			template authorization.InstanceMsg
-		}
-
-		testResult struct {
-			result *v1beta1.CheckResult
-			err    error
-		}
-	)
+	const defaultSystemUrl = "https://www.fake-system.3scale.net"
 
 	var (
 		proxyConf         client.ProxyConfigElement
 		fetchedFromRemote int
+		wasCalled         bool
 	)
 
 	ctx := context.TODO()
 	httpClient := NewTestClient(func(req *http.Request) *http.Response {
-		if req.URL.Host == "www.fake-system.3scale.net:443" {
+		switch req.URL.Host {
+		case "www.fake-system.3scale.net:443":
 			fetchedFromRemote++
 			return sysFake.GetProxyConfigLatestSuccess()
-		} else {
-
-			return &http.Response{
-				StatusCode: 200,
-				Body:       ioutil.NopCloser(bytes.NewBufferString(fake.GetAuthSuccess())),
-				Header:     make(http.Header),
+		case "misbehaving-host-1.net:443":
+			if !wasCalled {
+				wasCalled = true
+				return getRespBadGateway(t)
 			}
+			return getRespOk(t)
+		default:
+			return getRespOk(t)
 		}
 	})
 
-	// Create cache manager and populate
-	pc := NewProxyConfigCache(time.Duration(ttl), time.Duration(ttl), 3)
+	// Create cache manager
+	pc := NewProxyConfigCache(ttl, ttl, 3)
 	proxyConf = unmarshalConfig(t)
 	conf := &AdapterConfig{systemCache: pc}
 	c := &Threescale{client: httpClient, conf: conf}
-	sysClient, err := c.systemClientBuilder("https://www.fake-system.3scale.net")
-	if err != nil {
-		t.Fatalf("unexpected error builoding system client")
-	}
 
-	cfg := &pb.Params{ServiceId: "123", SystemUrl: "https://www.fake-system.3scale.net"}
+	//Pre-Populate the cache
+	cfg := &pb.Params{ServiceId: "123", SystemUrl: defaultSystemUrl}
 	cacheKey := pc.getCacheKeyFromCfg(cfg)
-	pc.set(cacheKey, proxyConf, cacheRefreshStore{
-		cfg:    cfg,
-		client: sysClient,
-	})
+	// With valid entry
+	pc.set(cacheKey, proxyConf, cacheRefreshStore{cfg: cfg, client: getSysClient(t, c, defaultSystemUrl)})
+	// With misbehaving host
+	cfgBadHost := &pb.Params{ServiceId: "12345", SystemUrl: "https://misbehaving-host-1.net"}
+	cacheKeyBadHost := pc.getCacheKeyFromCfg(cfg)
+	pc.set(cacheKeyBadHost, proxyConf, cacheRefreshStore{cfg: cfgBadHost, client: getSysClient(t, c, "https://misbehaving-host-1.net")})
+	pc.addMisbehavingHost("misbehaving-host-1.net", fakeNetError{})
 
 	inputs := []testInput{
 		{
-			name: "One",
+			name: "Mock Cached Result",
 			params: pb.Params{
 				ServiceId:   "123",
-				SystemUrl:   "https://www.fake-system.3scale.net",
+				SystemUrl:   defaultSystemUrl,
 				AccessToken: "happy-path",
 			},
 			template: authorization.InstanceMsg{
@@ -243,11 +236,29 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 			},
 		},
 		{
-			name: "Two",
+			name: "Mock Cache Miss",
 			params: pb.Params{
 				ServiceId:   "321",
-				SystemUrl:   "https://www.fake-system.3scale.net",
+				SystemUrl:   defaultSystemUrl,
 				AccessToken: "happy-path",
+			},
+			template: authorization.InstanceMsg{
+				Name: "",
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
+				},
+				Action: &authorization.ActionMsg{
+					Path:   "/?user_key=secret",
+					Method: "get",
+				},
+			},
+		},
+		{
+			name: "Mock Misbehaving Host",
+			params: pb.Params{
+				ServiceId:   "12345",
+				SystemUrl:   "https://misbehaving-host-1.net",
+				AccessToken: "host-down-5xx",
 			},
 			template: authorization.InstanceMsg{
 				Name: "",
@@ -264,7 +275,8 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 
 	resultOne := make(chan testResult)
 	resultTwo := make(chan testResult)
-	results := []chan testResult{resultOne, resultTwo}
+	resultThree := make(chan testResult)
+	results := []chan testResult{resultOne, resultTwo, resultThree}
 
 	for i, input := range inputs {
 		copy := testInput{input.name, input.params, input.template}
@@ -299,13 +311,17 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 			assert(message)
 		case message := <-resultTwo:
 			assert(message)
+		case message := <-resultThree:
+			if message.result.Status.Code != 9 {
+				t.Errorf("expected not authorized")
+			}
 		}
 	}
 	if fetchedFromRemote != 1 {
 		t.Fatalf("expected only one result not fetched from cache")
 	}
 
-	err = c.conf.systemCache.StartRefreshWorker()
+	err := c.conf.systemCache.StartRefreshWorker()
 	if err != nil {
 		t.Fatalf("expected to be able to start the refresh worker")
 	}
@@ -335,7 +351,50 @@ func unmarshalConfig(t *testing.T) client.ProxyConfigElement {
 	t.Helper()
 	var proxyConf client.ProxyConfigElement
 	if err := json.Unmarshal([]byte(sysFake.GetProxyConfigLatestJson()), &proxyConf); err != nil {
-		t.Fatalf("failed to unmarsahl proxy conf")
+		t.Fatalf("failed to unmarshal proxy conf")
 	}
 	return proxyConf
+}
+
+func getSysClient(t *testing.T, c *Threescale, sysURL string) *client.ThreeScaleClient {
+	t.Helper()
+	sysClient, err := c.systemClientBuilder(sysURL)
+	if err != nil {
+		t.Fatalf("unexpected error building system client")
+	}
+	return sysClient
+}
+
+func getRespOk(t *testing.T) *http.Response {
+	t.Helper()
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       ioutil.NopCloser(bytes.NewBufferString(fake.GetAuthSuccess())),
+		Header:     make(http.Header),
+	}
+}
+
+func getRespBadGateway(t *testing.T) *http.Response {
+	t.Helper()
+	return &http.Response{
+		StatusCode: http.StatusBadGateway,
+		Body:       ioutil.NopCloser(bytes.NewBufferString("Bad Gateway")),
+		Header:     make(http.Header),
+	}
+}
+
+type fakeNetError struct {
+	error
+}
+
+func (f fakeNetError) Error() string {
+	return "fake"
+}
+
+func (f fakeNetError) Timeout() bool {
+	return true
+}
+
+func (f fakeNetError) Temporary() bool {
+	return true
 }
