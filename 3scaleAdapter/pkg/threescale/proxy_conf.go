@@ -66,7 +66,6 @@ func NewProxyConfigCache(cacheTTL time.Duration, refreshBuffer time.Duration, li
 		ttl:                  cacheTTL,
 		refreshBuffer:        refreshBuffer,
 		cache:                make(map[string]proxyStore, limit),
-		misbehavingHosts:     make(map[string]bool),
 		flushWorkerRunning:   0,
 		refreshWorkerRunning: 0,
 	}
@@ -77,40 +76,6 @@ func NewProxyConfigCache(cacheTTL time.Duration, refreshBuffer time.Duration, li
 func (pc *ProxyConfigCache) FlushCache() {
 	log.Debugf("starting cache flush for proxy config")
 	pc.delete(pc.markForDeletion()...)
-}
-
-// RefreshCache iterates over the items in the cache and updates their values
-// If a configuration cannot be refreshed then the existing values is considered invalid
-// and will be purged from the cache
-func (pc *ProxyConfigCache) RefreshCache() {
-	log.Debugf("refreshing cache for existing proxy config entries")
-	forRefresh := pc.markForRefresh()
-	for _, store := range forRefresh {
-
-		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
-		host := pc.splitHostFromCacheKey(cacheKey)
-		if pc.isMisbehaving(host) {
-			continue
-		}
-
-		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ReportMetrics)
-		if err != nil {
-			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
-			pc.addMisbehavingHost(host, err)
-			continue
-		}
-		pc.set(cacheKey, pce, store.replayWith)
-	}
-
-	// this will cause failed hosts to have a chance to refresh their cached
-	// config a single time before they will be purged in the next loop
-	if len(pc.misbehavingHosts) > 0 {
-		pc.misbehavingHosts = make(map[string]bool)
-		go func() {
-			pc.refreshCacheFuture((pc.ttl - pc.refreshBuffer) / 2)
-		}()
-	}
-
 }
 
 // StartFlushWorker starts a background process that periodically carries out the
@@ -138,14 +103,14 @@ func (pc *ProxyConfigCache) StopFlushWorker() error {
 }
 
 // StartRefreshWorker starts a background process that periodically carries out the
-// functionality provided by RefreshCache
+// functionality provided by refreshCache
 func (pc *ProxyConfigCache) StartRefreshWorker() error {
 	if !atomic.CompareAndSwapInt32(&pc.refreshWorkerRunning, 0, 1) {
 		return errors.New("worker has already been started")
 	}
 
 	pc.stopRefreshWorker = make(chan bool)
-	go pc.refreshCache(pc.stopRefreshWorker)
+	go pc.refreshCacheWorker(pc.stopRefreshWorker)
 	return nil
 }
 
@@ -234,8 +199,8 @@ func (pc *ProxyConfigCache) flushCache(exitC chan bool) {
 	}
 }
 
-func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
-	pc.RefreshCache()
+func (pc *ProxyConfigCache) refreshCacheWorker(exitC chan bool) {
+	pc.refreshCache()
 
 	for {
 		select {
@@ -252,7 +217,40 @@ func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
 
 func (pc *ProxyConfigCache) refreshCacheFuture(d time.Duration) {
 	<-time.After(d)
-	pc.RefreshCache()
+	pc.refreshCache()
+}
+
+// refreshCache iterates over the items in the cache and updates their values
+// If a configuration cannot be refreshed then the existing values is considered invalid
+// and will be purged from the cache
+func (pc *ProxyConfigCache) refreshCache() {
+	log.Debugf("refreshing cache for existing proxy config entries")
+	forRefresh := pc.markForRefresh()
+	for _, store := range forRefresh {
+
+		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
+		host := pc.splitHostFromCacheKey(cacheKey)
+		if pc.isMisbehaving(host) {
+			continue
+		}
+
+		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ReportMetrics)
+		if err != nil {
+			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
+			pc.addMisbehavingHost(host, err)
+			continue
+		}
+		pc.set(cacheKey, pce, store.replayWith)
+	}
+
+	// this will cause failed hosts to have a chance to refresh their cached
+	// config a single time before they will be purged in the next loop
+	if !pc.isEmptySet(pc.misbehavingHosts) {
+		go func() {
+			pc.refreshCacheFuture((pc.ttl - pc.refreshBuffer) / 2)
+		}()
+	}
+	pc.emptySet(pc.misbehavingHosts)
 }
 
 func (pc *ProxyConfigCache) markForDeletion() []string {
@@ -285,6 +283,18 @@ func (pc *ProxyConfigCache) shouldRefresh(currentTime time.Time, expiryTime time
 	return currentTime.Add(pc.refreshBuffer).After(expiryTime)
 }
 
+func (pc *ProxyConfigCache) isEmptySet(set map[string]bool) bool {
+	return set == nil
+}
+
+func (pc *ProxyConfigCache) allocateSet(set *map[string]bool) {
+	*set = make(map[string]bool)
+}
+
+func (pc *ProxyConfigCache) emptySet(set map[string]bool) {
+	set = nil
+}
+
 func (pc *ProxyConfigCache) addMisbehavingHost(host string, err error) {
 	var misbehaving bool
 
@@ -299,6 +309,9 @@ func (pc *ProxyConfigCache) addMisbehavingHost(host string, err error) {
 		}
 	}
 	if misbehaving {
+		if pc.isEmptySet(pc.misbehavingHosts) {
+			pc.allocateSet(&pc.misbehavingHosts)
+		}
 		pc.misbehavingHosts[host] = true
 	}
 }
