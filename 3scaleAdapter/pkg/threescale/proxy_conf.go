@@ -26,6 +26,9 @@ const (
 	// DefaultCacheLimit - Default max number of items that can be stored in the cache at any time
 	DefaultCacheLimit = 1000
 
+	// DefaultCacheUpdateRetries - Default number of additional attempts made to update cached entries for unreachable hosts
+	DefaultCacheUpdateRetries = 1
+
 	cacheKeySeparator = "_"
 	cacheKey          = "%s" + cacheKeySeparator + "%s"
 )
@@ -201,6 +204,8 @@ func (pc *ProxyConfigCache) flushCache(exitC chan bool) {
 
 func (pc *ProxyConfigCache) refreshCacheWorker(exitC chan bool) {
 	pc.refreshCache()
+	//TODO - This will come from a user setting
+	retries := DefaultCacheUpdateRetries + 1
 
 	for {
 		select {
@@ -210,20 +215,21 @@ func (pc *ProxyConfigCache) refreshCacheWorker(exitC chan bool) {
 				return
 			}
 		default:
-			pc.refreshCacheFuture(pc.refreshBuffer)
+			<-time.After(pc.ttl - pc.refreshBuffer)
+			shouldRetry := pc.refreshCache()
+			for shouldRetry && retries > 0 {
+				<-time.After((pc.ttl - pc.refreshBuffer) / time.Duration(retries))
+				retries--
+				shouldRetry = pc.refreshCache()
+			}
+			retries = DefaultCacheUpdateRetries + 1
 		}
 	}
 }
 
-func (pc *ProxyConfigCache) refreshCacheFuture(d time.Duration) {
-	<-time.After(d)
-	pc.refreshCache()
-}
-
 // refreshCache iterates over the items in the cache and updates their values
-// If a configuration cannot be refreshed then the existing values is considered invalid
-// and will be purged from the cache
-func (pc *ProxyConfigCache) refreshCache() {
+// returns true if all comms to remote hosts during refresh succeed
+func (pc *ProxyConfigCache) refreshCache() bool {
 	log.Debugf("refreshing cache for existing proxy config entries")
 	forRefresh := pc.markForRefresh()
 	for _, store := range forRefresh {
@@ -243,14 +249,11 @@ func (pc *ProxyConfigCache) refreshCache() {
 		pc.set(cacheKey, pce, store.replayWith)
 	}
 
-	// this will cause failed hosts to have a chance to refresh their cached
-	// config a single time before they will be purged in the next loop
-	if !pc.isEmptySet(pc.misbehavingHosts) {
-		go func() {
-			pc.refreshCacheFuture((pc.ttl - pc.refreshBuffer) / 2)
-		}()
-	}
+	// check if any remote hosts have not been reachable
+	shouldRetry := !pc.isEmptySet(pc.misbehavingHosts)
+	// reset the set of unreachable hosts
 	pc.emptySet(pc.misbehavingHosts)
+	return shouldRetry
 }
 
 func (pc *ProxyConfigCache) markForDeletion() []string {
