@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -178,7 +179,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 
 	var (
 		proxyConf         client.ProxyConfigElement
-		fetchedFromRemote int
+		fetchedFromRemote int32
 		wasCalled         bool
 	)
 
@@ -186,7 +187,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	httpClient := NewTestClient(func(req *http.Request) *http.Response {
 		switch req.URL.Host {
 		case "www.fake-system.3scale.net:443":
-			fetchedFromRemote++
+			atomic.AddInt32(&fetchedFromRemote, 1)
 			return sysFake.GetProxyConfigLatestSuccess()
 		case "misbehaving-host-1.net:443":
 			if !wasCalled {
@@ -200,7 +201,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	})
 
 	// Create cache manager
-	pc := NewProxyConfigCache(ttl, ttl, 3)
+	pc := NewProxyConfigCache(ttl, ttl-(time.Millisecond*5), 3)
 	proxyConf = unmarshalConfig(t)
 	conf := &AdapterConfig{systemCache: pc}
 	c := &Threescale{client: httpClient, conf: conf}
@@ -317,7 +318,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 			}
 		}
 	}
-	if fetchedFromRemote != 1 {
+	if atomic.LoadInt32(&fetchedFromRemote) != 1 {
 		t.Fatalf("expected only one result not fetched from cache")
 	}
 
@@ -331,8 +332,8 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 		t.Fatalf("expected error when calling to start the refresh worker a second time")
 	}
 
-	<-time.After(time.Second)
-	if fetchedFromRemote < 3 {
+	<-time.After(time.Second * 1)
+	if atomic.LoadInt32(&fetchedFromRemote) < 3 {
 		t.Fatalf("expected cache to have been refreshed")
 	}
 
