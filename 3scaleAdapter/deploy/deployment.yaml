@@ -33,6 +33,11 @@ spec:
         - containerPort: 8080
           protocol: TCP
           name: prometheus
+        livenessProbe:
+          tcpSocket:
+            port: 3333
+          initialDelaySeconds: 10
+          periodSeconds: 5
         env:
         - name: "THREESCALE_LOG_JSON"
           value: "true"
