@@ -10,13 +10,10 @@ spec:
     matchLabels:
       app: 3scale-istio-adapter
   strategy:
+    type: RollingUpdate
     rollingUpdate:
-      intervalSeconds: 1
       maxSurge: 25%
       maxUnavailable: 25%
-      timeoutSeconds: 600
-      updatePeriodSeconds: 1
-    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -51,5 +48,4 @@ spec:
       restartPolicy: Always
       securityContext: {}
       terminationGracePeriodSeconds: 30
-  triggers:
-  - type: ConfigChange
+
