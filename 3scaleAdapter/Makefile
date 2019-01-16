@@ -40,3 +40,6 @@ docker-test: ## Runs the adapter
 
 docker-push: ## Push both builder and runtime image to the docker registry
 	docker push $(REGISTRY)/$(IMAGE_NAME)
+
+generate-config: ## Generates required artifacts for an out-of-process adapter based on the current .proto file
+	$(CURDIR)/scripts/generate-config.sh
