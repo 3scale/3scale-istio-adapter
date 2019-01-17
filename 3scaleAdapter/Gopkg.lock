@@ -339,7 +339,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:98aa8bc119587e8bddd558bf2921a645ea6c0ff3195760142113d4dc7cab509f"
+  digest = "1:3b5729e3fc486abc6fc16ce026331c3d196e788c3b973081ecf5d28ae3e1050d"
   name = "github.com/prometheus/client_golang"
   packages = [
     "prometheus",
@@ -348,8 +348,8 @@
     "prometheus/testutil",
   ]
   pruneopts = "T"
-  revision = "abad2d1bd44235a26707c172eab6bca5bf2dbad3"
-  version = "v0.9.1"
+  revision = "505eaef017263e299324067d40ca2c48f6a2cf50"
+  version = "v0.9.2"
 
 [[projects]]
   branch = "master"
@@ -693,7 +693,7 @@
   revision = "6bf9d6613f65c2754a3d90ae916e1806e9d74175"
 
 [[projects]]
-  digest = "1:2ba0b698e9c659a9f353073d98fa2bb4d31f980c284f1b7845a755b26a09c717"
+  digest = "1:d41ee0684b94c2570f83b5256a2cdceff8da0eed6f39b68a74d9b20cb59337a9"
   name = "istio.io/istio"
   packages = [
     "mixer/adapter/kubernetesenv/template",
@@ -752,8 +752,8 @@
     "pkg/version",
   ]
   pruneopts = "T"
-  revision = "a44d4c8bcb427db16ca4a439adfbd8d9361b8ed3"
-  version = "1.0.3"
+  revision = "c1707e45e71c75d74bf3a5dec8c7086f32f32fad"
+  version = "1.0.5"
 
 [[projects]]
   digest = "1:da2d130154517e7f08b6a9d6e658643497472ff945eee7ad0dc7b96242801945"
