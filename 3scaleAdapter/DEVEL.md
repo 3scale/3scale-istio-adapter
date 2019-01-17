@@ -185,8 +185,17 @@ __________________________________
 This adapter integrates with the Istio Mixer via gRPC. This model is referred to as an
 [Out Of Process or OOP adapter](https://github.com/istio/istio/wiki/Mixer-Out-Of-Process-Adapter-Dev-Guide).
 
-The project already contains the necessary generated files, templates and manifests, however there may at some
-point be a need to extend or modify those. To do so, follow the [OOP adapter walk-through](https://github.com/istio/istio/wiki/Mixer-Out-Of-Process-Adapter-Walkthrough)
-and copy the required changes to this code base. This generally relates to the files within the `config` directory.
+The project already contains the necessary generated files, templates and manifests.
+This generally relates to the files within the `config` directory.
+
+To extend or make changes here, read the [OOP adapter walk-through](https://github.com/istio/istio/wiki/Mixer-Out-Of-Process-Adapter-Walkthrough)
+and update the `go generate` commands in this code base as required.
+
+Once the changes have been made, run `make generate-config`.
+Copy the required generated files in `$ISTIO/mixer/adapter/3scaleAdapter/config`
+into the `testdata` directory in this repository. Run `make test`.
+
+Assuming a successful test run, copy the required generated files to `config`.
+Build the adapter image with these changes and verify the functionality.
 
 __________________________________
