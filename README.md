@@ -50,6 +50,7 @@ configuring the following environment variables:
 | THREESCALE_CACHE_TTL_SECONDS     | Time period, in seconds, to wait before purging expired items from the cache                       | 300     |
 | THREESCALE_CACHE_REFRESH_SECONDS | Time period before expiry, when cache elements are attempted to be refreshed                       | 180     |
 | THREESCALE_CACHE_ENTRIES_MAX     | Max number of items that can be stored in the cache at any time. Set to 0 to disable caching       | 1000    |
+| THREESCALE_CACHE_REFRESH_RETRIES | Sets the number of times unreachable hosts will be retried during a cache update loop              | 1       |
 | THREESCALE_ALLOW_INSECURE_CONN   | Allow to skip certificate verification when calling 3scale API's. Enabling is not recommended      | false   |
 | THREESCALE_CLIENT_TIMEOUT_SECONDS| Sets the number of seconds to wait before terminating requests to 3scale System and Backend        | 10      |
 
