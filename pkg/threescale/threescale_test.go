@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 
 	"github.com/3scale/3scale-go-client/fake"
 	sysFake "github.com/3scale/3scale-porta-go-client/fake"
-	pb "github.com/3scale/istio-integration/3scaleAdapter/config"
+	pb "github.com/3scale/3scale-istio-adapter/config"
 	"github.com/gogo/protobuf/types"
 	"istio.io/istio/mixer/template/authorization"
 )

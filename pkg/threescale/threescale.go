@@ -20,8 +20,8 @@ import (
 
 	backendC "github.com/3scale/3scale-go-client/client"
 	sysC "github.com/3scale/3scale-porta-go-client/client"
-	"github.com/3scale/istio-integration/3scaleAdapter/config"
-	prometheus "github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
+	"github.com/3scale/3scale-istio-adapter/config"
+	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"github.com/gogo/googleapis/google/rpc"
 	"google.golang.org/grpc"
 	"istio.io/api/mixer/adapter/model/v1beta1"
