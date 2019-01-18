@@ -3,6 +3,9 @@ package threescale
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,7 +26,13 @@ const (
 	// DefaultCacheLimit - Default max number of items that can be stored in the cache at any time
 	DefaultCacheLimit = 1000
 
-	cacheKey = "%s-%s"
+	// DefaultCacheUpdateRetries - Default number of additional attempts made to update cached entries for unreachable hosts
+	DefaultCacheUpdateRetries = 1
+
+	cacheKeySeparator = "_"
+	cacheKey          = "%s" + cacheKeySeparator + "%s"
+
+	refreshSleepDefault = time.Duration(time.Second * 2)
 )
 
 type proxyStore struct {
@@ -47,6 +56,7 @@ type ProxyConfigCache struct {
 	refreshWorkerRunning int32
 	stopRefreshWorker    chan bool
 	metricsReporter      *metrics.Reporter
+	misbehavingHosts     map[string]bool
 	mutex                sync.RWMutex
 	cache                map[string]proxyStore
 }
@@ -71,24 +81,6 @@ func NewProxyConfigCache(cacheTTL time.Duration, refreshBuffer time.Duration, li
 func (pc *ProxyConfigCache) FlushCache() {
 	log.Debugf("starting cache flush for proxy config")
 	pc.delete(pc.markForDeletion()...)
-}
-
-// RefreshCache iterates over the items in the cache and updates their values
-// If a configuration cannot be refreshed then the existing values is considered invalid
-// and will be purged from the cache
-func (pc *ProxyConfigCache) RefreshCache() {
-	log.Debugf("refreshing cache for existing proxy config entries")
-	forRefresh := pc.markForRefresh()
-	for _, store := range forRefresh {
-		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
-		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ReportMetrics)
-		if err != nil {
-			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
-			pc.delete(cacheKey)
-			break
-		}
-		pc.set(cacheKey, pce, store.replayWith)
-	}
 }
 
 // StartFlushWorker starts a background process that periodically carries out the
@@ -116,14 +108,14 @@ func (pc *ProxyConfigCache) StopFlushWorker() error {
 }
 
 // StartRefreshWorker starts a background process that periodically carries out the
-// functionality provided by RefreshCache
+// functionality provided by refreshCache
 func (pc *ProxyConfigCache) StartRefreshWorker() error {
 	if !atomic.CompareAndSwapInt32(&pc.refreshWorkerRunning, 0, 1) {
 		return errors.New("worker has already been started")
 	}
 
 	pc.stopRefreshWorker = make(chan bool)
-	go pc.refreshCache(pc.stopRefreshWorker)
+	go pc.refreshCacheWorker(pc.stopRefreshWorker)
 	return nil
 }
 
@@ -187,7 +179,13 @@ func (pc *ProxyConfigCache) delete(key ...string) {
 }
 
 func (pc *ProxyConfigCache) getCacheKeyFromCfg(cfg *config.Params) string {
-	return fmt.Sprintf(cacheKey, cfg.SystemUrl, cfg.ServiceId)
+	// safe to ignore error here as this was parsed when building the client
+	u, _ := url.Parse(cfg.GetSystemUrl())
+	return fmt.Sprintf(cacheKey, u.Host, cfg.ServiceId)
+}
+
+func (pc *ProxyConfigCache) splitHostFromCacheKey(cacheKey string) string {
+	return strings.Split(cacheKey, cacheKeySeparator)[0]
 }
 
 func (pc *ProxyConfigCache) flushCache(exitC chan bool) {
@@ -206,7 +204,26 @@ func (pc *ProxyConfigCache) flushCache(exitC chan bool) {
 	}
 }
 
-func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
+func (pc *ProxyConfigCache) refreshCacheWorker(exitC chan bool) {
+	var retryCounter int
+	var wait time.Duration
+	var refreshAfter <-chan time.Time
+
+	setState := func(waitFor time.Duration, retries int) {
+		wait = waitFor
+		refreshAfter = time.After(wait)
+		retryCounter = retries
+
+	}
+
+	resetState := func() {
+		//TODO - This will come from a user setting
+		setState(pc.ttl-pc.refreshBuffer, DefaultCacheUpdateRetries+1)
+	}
+
+	resetState()
+	pc.refreshCache()
+
 	for {
 		select {
 		case stop := <-exitC:
@@ -214,11 +231,51 @@ func (pc *ProxyConfigCache) refreshCache(exitC chan bool) {
 				log.Debugf("stopping cache refresh worker")
 				return
 			}
+		case <-refreshAfter:
+			shouldRetry := pc.refreshCache()
+			if shouldRetry && retryCounter > 0 {
+				setState((pc.ttl-pc.refreshBuffer)/time.Duration(retryCounter), retryCounter)
+				retryCounter--
+				continue
+			}
+			resetState()
 		default:
-			pc.RefreshCache()
-			<-time.After(pc.refreshBuffer)
+			sleepFor := refreshSleepDefault
+			if wait < sleepFor {
+				sleepFor = wait - (time.Millisecond * 5)
+			}
+			time.Sleep(sleepFor)
 		}
 	}
+}
+
+// refreshCache iterates over the items in the cache and updates their values
+// returns true if all comms to remote hosts during refresh succeed
+func (pc *ProxyConfigCache) refreshCache() bool {
+	log.Debugf("refreshing cache for existing proxy config entries")
+	forRefresh := pc.markForRefresh()
+	for _, store := range forRefresh {
+
+		cacheKey := pc.getCacheKeyFromCfg(store.replayWith.cfg)
+		host := pc.splitHostFromCacheKey(cacheKey)
+		if pc.isMisbehaving(host) {
+			continue
+		}
+
+		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ReportMetrics)
+		if err != nil {
+			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
+			pc.addMisbehavingHost(host, err)
+			continue
+		}
+		pc.set(cacheKey, pce, store.replayWith)
+	}
+
+	// check if any remote hosts have not been reachable
+	shouldRetry := !isEmptySet(pc.misbehavingHosts)
+	// reset the set of unreachable hosts
+	emptySet(pc.misbehavingHosts)
+	return shouldRetry
 }
 
 func (pc *ProxyConfigCache) markForDeletion() []string {
@@ -251,6 +308,34 @@ func (pc *ProxyConfigCache) shouldRefresh(currentTime time.Time, expiryTime time
 	return currentTime.Add(pc.refreshBuffer).After(expiryTime)
 }
 
+func (pc *ProxyConfigCache) addMisbehavingHost(host string, err error) {
+	var misbehaving bool
+
+	switch errT := err.(type) {
+	case net.Error:
+		if errT.Timeout() {
+			misbehaving = true
+		}
+	case sysC.ApiErr:
+		if errT.Code() >= 500 && errT.Code() < 600 {
+			misbehaving = true
+		}
+	default:
+		log.Infof("unreachable host will not be skipped - error type %T", errT)
+	}
+	if misbehaving {
+		if isEmptySet(pc.misbehavingHosts) {
+			allocateSet(&pc.misbehavingHosts)
+		}
+		pc.misbehavingHosts[host] = true
+	}
+}
+
+func (pc *ProxyConfigCache) isMisbehaving(host string) bool {
+	_, ok := pc.misbehavingHosts[host]
+	return ok
+}
+
 func isExpired(currentTime time.Time, expiryTime time.Time) bool {
 	return currentTime.After(expiryTime)
 }
@@ -271,4 +356,16 @@ func getFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportMe
 	}()
 
 	return proxyConf, err
+}
+
+func isEmptySet(set map[string]bool) bool {
+	return set == nil
+}
+
+func allocateSet(set *map[string]bool) {
+	*set = make(map[string]bool)
+}
+
+func emptySet(set map[string]bool) {
+	set = nil
 }
