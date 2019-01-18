@@ -57,7 +57,7 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 	})
 
 	// Create cache manager and populate
-	pc := NewProxyConfigCache(time.Duration(ttl), time.Duration(time.Second*1), 3)
+	pc := NewProxyConfigCache(time.Duration(ttl), time.Duration(time.Second*1), DefaultCacheUpdateRetries, 3)
 	proxyConf = unmarshalConfig(t)
 
 	cfg := &pb.Params{ServiceId: "123", SystemUrl: "https://www.fake-system.3scale.net"}
@@ -202,7 +202,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	})
 
 	// Create cache manager
-	pc := NewProxyConfigCache(ttl, ttl-(time.Millisecond*5), 3)
+	pc := NewProxyConfigCache(ttl, ttl-(time.Millisecond*5), DefaultCacheUpdateRetries, 3)
 	proxyConf = unmarshalConfig(t)
 	conf := &AdapterConfig{systemCache: pc}
 	c := &Threescale{client: httpClient, conf: conf}
