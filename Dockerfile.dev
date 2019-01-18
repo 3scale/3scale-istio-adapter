@@ -1,6 +1,6 @@
 FROM golang:1.10 AS build
 
-ENV WORKDIR=/go/src/github.com/3scale/istio-integration/3scaleAdapter
+ENV WORKDIR=/go/src/github.com/3scale/3scale-istio-adapter
 
 ADD . ${WORKDIR}
 WORKDIR ${WORKDIR}
