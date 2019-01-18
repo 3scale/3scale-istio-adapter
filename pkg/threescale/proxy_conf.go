@@ -11,8 +11,8 @@ import (
 	"time"
 
 	sysC "github.com/3scale/3scale-porta-go-client/client"
-	"github.com/3scale/istio-integration/3scaleAdapter/config"
-	"github.com/3scale/istio-integration/3scaleAdapter/pkg/threescale/metrics"
+	"github.com/3scale/3scale-istio-adapter/config"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"istio.io/istio/pkg/log"
 )
 

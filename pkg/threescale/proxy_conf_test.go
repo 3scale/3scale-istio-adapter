@@ -13,7 +13,7 @@ import (
 	"github.com/3scale/3scale-go-client/fake"
 	"github.com/3scale/3scale-porta-go-client/client"
 	sysFake "github.com/3scale/3scale-porta-go-client/fake"
-	pb "github.com/3scale/istio-integration/3scaleAdapter/config"
+	pb "github.com/3scale/3scale-istio-adapter/config"
 	"github.com/gogo/protobuf/types"
 
 	"istio.io/api/mixer/adapter/model/v1beta1"
