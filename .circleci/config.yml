@@ -8,9 +8,9 @@ jobs:
       - image: circleci/golang:1.11
         environment:
           ISTIO: /go/src/istio.io/
-          ADAPTER_CODE: /go/src/github.com/3scale/istio-integration/3scaleAdapter
+          ADAPTER_CODE: /go/src/github.com/3scale/3scale-istio-adapter
 
-    working_directory: /go/src/github.com/3scale/istio-integration/
+    working_directory: /go/src/github.com/3scale/3scale-istio-adapter/
     steps:
       - checkout
 
@@ -29,7 +29,7 @@ jobs:
       - save_cache:
           key: deps-vendor
           paths:
-            - "/go/src/github.com/3scale/istio-integration/3scaleAdapter/vendor"
+            - "/go/src/github.com/3scale/3scale-istio-adapter/vendor"
 
       - run:
           name: Run unit tests
