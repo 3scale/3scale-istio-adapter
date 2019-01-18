@@ -26,8 +26,6 @@ targets generates coverage reports.
 
 The integration test above creates test servers to simulate responses from 3scale. However testing can be done using real data by following instructions in the next section.
 
-__________________________________
-
 ### Running tests against real data
 
 Requirements:
@@ -80,11 +78,10 @@ You will need to write down:
 Build the adapter:
 
 ```
-go get github.com/3scale/istio-integration/3scaleAdapter
-cd $GOPATH/src/github.com/3scale/istio-integration/3scaleAdapter
+go get github.com/3scale/3scale-istio-adapter
+cd $GOPATH/src/github.com/3scale/3scale-istio-adapter
 make build
 ```
-
 
 Modify the `testdata` with your 3scale account information:
 
@@ -108,7 +105,6 @@ spec:
    address: "[::]:3333"
 ```
 
-
 Run the adapter locally...:
 
 ```
@@ -121,11 +117,11 @@ make docker-test
 ```
 
 #### Run Mixer
-If you followed the previous steps, `mixs` will have been built with debugging enabled, making it possible to attach a debugger to the process if required. 
+If you followed the previous steps, `mixs` will have been built with debugging enabled, making it possible to attach a debugger to the process if required.
 Run `mixs server -h` to see the various flags that can be set for mixer.
 
-Start `mixs` with the `testdata` configuration. 
- 
+Start `mixs` with the `testdata` configuration.
+
 ```
 make run-mixer-server
 ```
@@ -140,8 +136,6 @@ mixc check -s request.path="/thepath?api_key=XXXXXXXXXXXXXXXXXXXXXXX" \
 ```
 
 With this, you should be able to simulate the istio -> mixer -> adapter -> 3scale path.
-
-__________________________________
 
 ## Creating a debuggable adapter
 
@@ -178,8 +172,6 @@ oc port-forward ${POD_NAME} 40000 -n istio-system
 
 Connect a remote debugger to `localhost:40000` and the adapter will begin to listen on `3333` as normal.
 
-__________________________________
-
 ## Making changes to configuration
 
 This adapter integrates with the Istio Mixer via gRPC. This model is referred to as an
@@ -197,5 +189,3 @@ into the `testdata` directory in this repository. Run `make test`.
 
 Assuming a successful test run, copy the required generated files to `config`.
 Build the adapter image with these changes and verify the functionality.
-
-__________________________________
