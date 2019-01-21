@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/3scale/3scale-istio-adapter/config"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
+	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"istio.io/istio/pkg/log"
 )
 
@@ -222,7 +222,6 @@ func (pc *ProxyConfigCache) refreshCacheWorker(exitC chan bool) {
 	}
 
 	resetState()
-	pc.refreshCache()
 
 	for {
 		select {
@@ -274,7 +273,7 @@ func (pc *ProxyConfigCache) refreshCache() bool {
 	// check if any remote hosts have not been reachable
 	shouldRetry := !isEmptySet(pc.misbehavingHosts)
 	// reset the set of unreachable hosts
-	emptySet(pc.misbehavingHosts)
+	pc.emptySet(&pc.misbehavingHosts)
 	return shouldRetry
 }
 
@@ -336,6 +335,10 @@ func (pc *ProxyConfigCache) isMisbehaving(host string) bool {
 	return ok
 }
 
+func (pc *ProxyConfigCache) emptySet(set *map[string]bool) {
+	*set = nil
+}
+
 func isExpired(currentTime time.Time, expiryTime time.Time) bool {
 	return currentTime.After(expiryTime)
 }
@@ -364,8 +367,4 @@ func isEmptySet(set map[string]bool) bool {
 
 func allocateSet(set *map[string]bool) {
 	*set = make(map[string]bool)
-}
-
-func emptySet(set map[string]bool) {
-	set = nil
 }

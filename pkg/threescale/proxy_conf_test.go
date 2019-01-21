@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/3scale/3scale-go-client/fake"
+	pb "github.com/3scale/3scale-istio-adapter/config"
 	"github.com/3scale/3scale-porta-go-client/client"
 	sysFake "github.com/3scale/3scale-porta-go-client/fake"
-	pb "github.com/3scale/3scale-istio-adapter/config"
 	"github.com/gogo/protobuf/types"
 
 	"istio.io/api/mixer/adapter/model/v1beta1"
@@ -194,7 +194,8 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 				wasCalled = true
 				return getRespBadGateway(t)
 			}
-			return getRespOk(t)
+			atomic.AddInt32(&fetchedFromRemote, 1)
+			return sysFake.GetProxyConfigLatestSuccess()
 		default:
 			return getRespOk(t)
 		}
@@ -333,13 +334,13 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	}
 
 	<-time.After(time.Second * 1)
-	if atomic.LoadInt32(&fetchedFromRemote) < 3 {
-		t.Fatalf("expected cache to have been refreshed")
-	}
-
 	err = c.conf.systemCache.StopRefreshWorker()
 	if err != nil {
 		t.Fatalf("unexpected error when stopping refresh worker")
+	}
+
+	if atomic.LoadInt32(&fetchedFromRemote) < 3 {
+		t.Fatalf("expected cache to have been refreshed")
 	}
 
 	err = c.conf.systemCache.StopRefreshWorker()
