@@ -3,7 +3,7 @@
 // supported template names (metric in this case), and whether it is session or no-session based.
 
 // nolint: lll
-//go:generate $GOPATH/src/istio.io/istio/bin/mixer_codegen.sh -a mixer/adapter/3scaleAdapter/config/config.proto -x "-s=false -n threescale -t authorization"
+//go:generate $GOPATH/src/istio.io/istio/bin/mixer_codegen.sh -a mixer/adapter/3scale-istio-adapter/config/config.proto -x "-s=false -n threescale -t authorization"
 package threescale
 
 import (
@@ -19,9 +19,9 @@ import (
 	"time"
 
 	backendC "github.com/3scale/3scale-go-client/client"
-	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/3scale/3scale-istio-adapter/config"
 	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
+	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
 	"google.golang.org/grpc"
 	"istio.io/api/mixer/adapter/model/v1beta1"

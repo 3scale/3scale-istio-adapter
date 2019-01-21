@@ -147,7 +147,7 @@ and the 3scale adapter has already been deployed into that project
 
 Run the following to create the image:
 ```
-make debug-image REGISTRY=$(whoami) IMAGE=3scaleadapter TAG=debug
+make debug-image REGISTRY=$(whoami) IMAGE=3scale-istio-adapter TAG=debug
 ```
 
 The debugger listens on port 40000 and we need to patch the service, run the following:
@@ -184,7 +184,7 @@ To extend or make changes here, read the [OOP adapter walk-through](https://gith
 and update the `go generate` commands in this code base as required.
 
 Once the changes have been made, run `make generate-config`.
-Copy the required generated files in `$ISTIO/mixer/adapter/3scaleAdapter/config`
+Copy the required generated files in `$ISTIO/mixer/adapter/3scale-istio-adapter/config`
 into the `testdata` directory in this repository. Run `make test`.
 
 Assuming a successful test run, copy the required generated files to `config`.
