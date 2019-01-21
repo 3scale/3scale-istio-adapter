@@ -20,7 +20,7 @@ spec:
         app: 3scale-istio-adapter
     spec:
       containers:
-      - image: quay.io/3scale/3scaleistioadapter:0.2
+      - image: quay.io/3scale/3scale-istio-adapter:0.2.0
         imagePullPolicy: Always
         name: 3scale-istio-adapter
         ports:
