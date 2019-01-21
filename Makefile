@@ -1,4 +1,4 @@
-TAG ?= 0.2.0
+TAG ?= v0.2.0
 IMAGE_NAME = 3scale-istio-adapter:$(TAG)
 REGISTRY ?= quay.io/3scale
 LISTEN_ADDR ?= 3333
