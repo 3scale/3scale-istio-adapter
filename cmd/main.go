@@ -111,6 +111,7 @@ func cacheConfigBuilder() *threescale.ProxyConfigCache {
 	cacheTTL := threescale.DefaultCacheTTL
 	cacheRefreshInterval := threescale.DefaultCacheRefreshBuffer
 	cacheEntriesMax := threescale.DefaultCacheLimit
+	cacheUpdateRetries := threescale.DefaultCacheUpdateRetries
 
 	if viper.IsSet("cache_ttl_seconds") {
 		cacheTTL = time.Duration(viper.GetInt("cache_ttl_seconds")) * time.Second
@@ -124,7 +125,11 @@ func cacheConfigBuilder() *threescale.ProxyConfigCache {
 		cacheEntriesMax = viper.GetInt("cache_entries_max")
 	}
 
-	return threescale.NewProxyConfigCache(cacheTTL, cacheRefreshInterval, cacheEntriesMax)
+	if viper.IsSet("cache_refresh_retries") {
+		cacheUpdateRetries = viper.GetInt("cache_refresh_retries")
+	}
+
+	return threescale.NewProxyConfigCache(cacheTTL, cacheRefreshInterval, cacheUpdateRetries, cacheEntriesMax)
 }
 
 func main() {
