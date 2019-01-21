@@ -51,6 +51,7 @@ type ProxyConfigCache struct {
 	limit                int
 	ttl                  time.Duration
 	refreshBuffer        time.Duration
+	refreshMinDuration   time.Duration
 	refreshRetries       int
 	flushWorkerRunning   int32
 	stopFlushWorker      chan bool
@@ -211,22 +212,28 @@ func (pc *ProxyConfigCache) refreshCacheWorker(exitC chan bool) {
 	var wait time.Duration
 	var refreshAfter <-chan time.Time
 
-	minRefreshDurationAllowed := time.Second * 2
+	baseWaitDuration := pc.ttl - pc.refreshBuffer
+	// this is configurable internally for testing purposes only
+	// check if its the default value and set to const value if true
+	minRefreshDurationAllowed := pc.refreshMinDuration
+	if pc.refreshMinDuration == time.Second*0 {
+		minRefreshDurationAllowed = time.Second * 2
+	}
 
 	setState := func(waitFor time.Duration, retries int) {
-		// Protect refresh loop with sensible minimum value
+		// Protect the api with some sensible minimum
+		// Attempted details below this duration are reset
 		if waitFor < minRefreshDurationAllowed {
 			waitFor = minRefreshDurationAllowed
 		}
+
 		wait = waitFor
 		refreshAfter = time.After(wait)
-
 		retryCounter = retries
-
 	}
 
 	resetState := func() {
-		setState(pc.ttl-pc.refreshBuffer, pc.refreshRetries)
+		setState(baseWaitDuration, pc.refreshRetries)
 	}
 
 	resetState()
@@ -241,7 +248,7 @@ func (pc *ProxyConfigCache) refreshCacheWorker(exitC chan bool) {
 		case <-refreshAfter:
 			shouldRetry := pc.refreshCache()
 			if shouldRetry && retryCounter > 0 {
-				setState((pc.ttl-pc.refreshBuffer)/time.Duration(retryCounter+1), retryCounter)
+				setState((baseWaitDuration)/time.Duration(retryCounter+1), retryCounter)
 				retryCounter--
 				continue
 			}

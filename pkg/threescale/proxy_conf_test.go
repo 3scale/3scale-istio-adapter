@@ -178,9 +178,10 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	const defaultSystemUrl = "https://www.fake-system.3scale.net"
 
 	var (
-		proxyConf         client.ProxyConfigElement
-		fetchedFromRemote int32
-		wasCalled         bool
+		proxyConf          client.ProxyConfigElement
+		fetchedFromRemote  int32
+		fetchedMisbehaving int32
+		wasCalled          bool
 	)
 
 	ctx := context.TODO()
@@ -194,7 +195,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 				wasCalled = true
 				return getRespBadGateway(t)
 			}
-			atomic.AddInt32(&fetchedFromRemote, 1)
+			atomic.AddInt32(&fetchedMisbehaving, 1)
 			return sysFake.GetProxyConfigLatestSuccess()
 		default:
 			return getRespOk(t)
@@ -202,7 +203,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	})
 
 	// Create cache manager
-	pc := NewProxyConfigCache(ttl, ttl-(time.Millisecond*5), DefaultCacheUpdateRetries, 3)
+	pc := NewProxyConfigCache(ttl, ttl-(time.Second*1), DefaultCacheUpdateRetries, 3)
 	proxyConf = unmarshalConfig(t)
 	conf := &AdapterConfig{systemCache: pc}
 	c := &Threescale{client: httpClient, conf: conf}
@@ -323,24 +324,20 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 		t.Fatalf("expected only one result not fetched from cache")
 	}
 
+	c.conf.systemCache.refreshMinDuration = time.Nanosecond
 	err := c.conf.systemCache.StartRefreshWorker()
 	if err != nil {
 		t.Fatalf("expected to be able to start the refresh worker")
 	}
 
-	err = c.conf.systemCache.StartRefreshWorker()
-	if err == nil {
-		t.Fatalf("expected error when calling to start the refresh worker a second time")
-	}
-
-	<-time.After(time.Second * 1)
+	<-time.After(time.Second * 3)
 	err = c.conf.systemCache.StopRefreshWorker()
 	if err != nil {
 		t.Fatalf("unexpected error when stopping refresh worker")
 	}
 
-	if atomic.LoadInt32(&fetchedFromRemote) < 3 {
-		t.Fatalf("expected cache to have been refreshed")
+	if atomic.LoadInt32(&fetchedFromRemote) < 2 || atomic.LoadInt32(&fetchedMisbehaving) < 1 {
+		t.Fatalf("expected cache to have been refreshed and misbehaving host to have been retried and fetched")
 	}
 
 	err = c.conf.systemCache.StopRefreshWorker()
