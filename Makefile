@@ -1,12 +1,12 @@
-TAG ?= 0.2
-IMAGE_NAME = 3scaleistioadapter:$(TAG)
+TAG ?= 0.2.0
+IMAGE_NAME = 3scale-istio-adapter:$(TAG)
 REGISTRY ?= quay.io/3scale
 LISTEN_ADDR ?= 3333
 PROJECT_PATH := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 build: ## Build the adapter binary
 	dep ensure
-	go build -o _output/3scaleAdapter cmd/main.go
+	go build -o _output/3scale-istio-adapter cmd/main.go
 
 run-adapter: ## Run the adapter
 	THREESCALE_LISTEN_ADDR=${LISTEN_ADDR} go run cmd/main.go

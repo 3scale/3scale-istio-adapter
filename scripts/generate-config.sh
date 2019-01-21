@@ -10,7 +10,7 @@ root_dir=$(dirname "${script_dir}")
 
 istio_src="${GOPATH-$HOME/go}/src/istio.io/istio"
 mixer_src="${istio_src}/mixer"
-target_dir="${mixer_src}/adapter/3scaleAdapter"
+target_dir="${mixer_src}/adapter/3scale-istio-adapter"
 
 
 # Test the existence of provided directory
