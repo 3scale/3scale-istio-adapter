@@ -39,12 +39,15 @@ compare_extensions=(
   yaml
   go
   proto_descriptor
+  html
 )
 
+exit_with=0
+echo "Generating config against istio $(cd ${istio_src} && git describe --dirty --tags --abbrev=12)"
 for i in "${compare_extensions[@]}" ; do
   for file in "${target_dir}/config/"*.${i} ; do
-    diff -b "$file" "config/${file##*/}"
+    diff --brief "${file}" "${root_dir}/config/${file##*/}" || exit_with=1
   done
 done
 
-
+exit ${exit_with}
