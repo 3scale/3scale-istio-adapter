@@ -1,5 +1,13 @@
 # Refer to https://golang.github.io/dep/docs/Gopkg.toml.html for details
 
+[[override]]
+  name = "k8s.io/client-go"
+  revision = "56e7a63b5e38b614bb7cb8c49ed26dc991b324c4"
+
+[[override]]
+  name = "istio.io/api"
+  revision = "b1978437bd1f98da05c1c172efe1c250223513ef"
+
 [[constraint]]
   name = "github.com/gogo/protobuf"
   version = "1.1.1"
@@ -10,7 +18,7 @@
 
 [[constraint]]
   name = "istio.io/istio"
-  version = "1.0.5"
+  version = "1.1.0-snapshot.4"
 
 [[constraint]]
   name = "github.com/3scale/3scale-go-client"
@@ -20,11 +28,11 @@
   name = "github.com/3scale/3scale-porta-go-client"
   version = "v0.0.2"
 
-# Override provided here to mitigate the issue caused by https://github.com/istio/istio/pull/10321
-# Revert to constraint at next available opportunity
-[[override]]
+[[constraint]]
   name = "github.com/prometheus/client_golang"
   version = "0.9.2"
 
 [prune]
   go-tests = true
+
+
