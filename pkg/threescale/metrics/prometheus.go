@@ -78,7 +78,7 @@ var (
 
 	backendStatusCodes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "backend_http_status",
+			Name: "threescale_backend_http_status",
 			Help: "HTTP Status response codes for requests to 3scale backend",
 		},
 		[]string{"backendURL", "serviceID", "code"},
@@ -86,7 +86,7 @@ var (
 
 	cacheHits = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "system_cache_hits",
+			Name: "threescale_system_cache_hits",
 			Help: "Total number of requests to 3scale system fetched from cache",
 		},
 	)
