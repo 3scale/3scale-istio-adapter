@@ -150,19 +150,6 @@ func TestReportStatus(t *testing.T) {
 	}
 }
 
-func TestIncrementTotalRequests(t *testing.T) {
-	collector := totalRequests
-	if testutil.ToFloat64(collector) != 0 {
-		t.Fatalf("unexpected counter value for %s", collector.Desc().String())
-	}
-	r := NewMetricsReporter(true, 8080)
-
-	incrementBy := randCounterInc(t, r.IncrementTotalRequests)
-	if testutil.ToFloat64(collector) != float64(incrementBy) {
-		t.Fatalf("unexpected counter value for %s", collector.Desc().String())
-	}
-}
-
 func TestIncrementCacheHits(t *testing.T) {
 	collector := cacheHits
 	if testutil.ToFloat64(collector) != 0 {

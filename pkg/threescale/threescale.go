@@ -62,8 +62,6 @@ var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
 
-	go s.conf.metricsReporter.IncrementTotalRequests()
-
 	log.Debugf("Got instance %+v", r.Instance)
 
 	if r.AdapterConfig == nil {
