@@ -120,9 +120,6 @@ func (s *Threescale) parseConfigParams(r *authorization.HandleAuthorizationReque
 // isAuthorized returns code 0 if authorization is successful
 // based on grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
 func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, c *sysC.ThreeScaleClient) (rpc.Status, error) {
-	var pce sysC.ProxyConfigElement
-	var proxyConfErr error
-
 	if request.Action.Path == "" {
 		return status.WithInvalidArgument("missing request path"), nil
 	}
@@ -132,18 +129,27 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 		return status.WithPermissionDenied(err.Error()), nil
 	}
 
+	proxyConfElement, err := s.extractProxyConf(cfg, c)
+	if err != nil {
+		return status.WithMessage(
+			9, fmt.Sprintf("currently unable to fetch required data from 3scale system - %s", err.Error())), err
+	}
+
+	return s.doAuthRep(cfg.ServiceId, userKey, request, proxyConfElement.ProxyConfig)
+}
+
+// extractProxyConf - fetches the latest system proxy configuration or returns an error if unavailable
+// If system cache is enabled, config will be fetched from the cache
+func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClient) (sysC.ProxyConfigElement, error) {
+	var pce sysC.ProxyConfigElement
+	var proxyConfErr error
+
 	if s.conf.systemCache != nil {
 		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
 	} else {
 		pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
 	}
-
-	if proxyConfErr != nil {
-		return status.WithMessage(
-			9, fmt.Sprintf("currently unable to fetch required data from 3scale system - %s", proxyConfErr.Error())), proxyConfErr
-	}
-
-	return s.doAuthRep(cfg.ServiceId, userKey, request, pce.ProxyConfig)
+	return pce, proxyConfErr
 }
 
 func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (rpcStatus rpc.Status, authRepErr error) {
