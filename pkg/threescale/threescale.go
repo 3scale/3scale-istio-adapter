@@ -66,18 +66,9 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 
 	log.Debugf("Got instance %+v", r.Instance)
 
-	if r.AdapterConfig == nil {
-		err := errors.New("internal error - adapter config is not available")
-		log.Error(err.Error())
-		result.Status = status.WithError(err)
-		return &result, err
-	}
-
-	cfg := &config.Params{}
-	if err := cfg.Unmarshal(r.AdapterConfig.Value); err != nil {
-		unmarshalErr := errors.New("internal error - unable to unmarshal adapter config")
-		log.Errorf("%s: %v", unmarshalErr, err)
-		result.Status = status.WithError(unmarshalErr)
+	cfg, err := s.parseConfigParams(r)
+	if err != nil {
+		result.Status = status.WithInternal(err.Error())
 		return &result, err
 	}
 
@@ -106,6 +97,24 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	result.ValidUseCount = -1
 
 	return &result, err
+}
+
+// parseConfigParams - parses the configuration passed to the adapter from mixer
+// Where an error occurs during parsing, error is formatted and logged and nil value returned for config
+func (s *Threescale) parseConfigParams(r *authorization.HandleAuthorizationRequest) (*config.Params, error) {
+	if r.AdapterConfig == nil {
+		err := errors.New("internal error - adapter config is not available")
+		log.Error(err.Error())
+		return nil, err
+	}
+
+	cfg := &config.Params{}
+	if err := cfg.Unmarshal(r.AdapterConfig.Value); err != nil {
+		unmarshalErr := errors.New("internal error - unable to unmarshal adapter config")
+		log.Errorf("%s: %v", unmarshalErr, err)
+		return nil, unmarshalErr
+	}
+	return cfg, nil
 }
 
 // isAuthorized returns code 0 if authorization is successful
