@@ -92,14 +92,14 @@ func TestReportStatus(t *testing.T) {
 	}{
 		{
 			name:       "Test invalid status code",
-			metricName: "backend_http_status",
+			metricName: "threescale_backend_http_status",
 			expect:     ``,
 			expectErr:  true,
 			collector:  backendStatusCodes,
 		},
 		{
 			name:       "Test Report unsupported target",
-			metricName: "backend_http_status",
+			metricName: "threescale_backend_http_status",
 			expect:     ``,
 			collector:  backendStatusCodes,
 			expectErr:  true,
@@ -108,11 +108,11 @@ func TestReportStatus(t *testing.T) {
 		},
 		{
 			name:       "Test Report Backend HTTP Status",
-			metricName: "backend_http_status",
+			metricName: "threescale_backend_http_status",
 			expect: `
-		               # HELP backend_http_status HTTP Status response codes for requests to 3scale backend
-		               # TYPE backend_http_status counter
-		               backend_http_status{backendURL="www.fake.com",code="200",serviceID="123"} 1
+			       # HELP threescale_backend_http_status HTTP Status response codes for requests to 3scale backend
+			       # TYPE threescale_backend_http_status counter
+			       threescale_backend_http_status{backendURL="www.fake.com",code="200",serviceID="123"} 1
 		       `,
 			collector: backendStatusCodes,
 			code:      http.StatusOK,
