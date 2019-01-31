@@ -55,6 +55,11 @@ type (
 	reportMetrics func(serviceID string, l prometheus.LatencyReport, s prometheus.StatusReport)
 )
 
+const (
+	invalidPathErr     = "missing request path"
+	unauthenticatedErr = "no auth credentials provided"
+)
+
 // Implement required interface
 var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 
@@ -121,12 +126,12 @@ func (s *Threescale) parseConfigParams(r *authorization.HandleAuthorizationReque
 // based on grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
 func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, c *sysC.ThreeScaleClient) (rpc.Status, error) {
 	if request.Action.Path == "" {
-		return status.WithInvalidArgument("missing request path"), nil
+		return status.WithInvalidArgument(invalidPathErr), nil
 	}
 
-	userKey, err := parseActionPath(request.Action.Path)
+	userKey, err := s.parseAuthCredentials(request.Subject)
 	if err != nil {
-		return status.WithPermissionDenied(err.Error()), nil
+		return status.WithUnauthenticated(err.Error()), nil
 	}
 
 	proxyConfElement, err := s.extractProxyConf(cfg, c)
@@ -150,6 +155,13 @@ func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClie
 		pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
 	}
 	return pce, proxyConfErr
+}
+
+func (s *Threescale) parseAuthCredentials(sub *authorization.SubjectMsg) (string, error) {
+	if sub == nil || sub.User == "" {
+		return "", errors.New(unauthenticatedErr)
+	}
+	return sub.User, nil
 }
 
 func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (rpcStatus rpc.Status, authRepErr error) {
@@ -285,20 +297,6 @@ func parseURL(url *url.URL) (string, string, int) {
 
 	p, _ := strconv.Atoi(port)
 	return scheme, host, p
-}
-
-func parseActionPath(path string) (string, error) {
-	u, err := url.Parse(path)
-	if err != nil {
-		return "", fmt.Errorf("error parsing request path - %s", err.Error())
-	}
-
-	v, err := url.ParseQuery(u.RawQuery)
-	userKey := v.Get("user_key")
-	if err != nil || userKey == "" {
-		return "", errors.New("user_key required as query parameter")
-	}
-	return userKey, nil
 }
 
 // Addr returns the Threescale addrs as a string
