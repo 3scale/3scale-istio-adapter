@@ -19,6 +19,41 @@ import (
 	integration "istio.io/istio/mixer/pkg/adapter/test"
 )
 
+const authenticatedSuccess = `
+	{
+		"AdapterState": null,
+		"Returns": [
+			{
+				"Check": {
+					"Status": {},
+					"ValidDuration": 0,
+					"ValidUseCount": -1
+				},
+				"Quota": null,
+				"Error": null
+			}
+		]
+	}`
+
+var unauthenticated = fmt.Sprintf(`
+	{
+		"AdapterState":null,
+		"Returns":[
+			{
+				"Check":{
+					"Status":{
+						"code":16,
+						"message":"threescale.handler.istio-system:%s"
+					},
+					"ValidDuration": 0,
+					"ValidUseCount": -1
+				},
+				"Quota":null,
+				"Error":null
+			}
+		]
+	}`, unauthenticatedErr)
+
 func TestAuthorizationCheck(t *testing.T) {
 	var conf []string
 	var files []string
@@ -58,57 +93,42 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":       "/thispath?user_key=VALID",
+						"request.url_path":   "/thispath",
+						"request.headers":    map[string]string{"x-user-key": "VALID"},
 						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
 					},
 				},
 			},
-			expect: `
-			{
-			    "AdapterState":null,
-			    "Returns":[
-				{
-				    "Check":{
-					"Status":{},
-					"ValidDuration": 0,
-					"ValidUseCount": -1
-				    },
-				    "Quota":null,
-				    "Error":null
-				}
-			    ]
-			}`,
+			expect: authenticatedSuccess,
 		},
 		{
 			callWith: []integration.Call{
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":       "/thispath?user_key=INVALID",
+						"request.url_path":     "/thispath",
+						"request.query_params": map[string]string{"user_key": "VALID"},
+						"request.method":       "get",
+						"destination.labels":   map[string]string{"service-mesh.3scale.net": "true"},
+					},
+				},
+			},
+			expect: authenticatedSuccess,
+		},
+		{
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"request.url_path":   "/thispath",
+						"request.api_key":    "VALID",
 						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
 					},
 				},
 			},
-			expect: `
-			{
-			    "AdapterState":null,
-			    "Returns":[
-			        {
-			            "Check":{
-			                "Status":{
-			                    "code":7,
-			                    "message":"threescale.handler.istio-system:user_key_invalid"
-			                },
-			                "ValidDuration": 0,
-                                        "ValidUseCount": -1
-			            },
-			            "Quota":null,
-			            "Error":null
-			        }
-			    ]
-			}`,
+			expect: authenticatedSuccess,
 		},
 		{
 			callWith: []integration.Call{
@@ -121,24 +141,7 @@ func TestAuthorizationCheck(t *testing.T) {
 					},
 				},
 			},
-			expect: `
-			{
-			    "AdapterState":null,
-			    "Returns":[
-			        {
-			            "Check":{
-			                "Status":{
-			                    "code":7,
-			                    "message":"threescale.handler.istio-system:user_key required as query parameter"
-			                },
-			                "ValidDuration": 0,
-                                        "ValidUseCount": -1
-			            },
-			            "Quota":null,
-			            "Error":null
-			        }
-			    ]
-			}`,
+			expect: unauthenticated,
 		},
 	}
 
