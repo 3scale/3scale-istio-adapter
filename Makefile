@@ -19,7 +19,7 @@ unit: ## Run unit tests
 	go test ./... -covermode=count -test.coverprofile="$(PROJECT_PATH)/_output/unit.cov"
 
 integration: ## Run integration tests
-	go test ./... -covermode=count -tags integration -test.coverprofile="$(PROJECT_PATH)/_output/integration.cov"
+	go test -covermode=count -tags integration -test.coverprofile="$(PROJECT_PATH)/_output/integration.cov" -run=TestAuthorizationCheck ./...
 
 test: unit integration ## Runs all tests
 
