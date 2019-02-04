@@ -37,11 +37,10 @@ func TestObserveSystemLatency(t *testing.T) {
 	r := NewMetricsReporter(true, 8080)
 	l := NewLatencyReport("", time.Second+time.Millisecond, url, System)
 	r.ObserveLatency(serviceID, l)
-	// TODO - Uncomment when https://github.com/prometheus/client_golang/issues/498 is resolved
-	//err := testutil.CollectAndCompare(systemLatency, strings.NewReader(expect), metricName)
-	//if err != nil {
-	//	t.Fatalf(err.Error())
-	//}
+	err := testutil.CollectAndCompare(systemLatency, strings.NewReader(expect), metricName)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
 }
 
 func TestObserveBackendLatency(t *testing.T) {
@@ -49,20 +48,20 @@ func TestObserveBackendLatency(t *testing.T) {
 	const expect = `
 		# HELP threescale_backend_latency Request latency for requests to 3scale backend
 		# TYPE threescale_backend_latency histogram
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.01"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.02"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.03"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.05"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.08"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.1"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.15"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.2"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.3"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="0.5"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="1"} 1
-		threescale_backend_latency_bucket{backendURL="www.fake.com",serviceID="123",le="+Inf"} 1
-		threescale_backend_latency_sum{backendURL="www.fake.com",serviceID="123"} 1
-		threescale_backend_latency_count{backendURL="www.fake.com",serviceID="123"} 1
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.01"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.02"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.03"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.05"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.08"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.1"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.15"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.2"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.3"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.5"} 0
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="1"} 1
+		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="+Inf"} 1
+		threescale_backend_latency_sum{backendURL="www.fake.com",endpoint="Authorise",serviceID="123"} 1
+		threescale_backend_latency_count{backendURL="www.fake.com",endpoint="Authorise",serviceID="123"} 1
 
 	`
 	r := NewMetricsReporter(true, 8080)
@@ -73,11 +72,10 @@ func TestObserveBackendLatency(t *testing.T) {
 		Target:    Backend,
 	}
 	r.ObserveLatency(serviceID, l)
-	// TODO - Uncomment when https://github.com/prometheus/client_golang/issues/498 is resolved
-	//err := testutil.CollectAndCompare(backendLatency, strings.NewReader(expect), metricName)
-	//if err != nil {
-	//	t.Fatalf(err.Error())
-	//}
+	err := testutil.CollectAndCompare(backendLatency, strings.NewReader(expect), metricName)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
 }
 
 func TestReportStatus(t *testing.T) {
@@ -92,14 +90,14 @@ func TestReportStatus(t *testing.T) {
 	}{
 		{
 			name:       "Test invalid status code",
-			metricName: "backend_http_status",
+			metricName: "threescale_backend_http_status",
 			expect:     ``,
 			expectErr:  true,
 			collector:  backendStatusCodes,
 		},
 		{
 			name:       "Test Report unsupported target",
-			metricName: "backend_http_status",
+			metricName: "threescale_backend_http_status",
 			expect:     ``,
 			collector:  backendStatusCodes,
 			expectErr:  true,
@@ -108,11 +106,11 @@ func TestReportStatus(t *testing.T) {
 		},
 		{
 			name:       "Test Report Backend HTTP Status",
-			metricName: "backend_http_status",
+			metricName: "threescale_backend_http_status",
 			expect: `
-		               # HELP backend_http_status HTTP Status response codes for requests to 3scale backend
-		               # TYPE backend_http_status counter
-		               backend_http_status{backendURL="www.fake.com",code="200",serviceID="123"} 1
+			       # HELP threescale_backend_http_status HTTP Status response codes for requests to 3scale backend
+			       # TYPE threescale_backend_http_status counter
+			       threescale_backend_http_status{backendURL="www.fake.com",code="200",serviceID="123"} 1
 		       `,
 			collector: backendStatusCodes,
 			code:      http.StatusOK,
@@ -147,19 +145,6 @@ func TestReportStatus(t *testing.T) {
 			}
 			input.collector.Reset()
 		})
-	}
-}
-
-func TestIncrementTotalRequests(t *testing.T) {
-	collector := totalRequests
-	if testutil.ToFloat64(collector) != 0 {
-		t.Fatalf("unexpected counter value for %s", collector.Desc().String())
-	}
-	r := NewMetricsReporter(true, 8080)
-
-	incrementBy := randCounterInc(t, r.IncrementTotalRequests)
-	if testutil.ToFloat64(collector) != float64(incrementBy) {
-		t.Fatalf("unexpected counter value for %s", collector.Desc().String())
 	}
 }
 

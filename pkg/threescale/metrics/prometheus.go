@@ -78,22 +78,15 @@ var (
 
 	backendStatusCodes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "backend_http_status",
+			Name: "threescale_backend_http_status",
 			Help: "HTTP Status response codes for requests to 3scale backend",
 		},
 		[]string{"backendURL", "serviceID", "code"},
 	)
 
-	totalRequests = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "handle_authorization_requests",
-			Help: "Total number of requests to adapter",
-		},
-	)
-
 	cacheHits = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "system_cache_hits",
+			Name: "threescale_system_cache_hits",
 			Help: "Total number of requests to 3scale system fetched from cache",
 		},
 	)
@@ -171,13 +164,6 @@ func (r *Reporter) ReportStatus(serviceID string, s StatusReport) error {
 	return nil
 }
 
-// IncrementTotalRequests increments the request count for authorization handler
-func (r *Reporter) IncrementTotalRequests() {
-	if r != nil && r.shouldReport {
-		totalRequests.Inc()
-	}
-}
-
 // IncrementCacheHits increments proxy configurations that have been read from the cache
 func (r *Reporter) IncrementCacheHits() {
 	if r != nil && r.shouldReport {
@@ -190,7 +176,7 @@ func (r *Reporter) Serve() {
 	if r.serveOnPort == 0 {
 		r.serveOnPort = defaultMetricsPort
 	}
-	prometheus.MustRegister(systemLatency, backendLatency, totalRequests, cacheHits)
+	prometheus.MustRegister(systemLatency, backendLatency, cacheHits)
 	http.Handle("/metrics", promhttp.Handler())
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", r.serveOnPort))
 	if err != nil {
