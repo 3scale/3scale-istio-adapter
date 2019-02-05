@@ -61,45 +61,41 @@ var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 // HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
+	var systemClient *sysC.ThreeScaleClient
+	var proxyConfElement sysC.ProxyConfigElement
+	var backendClient *backendC.ThreeScaleClient
+	var err error
 
 	log.Debugf("Got instance %+v", r.Instance)
 
 	cfg, err := s.parseConfigParams(r)
 	if err != nil {
-		result.Status = status.WithInternal(err.Error())
-		return &result, err
+		result.Status, err = rpcStatusErrorHandler("", status.WithInternal, err)
+		goto out
 	}
 
-	systemC, err := s.systemClientBuilder(cfg.SystemUrl)
+	systemClient, err = s.systemClientBuilder(cfg.SystemUrl)
 	if err != nil {
-		err = fmt.Errorf("error building HTTP client for 3scale system - %s", err.Error())
-		log.Error(err.Error())
-		result.Status = status.WithInvalidArgument(err.Error())
-		return &result, err
+		result.Status, err = rpcStatusErrorHandler("error building HTTP client for 3scale system", status.WithInvalidArgument, err)
+		goto out
 	}
 
-	proxyConfElement, err := s.extractProxyConf(cfg, systemC)
+	proxyConfElement, err = s.extractProxyConf(cfg, systemClient)
 	if err != nil {
-		err = fmt.Errorf("currently unable to fetch required data from 3scale system - %s", err.Error())
-		log.Error(err.Error())
-		result.Status = status.WithFailedPrecondition(err.Error())
-		return &result, err
+		result.Status, err = rpcStatusErrorHandler("currently unable to fetch required data from 3scale system", withUnavailable, err)
+		goto out
 	}
 
-	backendC, err := s.backendClientBuilder(proxyConfElement.ProxyConfig.Content.Proxy.Backend.Endpoint)
+	backendClient, err = s.backendClientBuilder(proxyConfElement.ProxyConfig.Content.Proxy.Backend.Endpoint)
 	if err != nil {
-		err = fmt.Errorf("error creating 3scale backend client - %s", err.Error())
-		log.Error(err.Error())
-		result.Status = status.WithInvalidArgument(err.Error())
-		return &result, err
+		result.Status, err = rpcStatusErrorHandler("error creating 3scale backend client", status.WithInvalidArgument, err)
+		goto out
 	}
 
-	returnedStatus, err := s.isAuthorized(cfg, *r.Instance, proxyConfElement, backendC)
+	result.Status, err = s.isAuthorized(cfg, *r.Instance, proxyConfElement, backendClient)
 	if err != nil {
 		log.Errorf("error authorizing request - %s", err.Error())
 	}
-
-	result.Status = returnedStatus
 
 	// Caching at Mixer/Envoy layer needs to be disabled currently since we would miss reporting
 	// cached requests. We can determine caching values going forward by splitting the check
@@ -109,7 +105,8 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	// and manual testing that zero values for a successful check set a large default value
 	result.ValidDuration = 0 * time.Second
 	result.ValidUseCount = -1
-
+	goto out
+out:
 	return &result, err
 }
 
@@ -297,6 +294,24 @@ func parseActionPath(path string) (string, error) {
 		return "", errors.New("user_key required as query parameter")
 	}
 	return userKey, nil
+}
+
+// rpcStatusErrorHandler provides a uniform way to log and format error messages and status which should be
+// returned to the user in cases where the authorization request is rejected.
+func rpcStatusErrorHandler(userFacingErrMsg string, fn func(string) rpc.Status, err error) (rpc.Status, error) {
+	if userFacingErrMsg != "" {
+		err = fmt.Errorf("%s - %s", userFacingErrMsg, err.Error())
+	}
+
+	log.Error(err.Error())
+	return fn(err.Error()), err
+}
+
+//TODO - This can be replaced by function in istio in 1.1 when we update the dependency
+// We use status functions from istio elsewhere in the package. This takes the place of the
+// WithStatusUnavailable function missing from 1.0
+func withUnavailable(msg string) rpc.Status {
+	return status.WithMessage(rpc.UNAVAILABLE, msg)
 }
 
 // Addr returns the Threescale addrs as a string
