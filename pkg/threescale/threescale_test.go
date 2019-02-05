@@ -8,11 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogo/googleapis/google/rpc"
+
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 
 	"github.com/3scale/3scale-go-client/fake"
-	sysFake "github.com/3scale/3scale-porta-go-client/fake"
 	pb "github.com/3scale/3scale-istio-adapter/config"
+	sysFake "github.com/3scale/3scale-porta-go-client/fake"
 	"github.com/gogo/protobuf/types"
 	"istio.io/istio/mixer/template/authorization"
 )
@@ -33,7 +35,7 @@ func TestHandleAuthorization(t *testing.T) {
 				SystemUrl:   "set-nil",
 				AccessToken: "789",
 			},
-			expectStatus: 13,
+			expectStatus: int32(rpc.INTERNAL),
 			expectErrMsg: []string{"internal error - adapter config is not available"},
 		},
 		{
@@ -43,7 +45,7 @@ func TestHandleAuthorization(t *testing.T) {
 				SystemUrl:   "www.invalid.com",
 				AccessToken: "789",
 			},
-			expectStatus: 3,
+			expectStatus: int32(rpc.INVALID_ARGUMENT),
 			expectErrMsg: []string{"error building HTTP client for 3scale system", "invalid URI for request"},
 		},
 		{
@@ -53,7 +55,7 @@ func TestHandleAuthorization(t *testing.T) {
 				SystemUrl:   "https://www.fake-system.3scale.net",
 				AccessToken: "789",
 			},
-			expectStatus: 3,
+			expectStatus: int32(rpc.INVALID_ARGUMENT),
 			expectErrMsg: []string{"missing request path"},
 			template: authorization.InstanceMsg{
 				Name:   "",
@@ -67,7 +69,7 @@ func TestHandleAuthorization(t *testing.T) {
 				SystemUrl:   "https://www.fake-system.3scale.net",
 				AccessToken: "789",
 			},
-			expectStatus: 7,
+			expectStatus: int32(rpc.PERMISSION_DENIED),
 			template: authorization.InstanceMsg{
 				Name: "",
 				Action: &authorization.ActionMsg{
@@ -82,9 +84,9 @@ func TestHandleAuthorization(t *testing.T) {
 			params: pb.Params{
 				ServiceId:   "123",
 				SystemUrl:   "https://www.fake-system.3scale.net",
-				AccessToken: "expect9",
+				AccessToken: "expect14",
 			},
-			expectStatus: 9,
+			expectStatus: int32(rpc.UNAVAILABLE),
 			template: authorization.InstanceMsg{
 				Name: "",
 				Action: &authorization.ActionMsg{
@@ -101,7 +103,7 @@ func TestHandleAuthorization(t *testing.T) {
 				SystemUrl:   "https://www.fake-system.3scale.net",
 				AccessToken: "expect7",
 			},
-			expectStatus: 7,
+			expectStatus: int32(rpc.PERMISSION_DENIED),
 
 			template: authorization.InstanceMsg{
 				Name: "",
@@ -136,7 +138,7 @@ func TestHandleAuthorization(t *testing.T) {
 				SystemUrl:   "https://www.fake-system.3scale.net",
 				AccessToken: "happy-path",
 			},
-			expectStatus: 0,
+			expectStatus: int32(rpc.OK),
 			template: authorization.InstanceMsg{
 				Name: "",
 				Action: &authorization.ActionMsg{
@@ -165,7 +167,7 @@ func TestHandleAuthorization(t *testing.T) {
 				params := req.URL.Query()
 
 				if req.URL.Host == "www.fake-system.3scale.net:443" {
-					if params.Get("access_token") == "expect9" {
+					if params.Get("access_token") == "expect14" {
 						return &http.Response{
 							Body:   ioutil.NopCloser(bytes.NewBufferString("invalid resp")),
 							Header: make(http.Header),
@@ -201,7 +203,7 @@ func TestHandleAuthorization(t *testing.T) {
 				t.Errorf("Expected %v got %#v", input.expectStatus, result.Status.Code)
 			}
 
-			if result.Status.Code != 0 {
+			if result.Status.Code != int32(rpc.OK) {
 				if len(input.expectErrMsg) == 0 {
 					t.Errorf("Error tests should produce a message - failed test: %s", input.name)
 				}
