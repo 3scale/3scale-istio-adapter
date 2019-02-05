@@ -64,18 +64,9 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 
 	log.Debugf("Got instance %+v", r.Instance)
 
-	if r.AdapterConfig == nil {
-		err := errors.New("internal error - adapter config is not available")
-		log.Error(err.Error())
-		result.Status = status.WithError(err)
-		return &result, err
-	}
-
-	cfg := &config.Params{}
-	if err := cfg.Unmarshal(r.AdapterConfig.Value); err != nil {
-		unmarshalErr := errors.New("internal error - unable to unmarshal adapter config")
-		log.Errorf("%s: %v", unmarshalErr, err)
-		result.Status = status.WithError(unmarshalErr)
+	cfg, err := s.parseConfigParams(r)
+	if err != nil {
+		result.Status = status.WithInternal(err.Error())
 		return &result, err
 	}
 
@@ -87,7 +78,23 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		return &result, err
 	}
 
-	returnedStatus, err := s.isAuthorized(cfg, *r.Instance, systemC)
+	proxyConfElement, err := s.extractProxyConf(cfg, systemC)
+	if err != nil {
+		err = fmt.Errorf("currently unable to fetch required data from 3scale system - %s", err.Error())
+		log.Error(err.Error())
+		result.Status = status.WithFailedPrecondition(err.Error())
+		return &result, err
+	}
+
+	backendC, err := s.backendClientBuilder(proxyConfElement.ProxyConfig.Content.Proxy.Backend.Endpoint)
+	if err != nil {
+		err = fmt.Errorf("error creating 3scale backend client - %s", err.Error())
+		log.Error(err.Error())
+		result.Status = status.WithInvalidArgument(err.Error())
+		return &result, err
+	}
+
+	returnedStatus, err := s.isAuthorized(cfg, *r.Instance, proxyConfElement, backendC)
 	if err != nil {
 		log.Errorf("error authorizing request - %s", err.Error())
 	}
@@ -106,12 +113,39 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	return &result, err
 }
 
-// isAuthorized returns code 0 if authorization is successful
-// based on grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
-func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, c *sysC.ThreeScaleClient) (rpc.Status, error) {
+// parseConfigParams - parses the configuration passed to the adapter from mixer
+// Where an error occurs during parsing, error is formatted and logged and nil value returned for config
+func (s *Threescale) parseConfigParams(r *authorization.HandleAuthorizationRequest) (*config.Params, error) {
+	if r.AdapterConfig == nil {
+		err := errors.New("internal error - adapter config is not available")
+		return nil, err
+	}
+
+	cfg := &config.Params{}
+	if err := cfg.Unmarshal(r.AdapterConfig.Value); err != nil {
+		unmarshalErr := errors.New("internal error - unable to unmarshal adapter config")
+		return nil, unmarshalErr
+	}
+	return cfg, nil
+}
+
+// extractProxyConf - fetches the latest system proxy configuration or returns an error if unavailable
+// If system cache is enabled, config will be fetched from the cache
+func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClient) (sysC.ProxyConfigElement, error) {
 	var pce sysC.ProxyConfigElement
 	var proxyConfErr error
 
+	if s.conf.systemCache != nil {
+		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
+	} else {
+		pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
+	}
+	return pce, proxyConfErr
+}
+
+// isAuthorized returns code 0 if authorization is successful
+// based on grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
+func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, proxyConf sysC.ProxyConfigElement, client *backendC.ThreeScaleClient) (rpc.Status, error) {
 	if request.Action.Path == "" {
 		return status.WithInvalidArgument("missing request path"), nil
 	}
@@ -121,21 +155,10 @@ func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.Inst
 		return status.WithPermissionDenied(err.Error()), nil
 	}
 
-	if s.conf.systemCache != nil {
-		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
-	} else {
-		pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
-	}
-
-	if proxyConfErr != nil {
-		return status.WithMessage(
-			9, fmt.Sprintf("currently unable to fetch required data from 3scale system - %s", proxyConfErr.Error())), proxyConfErr
-	}
-
-	return s.doAuthRep(cfg.ServiceId, userKey, request, pce.ProxyConfig)
+	return s.doAuthRep(cfg.ServiceId, userKey, request, proxyConf.ProxyConfig, client)
 }
 
-func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig) (rpcStatus rpc.Status, authRepErr error) {
+func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig, client *backendC.ThreeScaleClient) (rpcStatus rpc.Status, authRepErr error) {
 	const endpoint = "AuthRep"
 	const target = prometheus.Backend
 	var (
@@ -147,14 +170,6 @@ func (s *Threescale) doAuthRep(svcID string, userKey string, request authorizati
 		auth    backendC.TokenAuth
 		apiErr  error
 	)
-
-	bc, err := s.backendClientBuilder(conf.Content.Proxy.Backend.Endpoint)
-	if err != nil {
-		rpcStatus = status.WithInvalidArgument(
-			fmt.Sprintf("error creating 3scale backend client - %s", err.Error()))
-		authRepErr = err
-		goto out
-	}
 
 	metrics = generateMetrics(request.Action.Path, request.Action.Method, conf)
 	if len(metrics) == 0 {
@@ -170,7 +185,7 @@ func (s *Threescale) doAuthRep(svcID string, userKey string, request authorizati
 	}
 
 	start = time.Now()
-	resp, apiErr = bc.AuthRepUserKey(auth, userKey, svcID, params)
+	resp, apiErr = client.AuthRepUserKey(auth, userKey, svcID, params)
 	elapsed = time.Since(start)
 
 	go s.reportMetrics(svcID, prometheus.NewLatencyReport(endpoint, elapsed, conf.Content.Proxy.Backend.Endpoint, target),
