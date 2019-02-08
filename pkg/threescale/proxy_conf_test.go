@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/googleapis/google/rpc"
+
 	"github.com/3scale/3scale-go-client/fake"
 	pb "github.com/3scale/3scale-istio-adapter/config"
 	"github.com/3scale/3scale-porta-go-client/client"
@@ -315,7 +317,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 		case message := <-resultTwo:
 			assert(message)
 		case message := <-resultThree:
-			if message.result.Status.Code != 9 {
+			if message.result.Status.Code != int32(rpc.UNAVAILABLE) {
 				t.Errorf("expected not authorized")
 			}
 		}
