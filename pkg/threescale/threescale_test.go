@@ -49,20 +49,6 @@ func TestHandleAuthorization(t *testing.T) {
 			expectErrMsg: []string{"error building HTTP client for 3scale system", "invalid URI for request"},
 		},
 		{
-			name: "Test fail - missing request path",
-			params: pb.Params{
-				ServiceId:   "123",
-				SystemUrl:   "https://www.fake-system.3scale.net",
-				AccessToken: "789",
-			},
-			expectStatus: int32(rpc.INVALID_ARGUMENT),
-			expectErrMsg: []string{"missing request path"},
-			template: authorization.InstanceMsg{
-				Name:   "",
-				Action: &authorization.ActionMsg{},
-			},
-		},
-		{
 			name: "Test fail - missing user_key",
 			params: pb.Params{
 				ServiceId:   "123",

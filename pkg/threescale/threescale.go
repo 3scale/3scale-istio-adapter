@@ -30,31 +30,6 @@ import (
 	"istio.io/istio/pkg/log"
 )
 
-type (
-	// Server interface
-	Server interface {
-		Addr() string
-		Close() error
-		Run(shutdown chan error)
-	}
-
-	// Threescale contains the Listener and the server
-	Threescale struct {
-		listener net.Listener
-		server   *grpc.Server
-		client   *http.Client
-		conf     *AdapterConfig
-	}
-
-	// AdapterConfig wraps optional configuration for the 3scale adapter
-	AdapterConfig struct {
-		systemCache     *ProxyConfigCache
-		metricsReporter *prometheus.Reporter
-	}
-
-	reportMetrics func(serviceID string, l prometheus.LatencyReport, s prometheus.StatusReport)
-)
-
 // Implement required interface
 var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 
