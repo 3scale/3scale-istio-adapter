@@ -13,7 +13,6 @@ spec:
   connection:
     address: "[::]:3333"
 ---
-
 # instance for template authorization
 apiVersion: "config.istio.io/v1alpha2"
 kind: instance
@@ -29,11 +28,9 @@ spec:
         app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
         app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
     action:
-      path: request.url_path | "/"
+      path: request.url_path
       method: request.method | "get"
-
 ---
-
 # rule to dispatch to handler threescalehandler
 apiVersion: "config.istio.io/v1alpha2"
 kind: rule
@@ -43,7 +40,8 @@ metadata:
 spec:
   match: destination.labels["service-mesh.3scale.net"] == "true"
   actions:
-    - handler: threescale.handler.istio-system
-      instances:
-        - threescale-authorization
+  - handler: threescale.handler.istio-system
+    instances:
+    - threescale-authorization
 ---
+
