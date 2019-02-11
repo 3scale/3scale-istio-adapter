@@ -13,6 +13,8 @@ spec:
       valueType: STRING
     request.headers:
       valueType: STRING_MAP
+    request.query_params:
+      valueType: STRING_MAP
     request.total_size:
       valueType: INT64
     request.id:
