@@ -33,6 +33,11 @@ import (
 // Implement required interface
 var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 
+const (
+	pathErr            = "missing request path"
+	unauthenticatedErr = "no auth credentials provided or provided in invalid location"
+)
+
 // HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
@@ -67,10 +72,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		goto out
 	}
 
-	result.Status, err = s.isAuthorized(cfg, *r.Instance, proxyConfElement, backendClient)
-	if err != nil {
-		log.Errorf("error authorizing request - %s", err.Error())
-	}
+	result.Status = s.isAuthorized(cfg.ServiceId, *r.Instance, proxyConfElement.ProxyConfig, backendClient)
 
 	// Caching at Mixer/Envoy layer needs to be disabled currently since we would miss reporting
 	// cached requests. We can determine caching values going forward by splitting the check
@@ -115,68 +117,91 @@ func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClie
 	return pce, proxyConfErr
 }
 
-// isAuthorized returns code 0 if authorization is successful
-// based on grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
-func (s *Threescale) isAuthorized(cfg *config.Params, request authorization.InstanceMsg, proxyConf sysC.ProxyConfigElement, client *backendC.ThreeScaleClient) (rpc.Status, error) {
+// isAuthorized - is responsible for parsing the incoming request and determining if it is valid, building out the request to be sent
+// to 3scale and parsing the response. Returns code 0 if authorization is successful based on
+// grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
+func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMsg, proxyConf sysC.ProxyConfig, client *backendC.ThreeScaleClient) rpc.Status {
+	var (
+		// Application ID authentication pattern - App Key is optional when using this authn
+		appID, appKey string
+
+		// Application Key auth pattern
+		userKey string
+
+		// Function to be called when authn patter has been determined
+		authRep authRepFn
+	)
+
 	if request.Action.Path == "" {
-		return status.WithInvalidArgument("missing request path"), nil
+		return status.WithInvalidArgument(pathErr)
 	}
 
-	userKey, err := parseActionPath(request.Action.Path)
-	if err != nil {
-		return status.WithPermissionDenied(err.Error()), nil
+	if request.Subject != nil {
+		appID = request.Subject.Properties["app_id"].GetStringValue()
+		appKey = request.Subject.Properties["app_key"].GetStringValue()
+
+		userKey = request.Subject.User
 	}
 
-	return s.doAuthRep(cfg.ServiceId, userKey, request, proxyConf.ProxyConfig, client)
+	if appID == "" && userKey == "" {
+		return status.WithPermissionDenied(unauthenticatedErr)
+	}
+
+	metrics := generateMetrics(request.Action.Path, request.Action.Method, proxyConf)
+	if len(metrics) == 0 {
+		return status.WithPermissionDenied(fmt.Sprintf("no matching mapping rule for request with method %s and path %s",
+			request.Action.Method, request.Action.Path))
+	}
+
+	authRepRequest := authRepRequest{
+		svcID: svcID,
+		auth: backendC.TokenAuth{
+			Type:  proxyConf.Content.BackendAuthenticationType,
+			Value: proxyConf.Content.BackendAuthenticationValue,
+		}}
+
+	if userKey != "" {
+		authRepRequest.authKey = userKey
+		authRepRequest.params = backendC.NewAuthRepParamsUserKey("", "", metrics, nil)
+		authRep = client.AuthRepUserKey
+	} else {
+		authRepRequest.authKey = appID
+		authRepRequest.params = backendC.NewAuthRepParamsAppID(appKey, "", "", metrics, nil)
+		authRep = client.AuthRepAppID
+	}
+	return s.apiRespConverter(s.doAuthRep(authRepRequest, authRep, proxyConf.Content.Proxy.Backend.Endpoint))
 }
 
-func (s *Threescale) doAuthRep(svcID string, userKey string, request authorization.InstanceMsg, conf sysC.ProxyConfig, client *backendC.ThreeScaleClient) (rpcStatus rpc.Status, authRepErr error) {
+// doAuthRep is responsible for calling 3scale with the provided function and generating required metrics about the request
+func (s *Threescale) doAuthRep(request authRepRequest, callback authRepFn, backendEndpoint string) (backendC.ApiResponse, error) {
 	const endpoint = "AuthRep"
 	const target = prometheus.Backend
 	var (
 		start   time.Time
 		elapsed time.Duration
-		metrics backendC.Metrics
-		params  backendC.AuthRepParams
-		resp    backendC.ApiResponse
-		auth    backendC.TokenAuth
-		apiErr  error
 	)
 
-	metrics = generateMetrics(request.Action.Path, request.Action.Method, conf)
-	if len(metrics) == 0 {
-		rpcStatus = status.WithPermissionDenied(fmt.Sprintf("no matching mapping rule for request with method %s and path %s",
-			request.Action.Method, request.Action.Path))
-		goto out
-	}
-
-	params = backendC.NewAuthRepParamsUserKey("", "", metrics, nil)
-	auth = backendC.TokenAuth{
-		Type:  conf.Content.BackendAuthenticationType,
-		Value: conf.Content.BackendAuthenticationValue,
-	}
-
 	start = time.Now()
-	resp, apiErr = client.AuthRepUserKey(auth, userKey, svcID, params)
+	resp, apiErr := callback(request.auth, request.authKey, request.svcID, request.params)
 	elapsed = time.Since(start)
 
-	go s.reportMetrics(svcID, prometheus.NewLatencyReport(endpoint, elapsed, conf.Content.Proxy.Backend.Endpoint, target),
-		prometheus.NewStatusReport(endpoint, resp.StatusCode, conf.Content.Proxy.Backend.Endpoint, target))
+	go s.reportMetrics(request.svcID, prometheus.NewLatencyReport(endpoint, elapsed, backendEndpoint, target),
+		prometheus.NewStatusReport(endpoint, resp.StatusCode, backendEndpoint, target))
 
-	if apiErr != nil {
-		rpcStatus = status.WithMessage(2, fmt.Sprintf("error calling 3scale Auth -  %s", apiErr.Error()))
-		authRepErr = apiErr
-		goto out
+	return resp, apiErr
+}
+
+func (s *Threescale) apiRespConverter(resp backendC.ApiResponse, e error) rpc.Status {
+	if e != nil {
+		status, _ := rpcStatusErrorHandler("error calling 3scale backend", status.WithUnknown, e)
+		return status
+
 	}
-
 	if !resp.Success {
-		rpcStatus = status.WithPermissionDenied(resp.Reason)
-		goto out
+		return status.WithPermissionDenied(resp.Reason)
 	}
 
-	goto out
-out:
-	return rpcStatus, authRepErr
+	return status.OK
 }
 
 // reportMetrics - report metrics for 3scale adapter to Prometheus. Function is safe to call if
@@ -255,20 +280,6 @@ func parseURL(url *url.URL) (string, string, int) {
 
 	p, _ := strconv.Atoi(port)
 	return scheme, host, p
-}
-
-func parseActionPath(path string) (string, error) {
-	u, err := url.Parse(path)
-	if err != nil {
-		return "", fmt.Errorf("error parsing request path - %s", err.Error())
-	}
-
-	v, err := url.ParseQuery(u.RawQuery)
-	userKey := v.Get("user_key")
-	if err != nil || userKey == "" {
-		return "", errors.New("user_key required as query parameter")
-	}
-	return userKey, nil
 }
 
 // rpcStatusErrorHandler provides a uniform way to log and format error messages and status which should be

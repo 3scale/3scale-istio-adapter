@@ -4,6 +4,8 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/3scale/3scale-go-client/client"
+
 	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"google.golang.org/grpc"
 )
@@ -31,3 +33,12 @@ type AdapterConfig struct {
 
 // reportMetrics - function that defines requirements for reporting metrics around interactions between 3scale and the adapter
 type reportMetrics func(serviceID string, l prometheus.LatencyReport, s prometheus.StatusReport)
+
+type authRepFn func(auth client.TokenAuth, key string, svcID string, params client.AuthRepParams) (client.ApiResponse, error)
+
+type authRepRequest struct {
+	svcID   string
+	authKey string
+	params  client.AuthRepParams
+	auth    client.TokenAuth
+}
