@@ -14,10 +14,28 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogo/googleapis/google/rpc"
+
 	"github.com/3scale/3scale-go-client/fake"
 	sysFake "github.com/3scale/3scale-porta-go-client/fake"
 	integration "istio.io/istio/mixer/pkg/adapter/test"
 )
+
+const authenticatedSuccess = `
+	{
+		"AdapterState": null,
+		"Returns": [
+			{
+				"Check": {
+					"Status": {},
+					"ValidDuration": 0,
+					"ValidUseCount": -1
+				},
+				"Quota": null,
+				"Error": null
+			}
+		]
+	}`
 
 func TestAuthorizationCheck(t *testing.T) {
 	var conf []string
@@ -50,95 +68,98 @@ func TestAuthorizationCheck(t *testing.T) {
 	defer backendServer.Close()
 
 	inputs := []struct {
+		name     string
 		callWith []integration.Call
 		expect   string
 	}{
 		{
+			name: "Test No Authn Credentials Provided Denied",
 			callWith: []integration.Call{
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":       "/thispath?user_key=VALID",
+						"request.url_path":   "/",
 						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
 					},
 				},
 			},
-			expect: `
-			{
-			    "AdapterState":null,
-			    "Returns":[
-				{
-				    "Check":{
-					"Status":{},
-					"ValidDuration": 0,
-					"ValidUseCount": -1
-				    },
-				    "Quota":null,
-				    "Error":null
-				}
-			    ]
-			}`,
+			expect: generatedExpectedError(t, rpc.PERMISSION_DENIED, unauthenticatedErr),
 		},
 		{
+			name: "Test Authorization API Key via headers success",
 			callWith: []integration.Call{
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":       "/thispath?user_key=INVALID",
+						"request.url_path":   "/thispath",
+						"request.headers":    map[string]string{"x-user-key": "VALID"},
 						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
 					},
 				},
 			},
-			expect: `
-			{
-			    "AdapterState":null,
-			    "Returns":[
-			        {
-			            "Check":{
-			                "Status":{
-			                    "code":7,
-			                    "message":"threescale.handler.istio-system:user_key_invalid"
-			                },
-			                "ValidDuration": 0,
-                                        "ValidUseCount": -1
-			            },
-			            "Quota":null,
-			            "Error":null
-			        }
-			    ]
-			}`,
+			expect: authenticatedSuccess,
 		},
 		{
+			name: "Test Authorization API Key via query param success",
 			callWith: []integration.Call{
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.path":       "/thispath",
+						"request.url_path":     "/thispath",
+						"request.query_params": map[string]string{"user_key": "VALID"},
+						"request.method":       "get",
+						"destination.labels":   map[string]string{"service-mesh.3scale.net": "true"},
+					},
+				},
+			},
+			expect: authenticatedSuccess,
+		},
+		{
+			name: "Test Authorization API Key via request.api_key attribute success",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"request.url_path":   "/thispath",
+						"request.api_key":    "VALID",
 						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
 					},
 				},
 			},
-			expect: `
-			{
-			    "AdapterState":null,
-			    "Returns":[
-			        {
-			            "Check":{
-			                "Status":{
-			                    "code":7,
-			                    "message":"threescale.handler.istio-system:user_key required as query parameter"
-			                },
-			                "ValidDuration": 0,
-                                        "ValidUseCount": -1
-			            },
-			            "Quota":null,
-			            "Error":null
-			        }
-			    ]
-			}`,
+			expect: authenticatedSuccess,
+		},
+		{
+			name: "Test Authorization Application ID via headers success",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"request.url_path":   "/thispath",
+						"request.method":     "get",
+						"request.headers":    map[string]string{"x-app-id": "test", "x-app-key": "secret"},
+						"destination.labels": map[string]string{"service-mesh.3scale.net": "true"},
+					},
+				},
+			},
+			expect: authenticatedSuccess,
+		},
+		{
+			name: "Test Authorization Application ID via query param success",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"request.url_path":     "/thispath",
+						"request.method":       "get",
+						"request.query_params": map[string]string{"app_id": "VALID"},
+						"destination.labels":   map[string]string{"service-mesh.3scale.net": "true"},
+					},
+				},
+			},
+			expect: authenticatedSuccess,
 		},
 	}
 
@@ -171,8 +192,10 @@ func TestAuthorizationCheck(t *testing.T) {
 			ParallelCalls: input.callWith,
 			Want:          input.expect,
 		}
+		t.Run(input.name, func(t *testing.T) {
+			integration.RunTest(t, nil, s)
+		})
 
-		integration.RunTest(t, nil, s)
 	}
 
 }
@@ -197,10 +220,6 @@ func startTestBackends(t *testing.T) (*httptest.Server, *httptest.Server) {
 	ts.Start()
 
 	bs := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("user_key") == "INVALID" {
-			io.WriteString(w, fake.GenInvalidUserKey("ANY"))
-			return
-		}
 		io.WriteString(w, fake.GetAuthSuccess())
 		return
 	}))
@@ -210,4 +229,26 @@ func startTestBackends(t *testing.T) (*httptest.Server, *httptest.Server) {
 	bs.Start()
 
 	return ts, bs
+}
+
+func generatedExpectedError(t *testing.T, status rpc.Code, reason string) string {
+	t.Helper()
+	return fmt.Sprintf(`
+	{
+		"AdapterState":null,
+		"Returns":[
+			{
+				"Check":{
+					"Status":{
+						"code":%d,
+						"message":"threescale.handler.istio-system:%s"
+					},
+					"ValidDuration": 0,
+					"ValidUseCount": -1
+				},
+				"Quota":null,
+				"Error":null
+			}
+		]
+	}`, status, reason)
 }
