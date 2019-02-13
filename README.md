@@ -10,6 +10,10 @@ An [out of process gRPC Adapter](https://github.com/istio/istio/wiki/Mixer-Out-O
 * [Customise adapter manifests and create the resources](#customise-adapter-manifests-and-create-the-resources)
 * [Routing service traffic through the adapter](#routing-service-traffic-through-the-adapter)
 * [Authenticating requests](#authenticating-requests)
+  * [Applying Patterns](#applying-patterns)
+    * [API Key Pattern](#api-key-pattern)
+    * [Application ID Pattern](#application-id-pattern)
+    * [Hybrid](#hybrid-pattern)
 * [Adapter metrics](#adapter-metrics)
 * [Development and contributing](#development-and-contributing)
 
@@ -22,7 +26,7 @@ running within the mesh, and have that service integrated with the [3scale Api M
 
 ## Prerequisites
 
-1. Istio version 1.0.5+
+1. Istio version 1.1
 1. A working [3scale account](https://www.3scale.net/signup) (SaaS or On-Premises)
 1. `kubectl` or `oc` command line tool
 
@@ -110,9 +114,89 @@ by adding the above label under `spec.template.labels` in `productpage-v1`, we c
 
 ## Authenticating requests
 
-Now that the we have [configured the service to be managed by 3scale](#routing-service-traffic-through-the-adapter)
+Now that the we have [configured the service to be managed by 3scale](#routing-service-traffic-through-the-adapter) we can decide how requests should be authenticated.
+Currently there are two supported mechanisms:
+1. The API Key authentication pattern
+2. The Application ID, Application Key (optional) pair authentication pattern
 
-TODO - Describe the various supported authentication methods
+You can read more detailed information about these patterns and their behaviour in the [3scale documentation](https://access.redhat.com/documentation/en-us/red_hat_3scale_api_management/2.4/html/api_authentication/authentication-patterns).
+
+
+### Applying Patterns
+
+When you have decided what pattern best fits your needs, you can modify the `instance` CustomResource to configure this behaviour. You can also decide if authentication credentials should be read from headers or query parameters, or allow both.
+
+
+#### API Key Pattern
+To use the *API Key authentication pattern*, you should use the `user` value on the `subject` field like so:
+
+```yaml
+apiVersion: "config.istio.io/v1alpha2"
+kind: instance
+metadata:
+  name: threescale-authorization
+  namespace: istio-system
+spec:
+  template: authorization
+  params:
+    subject:
+      user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
+    action:
+      path: request.url_path
+      method: request.method | "get"
+```
+
+This configuration will examine the `user_key` query parameter, followed by the `x-user-key` header in search of the api key. As mentioned, this can be restricted to one or the other by removing that particular attribute.
+The order can be changed to determine precedence.
+
+If you would like for the adapter to examine a different, for example query parameter than `user_key`, you would simply change `[user_key]` to `[foo]`. The same pattern applies to the headers.
+
+#### Application ID Pattern
+To use the *Application ID authentication pattern*, you should use the `properties` value on the `subject` field to set `app_id`, and **optionally** `app_key`.
+
+Manipulation of this object can be done in using the methods described previously.
+An example configuration is shown below.
+
+```yaml
+apiVersion: "config.istio.io/v1alpha2"
+kind: instance
+metadata:
+  name: threescale-authorization
+  namespace: istio-system
+spec:
+  template: authorization
+  params:
+    subject:
+        app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
+    action:
+      path: request.url_path
+      method: request.method | "get"
+```
+
+#### Hybrid Pattern
+
+Finally, you may decide to not enforce a particular authentication method but accept any valid credentials for either pattern. In that case, you can do a hybrid configuration where the user key pattern will be preferred if both are provided:
+```yaml
+apiVersion: "config.istio.io/v1alpha2"
+kind: instance
+metadata:
+  name: threescale-authorization
+  namespace: istio-system
+spec:
+  template: authorization
+  params:
+    subject:
+      user: request.query_params["user_key"] | request.headers["x-user-key"] | request.api_key | ""
+      properties:
+        app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
+    action:
+      path: request.url_path
+      method: request.method | "get"
+
+```
+
 
 ## Adapter metrics
 
