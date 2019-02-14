@@ -158,7 +158,7 @@ oc patch svc -n istio-system threescaleistioadapter \
 
 Next, we need to patch the deployment with the image we built above:
 ```bash
-export THREESCALE_DEBUG_ADAPTER=$(whoami)/3scaleistioadapter:debug
+export THREESCALE_DEBUG_ADAPTER=$(whoami)/3scale-istio-adapter:debug
 docker push ${THREESCALE_DEBUG_ADAPTER}
 oc patch deployment -n istio-system 3scale-istio-adapter \
    --patch='{"spec":{"template":{"spec":{"containers":[{"name": "3scale-istio-adapter", "image":"'${THREESCALE_DEBUG_ADAPTER}'"}]}}}}'

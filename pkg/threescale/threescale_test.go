@@ -56,14 +56,14 @@ func TestHandleAuthorization(t *testing.T) {
 				AccessToken: "789",
 			},
 			expectStatus: int32(rpc.INVALID_ARGUMENT),
-			expectErrMsg: []string{"missing request path"},
+			expectErrMsg: []string{pathErr},
 			template: authorization.InstanceMsg{
 				Name:   "",
 				Action: &authorization.ActionMsg{},
 			},
 		},
 		{
-			name: "Test fail - missing user_key",
+			name: "Test fail - missing auth credentials",
 			params: pb.Params{
 				ServiceId:   "123",
 				SystemUrl:   "https://www.fake-system.3scale.net",
@@ -71,13 +71,12 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: int32(rpc.PERMISSION_DENIED),
 			template: authorization.InstanceMsg{
-				Name: "",
 				Action: &authorization.ActionMsg{
 					Method: "get",
 					Path:   "/",
 				},
 			},
-			expectErrMsg: []string{"user_key required"},
+			expectErrMsg: []string{unauthenticatedErr},
 		},
 		{
 			name: "Test fail - invalid or no response from 3scale backend",
@@ -88,10 +87,12 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: int32(rpc.UNAVAILABLE),
 			template: authorization.InstanceMsg{
-				Name: "",
 				Action: &authorization.ActionMsg{
 					Method: "get",
-					Path:   "/test?user_key=secret&test=curveball",
+					Path:   "/test",
+				},
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
 				},
 			},
 			expectErrMsg: []string{"currently unable to fetch required data from 3scale system"},
@@ -106,10 +107,12 @@ func TestHandleAuthorization(t *testing.T) {
 			expectStatus: int32(rpc.PERMISSION_DENIED),
 
 			template: authorization.InstanceMsg{
-				Name: "",
 				Action: &authorization.ActionMsg{
 					Method: "get",
-					Path:   "/test?user_key=invalid-backend-resp",
+					Path:   "/test",
+				},
+				Subject: &authorization.SubjectMsg{
+					User: "invalid-backend-resp",
 				},
 			},
 			expectErrMsg: []string{"user_key_invalid"},
@@ -123,10 +126,12 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: 7,
 			template: authorization.InstanceMsg{
-				Name: "",
 				Action: &authorization.ActionMsg{
 					Method: "post",
-					Path:   "/nop?user_key=secret",
+					Path:   "/nop",
+				},
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
 				},
 			},
 			expectErrMsg: []string{"no matching mapping rule for request with method post and path /nop"},
@@ -140,10 +145,12 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: int32(rpc.OK),
 			template: authorization.InstanceMsg{
-				Name: "",
 				Action: &authorization.ActionMsg{
 					Method: "get",
-					Path:   "/?user_key=secret",
+					Path:   "/",
+				},
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
 				},
 			},
 		},

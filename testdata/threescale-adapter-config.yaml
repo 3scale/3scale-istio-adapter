@@ -13,12 +13,7 @@ spec:
   connection:
     address: "[::]:3333"
 ---
-
 # instance for template authorization
-
-## Uses api_key or the header X-API-KEY. In Istio 1.1 this will
-## be solved by request.query_params and request.url_path
-
 apiVersion: "config.istio.io/v1alpha2"
 kind: instance
 metadata:
@@ -27,12 +22,15 @@ metadata:
 spec:
   template: authorization
   params:
+    subject:
+      user: request.query_params["user_key"] | request.headers["x-user-key"] | request.api_key | ""
+      properties:
+        app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
     action:
-      path: request.path | "/"
+      path: request.url_path
       method: request.method | "get"
-
 ---
-
 # rule to dispatch to handler threescalehandler
 apiVersion: "config.istio.io/v1alpha2"
 kind: rule
@@ -46,3 +44,4 @@ spec:
     instances:
     - threescale-authorization
 ---
+
