@@ -108,6 +108,9 @@ oc create -f istio/ -n istio-system
 In order to drive traffic for your service through the adapter and be managed by 3scale, we need to match the rule
 `destination.labels["service-mesh.3scale.net"] == "true"` we previously created in the configuration, in the `kind: rule` resource.
 
+If you need to support multiple services an additional label is required. It should be unique per service, we have chosen the
+label `"service-mesh.3scale.net/uid"` as a default. Of course, you are free to modify the sample templates as you wish.
+
 To do so, we need to add a label to the PodTemplateSpec on the Deployment of the target workload. 
 For example, if we have a `productpage` service, whose Pod is managed by the `productpage-v1` deployment, 
 by adding the above label under `spec.template.labels` in `productpage-v1`, we can have the adapter authorise requests to this service.
@@ -197,6 +200,25 @@ spec:
 
 ```
 
+## Generating custom resources against 3scale configuration
+
+The adapter embeds a tool which allows generation of the `handler`,`instance` and `rule` CR's against 3scale configuration.
+To generate these manifests run the following:
+
+```bash
+oc exec -n istio-system $(oc get po -n istio-system -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
+-it -- ./3scale-config-gen \
+--url="https:\\replace-me@3scale.net:443" --service="example-service-id" --token="access-token"
+``` 
+
+Update the workload (target service deployment's Pod Spec) with the required annotations:
+
+```bash
+export UID="replace-me"
+export DEPLOYMENT="replace-me"
+patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net":"true","":"'"${UID}"'"}}}}}' )"
+oc patch deployment "${DEPLOYMENT}" --patch ''"${patch}"''
+```
 
 ## Adapter metrics
 
