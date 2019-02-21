@@ -6,10 +6,14 @@ PROJECT_PATH := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 build: ## Build the adapter binary
 	dep ensure
-	go build -o _output/3scale-istio-adapter cmd/main.go
+	go build -o _output/3scale-istio-adapter cmd/server/main.go
+
+build-cli:	## Build the config generator cli
+	dep ensure
+	go build -ldflags="-s -w" -o _output/3scale-config-gen cmd/cli/main.go
 
 run-adapter: ## Run the adapter
-	THREESCALE_LISTEN_ADDR=${LISTEN_ADDR} go run cmd/main.go
+	THREESCALE_LISTEN_ADDR=${LISTEN_ADDR} go run cmd/server/main.go
 
 run-mixer-server: ## Run the mixer server with test configuration
 	mixs server --configStoreURL=fs://$(PROJECT_PATH)/testdata
