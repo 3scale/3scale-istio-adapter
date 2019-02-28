@@ -62,7 +62,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 
 	proxyConfElement, err = s.extractProxyConf(cfg, systemClient)
 	if err != nil {
-		result.Status, err = rpcStatusErrorHandler("currently unable to fetch required data from 3scale system", withUnavailable, err)
+		result.Status, err = rpcStatusErrorHandler("currently unable to fetch required data from 3scale system", status.WithUnavailable, err)
 		goto out
 	}
 
@@ -291,13 +291,6 @@ func rpcStatusErrorHandler(userFacingErrMsg string, fn func(string) rpc.Status, 
 
 	log.Error(err.Error())
 	return fn(err.Error()), err
-}
-
-//TODO - This can be replaced by function in istio in 1.1 when we update the dependency
-// We use status functions from istio elsewhere in the package. This takes the place of the
-// WithStatusUnavailable function missing from 1.0
-func withUnavailable(msg string) rpc.Status {
-	return status.WithMessage(rpc.UNAVAILABLE, msg)
 }
 
 // Addr returns the Threescale addrs as a string
