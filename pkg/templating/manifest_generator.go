@@ -3,6 +3,7 @@ package templating
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"text/template"
@@ -252,4 +253,88 @@ func (h Handler) uidGenerator(url *url.URL) (string, error) {
 		return "", fmt.Errorf("error. Generated UID does not conform to requirements. %s. UID %s", errStr, uid)
 	}
 	return uid, nil
+}
+
+// GenerateAuthenticationAttributes - templating accessible function used to
+// format the authentication behaviour
+func (i Instance) GenerateAuthenticationAttributes(an AuthenticationMethod) string {
+	var attributes string
+
+	switch an {
+	case ApiKey:
+		attributes = i.generateApiKeyAttributes()
+	case ApplicationID:
+		attributes = i.generateApplicationIdAttributes()
+	case Hybrid:
+		attributes = i.generateApiKeyAttributes() + "\n      " + i.generateApplicationIdAttributes()
+	default:
+		panic("unknown field passed to string generator")
+	}
+
+	return attributes
+}
+
+// formats an authentication attribute into appropriate string based on the credentials location
+// if no credentials location set, defaults to checking both query params and headers
+func (i Instance) formatCredentialsLocation(key string) string {
+	var formatted string
+
+	switch i.CredentialsLocation {
+	case QueryParams:
+		formatted = fmt.Sprintf(`request.query_params["%s"]`, key)
+	case Headers:
+		formatted = fmt.Sprintf(`request.headers["%s"]`, formatHeaderLabel(key))
+	default:
+		//Unspecified
+		formatted = fmt.Sprintf(`request.query_params["%s"] | request.headers["%s"]`, key, formatHeaderLabel(key))
+	}
+	return formatted
+}
+
+// yaml generator for api key attribute
+func (i Instance) generateApiKeyAttributes() string {
+	return fmt.Sprintf(`user: %s | ""`, i.formatCredentialsLocation(i.ApiKeyLabel))
+}
+
+// yaml generator for app id/ app key attributes
+func (i Instance) generateApplicationIdAttributes() string {
+	return fmt.Sprintf("properties:\n        %s\n        %s",
+		fmt.Sprintf(`%s: %s | ""`, defaultAppIdLabel, i.formatCredentialsLocation(i.AppIDLabel)),
+		fmt.Sprintf(`%s: %s | ""`, defaultAppKeyLabel, i.formatCredentialsLocation(i.AppKeyLabel)))
+}
+
+// Validates the input by fetching a string version for the provided authentication method
+func (i *Instance) validate() {
+	i.AuthnMethod.String()
+}
+
+// ConditionsToMatchString returns a valid expression for Istio match condition
+func (r Rule) ConditionsToMatchString() string {
+	var matchOn string
+	conditionLen := len(r.Conditions) - 1
+	for i, condition := range r.Conditions {
+		matchOn += condition
+		if i < conditionLen {
+			matchOn += " && "
+		}
+	}
+	return matchOn
+}
+
+// Returns an instance with the default values
+func GetDefaultInstance() Instance {
+	return Instance{
+		ApiKeyLabel: defaultUserKeyLabel,
+		AppIDLabel:  defaultAppIdLabel,
+		AppKeyLabel: defaultAppKeyLabel,
+		AuthnMethod: Hybrid,
+	}
+}
+
+// formatHeaderLabel formats a string to header value in an opinionated way.
+// String underscores are replaced with '-' and the canonical string returned replacing the first character of each word in key to uppercase.
+// Underscores are allowed in header fields, although uncommon. We choose to replace since some proxies will
+// will silently drop them by default if containing underscores.
+func formatHeaderLabel(queryLabel string) string {
+	return http.CanonicalHeaderKey(strings.Replace(queryLabel, "_", "-", -1))
 }
