@@ -14,6 +14,7 @@ An [out of process gRPC Adapter](https://github.com/istio/istio/wiki/Mixer-Out-O
     * [API Key Pattern](#api-key-pattern)
     * [Application ID Pattern](#application-id-pattern)
     * [Hybrid](#hybrid-pattern)
+* [Generating sample CustomResources](#generating-sample-custom-resources)
 * [Adapter metrics](#adapter-metrics)
 * [Development and contributing](#development-and-contributing)
 
@@ -200,16 +201,22 @@ spec:
 
 ```
 
-## Generating custom resources against 3scale configuration
+## Generating sample custom resources
 
-The adapter embeds a tool which allows generation of the `handler`,`instance` and `rule` CR's against 3scale configuration.
-To generate these manifests run the following:
+The adapter embeds a tool which allows generation of the `handler`,`instance` and `rule` CR's.
+More detail can be found in the tools [documentation](cmd/cli/README.md)
+
+To generate these manifests from a deployed adapter, run the following:
 
 ```bash
 oc exec -n istio-system $(oc get po -n istio-system -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
 -it -- ./3scale-config-gen \
 --url="https:\\replace-me@3scale.net:443" --service="example-service-id" --token="access-token"
 ``` 
+
+This will produce some sample output to the terminal. As well as a unique UID which must be used for multiple service use case.
+Edit these samples if required and create the objects using `oc create` command.
+
 
 Update the workload (target service deployment's Pod Spec) with the required annotations:
 
