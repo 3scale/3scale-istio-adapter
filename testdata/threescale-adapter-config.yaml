@@ -2,8 +2,11 @@
 apiVersion: "config.istio.io/v1alpha2"
 kind: handler
 metadata:
-  name: threescale
+  name: threescale-123456
   namespace: istio-system
+  labels:
+    "service-mesh.3scale.net/host": "127.0.0.1"
+    "service-mesh.3scale.net/service-id": "123456"
 spec:
   adapter: threescale
   params:
@@ -17,31 +20,36 @@ spec:
 apiVersion: "config.istio.io/v1alpha2"
 kind: instance
 metadata:
-  name: threescale-authorization
+  name: threescale-authorization-123456
   namespace: istio-system
+  labels:
+    "service-mesh.3scale.net/host": "127.0.0.1"
+    "service-mesh.3scale.net/service-id": "123456"
 spec:
   template: authorization
   params:
     subject:
-      user: request.query_params["user_key"] | request.headers["x-user-key"] | request.api_key | ""
+      user: request.query_params["user_key"] | request.headers["User-Key"] | ""
       properties:
-        app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
-        app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
+        app_id: request.query_params["app_id"] | request.headers["App-Id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["App-Key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"
 ---
-# rule to dispatch to handler threescalehandler
+# rule to dispatch to handler threescale.handler
 apiVersion: "config.istio.io/v1alpha2"
 kind: rule
 metadata:
-  name: threescale
+  name: threescale-123456
   namespace: istio-system
+  labels:
+    "service-mesh.3scale.net/host": "127.0.0.1"
+    "service-mesh.3scale.net/service-id": "123456"
 spec:
-  match: destination.labels["service-mesh.3scale.net"] == "true"
+  match: destination.labels["service-mesh.3scale.net"] == "true" && destination.labels["service-mesh.3scale.net/uid"] == "123456"
   actions:
-  - handler: threescale.handler.istio-system
+  - handler: threescale-123456.handler.istio-system
     instances:
-    - threescale-authorization
+    - threescale-authorization-123456
 ---
-
