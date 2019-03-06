@@ -1090,6 +1090,7 @@
     "istio.io/istio/mixer/pkg/status",
     "istio.io/istio/mixer/template/authorization",
     "istio.io/istio/pkg/log",
+    "k8s.io/apimachinery/pkg/util/validation",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
