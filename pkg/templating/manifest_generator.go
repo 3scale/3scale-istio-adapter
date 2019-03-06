@@ -3,7 +3,11 @@ package templating
 import (
 	"fmt"
 	"io"
+	"net/url"
+	"strings"
 	"text/template"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 const (
@@ -202,4 +206,50 @@ func (cg ConfigGenerator) PopulateDefaultRules() {
 		fmt.Sprintf(`destination.labels["service-mesh.3scale.net/uid"] == "%s"`, cg.GetUID()),
 	}
 	cg.Rule.Conditions = append(cg.Rule.Conditions, conditions...)
+}
+
+// GenerateListenString - creates a string from the provided Handler replacing unset/invalid values
+// with internal defaults.
+func (h Handler) GenerateListenString() string {
+	if h.ListenAddress == "" {
+		h.ListenAddress = defaultListenAddress
+	}
+
+	if h.Port == 0 {
+		h.Port = defaultListenPort
+	}
+	return fmt.Sprintf("%s:%d", h.ListenAddress, h.Port)
+}
+
+// validates and parses Handler url
+func (h Handler) parseURL() (*url.URL, error) {
+	u, err := url.ParseRequestURI(h.SystemURL)
+	if err != nil {
+		return u, fmt.Errorf("error parsing provided url. ensure a valid url has been set on Handler")
+	}
+	return u, nil
+}
+
+// Generates a unique UID from the Handler struct - provided values must conform to k8 validation.
+func (h Handler) uidGenerator(url *url.URL) (string, error) {
+	var uid string
+	if url.Host == "" || h.ServiceID == "" {
+		return uid, fmt.Errorf("error generating UID. Required seeds cannot be empty")
+	}
+
+	replacer := strings.NewReplacer(":", legalCharSeparator, ".", legalCharSeparator, "/", legalCharSeparator, "--", legalCharSeparator)
+	uid = replacer.Replace(url.Host + legalCharSeparator + url.Path + legalCharSeparator + h.ServiceID)
+	// safely strip duplicate hyphens
+	uid = replacer.Replace(uid)
+
+	//validate that we can create a k8 object with this name
+	validationErrs := validation.IsDNS1035Label(uid)
+	if len(validation.IsDNS1035Label(uid)) > 0 {
+		var errStr string
+		for _, err := range validationErrs {
+			errStr += err + " "
+		}
+		return "", fmt.Errorf("error. Generated UID does not conform to requirements. %s. UID %s", errStr, uid)
+	}
+	return uid, nil
 }
