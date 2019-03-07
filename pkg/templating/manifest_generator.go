@@ -91,7 +91,7 @@ metadata:
 spec:
   adapter: threescale
   params:
-    service_id: "{{.GetUID}}"
+    service_id: "{{.GetServiceID}}"
     system_url: "{{.Handler.SystemURL}}"
     access_token: "{{.Handler.AccessToken}}"
   connection:
@@ -201,12 +201,12 @@ func (cg ConfigGenerator) OutputUID(w io.Writer) error {
 }
 
 // PopulateDefaultRules is a helper method exposed to allow to generate the rule based on the constructed ConfigGenerator
-func (cg ConfigGenerator) PopulateDefaultRules() {
+func (cg ConfigGenerator) GetDefaultMatchConditions() []string {
 	conditions := MatchConditions{
 		`destination.labels["service-mesh.3scale.net"] == "true"`,
 		fmt.Sprintf(`destination.labels["service-mesh.3scale.net/uid"] == "%s"`, cg.GetUID()),
 	}
-	cg.Rule.Conditions = append(cg.Rule.Conditions, conditions...)
+	return conditions
 }
 
 // GenerateListenString - creates a string from the provided Handler replacing unset/invalid values

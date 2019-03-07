@@ -310,8 +310,8 @@ func TestOutputUID(t *testing.T) {
 
 func TestPopulateDefaultRules(t *testing.T) {
 	copy := defaultTestFixture
-	copy.PopulateDefaultRules()
-	if len(copy.Rule.Conditions) != 2 {
+	rules := copy.GetDefaultMatchConditions()
+	if len(rules) != 2 {
 		t.Errorf("expected two rules")
 	}
 
