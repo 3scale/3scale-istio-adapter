@@ -211,7 +211,7 @@ To generate these manifests from a deployed adapter, run the following:
 ```bash
 oc exec -n istio-system $(oc get po -n istio-system -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
 -it -- ./3scale-config-gen \
---url="https:\\replace-me@3scale.net:443" --service="example-service-id" --token="access-token"
+--url="https://replace-me.3scale.net:443" --service="example-service-id" --token="access-token"
 ``` 
 
 This will produce some sample output to the terminal. As well as a unique UID which must be used for multiple service use case.
@@ -221,9 +221,9 @@ Edit these samples if required and create the objects using `oc create` command.
 Update the workload (target service deployment's Pod Spec) with the required annotations:
 
 ```bash
-export UID="replace-me"
+export SVC_ID="replace-me"
 export DEPLOYMENT="replace-me"
-patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net":"true","":"'"${UID}"'"}}}}}' )"
+patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net":"true","service-mesh.3scale.net/uid":"'"${SVC_ID}"'"}}}}}' )"
 oc patch deployment "${DEPLOYMENT}" --patch ''"${patch}"''
 ```
 

@@ -96,7 +96,7 @@ func execute() error {
 		return fmt.Errorf("error - generating configuration - %s", err.Error())
 	}
 
-	cg.PopulateDefaultRules()
+	cg.Rule.Conditions = append(cg.Rule.Conditions, cg.GetDefaultMatchConditions()...)
 
 	if outputTo == "" {
 		writeTo = os.Stdout
