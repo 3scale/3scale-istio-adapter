@@ -34,3 +34,19 @@
 
 [prune]
   go-tests = true
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/orcaman/concurrent-map"
+
+[[constraint]]
+  name = "github.com/astaxie/beego"
+  version = "1.11.1"
+
+[[constraint]]
+  name = "github.com/patrickmn/go-cache"
+  version = "2.1.0"
+
+[[constraint]]
+  name = "github.com/muesli/cache2go"
+  version = "0.2.0"

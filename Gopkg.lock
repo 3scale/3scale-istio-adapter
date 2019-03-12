@@ -32,6 +32,14 @@
   version = "v0.0.2"
 
 [[projects]]
+  digest = "1:ad19f3e78f40b8983af187e808ceb734cb0baf68c314f830bc8b2932331e27f5"
+  name = "github.com/astaxie/beego"
+  packages = ["cache"]
+  pruneopts = "T"
+  revision = "1b6edafc96ad27b6515fafeccd7339dda3e997b1"
+  version = "v1.11.1"
+
+[[projects]]
   branch = "master"
   digest = "1:ad4589ec239820ee99eb01c1ad47ebc5f8e02c4f5103a9b210adff9696d89f36"
   name = "github.com/beorn7/perks"
@@ -327,6 +335,14 @@
   version = "1.0.1"
 
 [[projects]]
+  digest = "1:92b28d0a4eb66dcee8ed892407043a74eb60acafe98b5cfb9a914cfc38ed26e4"
+  name = "github.com/muesli/cache2go"
+  packages = ["."]
+  pruneopts = "T"
+  revision = "5a1839810579c34bbb4f8232e6554a5b61daeb74"
+  version = "v0.2"
+
+[[projects]]
   digest = "1:c805e517269b0ba4c21ded5836019ed7d16953d4026cb7d00041d039c7906be9"
   name = "github.com/natefinch/lumberjack"
   packages = ["."]
@@ -345,6 +361,22 @@
   pruneopts = "T"
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
   version = "v1.0.2"
+
+[[projects]]
+  branch = "master"
+  digest = "1:0fabc073fb52287e01405bd06fe721b968970fc0f6c88714a070afb2097e552a"
+  name = "github.com/orcaman/concurrent-map"
+  packages = ["."]
+  pruneopts = "T"
+  revision = "7ed82d9cb71768a4e3656ee8837c7af568c75459"
+
+[[projects]]
+  digest = "1:808cdddf087fb64baeae67b8dfaee2069034d9704923a3cb8bd96a995421a625"
+  name = "github.com/patrickmn/go-cache"
+  packages = ["."]
+  pruneopts = "T"
+  revision = "a3647f8e31d79543b2d0f0ae2fe5c379d72cedc0"
+  version = "v2.1.0"
 
 [[projects]]
   digest = "1:ccf9949c9c53e85dcb7e2905fc620571422567040925381e6baa62f0b7b850fe"
@@ -1076,10 +1108,14 @@
     "github.com/3scale/3scale-go-client/fake",
     "github.com/3scale/3scale-porta-go-client/client",
     "github.com/3scale/3scale-porta-go-client/fake",
+    "github.com/astaxie/beego/cache",
     "github.com/gogo/googleapis/google/rpc",
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
+    "github.com/muesli/cache2go",
+    "github.com/orcaman/concurrent-map",
+    "github.com/patrickmn/go-cache",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/prometheus/client_golang/prometheus/testutil",
