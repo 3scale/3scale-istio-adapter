@@ -26,7 +26,7 @@ metadata:
     "service-mesh.3scale.net/host": "127.0.0.1"
     "service-mesh.3scale.net/service-id": "123456"
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       user: request.query_params["user_key"] | request.headers["User-Key"] | ""

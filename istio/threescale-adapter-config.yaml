@@ -21,7 +21,7 @@ metadata:
   name: threescale-authorization
   namespace: istio-system
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       user: request.query_params["user_key"] | request.headers["x-user-key"] | request.api_key | ""
