@@ -118,7 +118,7 @@ metadata:
     "service-mesh.3scale.net/host": "%s"
     "service-mesh.3scale.net/service-id": "%s"
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       user: request.query_params["user_key"] | request.headers["User-Key"] | ""
@@ -146,7 +146,7 @@ metadata:
     "service-mesh.3scale.net/host": "%s"
     "service-mesh.3scale.net/service-id": "%s"
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       user: request.query_params["test"] | ""
@@ -171,7 +171,7 @@ metadata:
     "service-mesh.3scale.net/host": "%s"
     "service-mesh.3scale.net/service-id": "%s"
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       user: request.headers["X-Test"] | ""
@@ -197,7 +197,7 @@ metadata:
     "service-mesh.3scale.net/host": "%s"
     "service-mesh.3scale.net/service-id": "%s"
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       properties:
@@ -225,7 +225,7 @@ metadata:
     "service-mesh.3scale.net/host": "%s"
     "service-mesh.3scale.net/service-id": "%s"
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       properties:

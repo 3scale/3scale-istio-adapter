@@ -122,7 +122,7 @@ metadata:
     "service-mesh.3scale.net/host": "{{.GetHost}}"
     "service-mesh.3scale.net/service-id": "{{.GetServiceID}}"
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       {{.Instance.GenerateAuthenticationAttributes .Instance.AuthnMethod }}
