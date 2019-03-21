@@ -1,12 +1,8 @@
 # Refer to https://golang.github.io/dep/docs/Gopkg.toml.html for details
 
 [[override]]
-  name = "k8s.io/client-go"
-  revision = "56e7a63b5e38b614bb7cb8c49ed26dc991b324c4"
-
-[[override]]
   name = "istio.io/api"
-  revision = "3094619c84733caef53723bfc96fa63ceb58cd57"
+  version = "1.1.0"
 
 [[constraint]]
   name = "github.com/gogo/protobuf"
@@ -18,7 +14,7 @@
 
 [[constraint]]
   name = "istio.io/istio"
-  revision = "9f94b8f3751e25e5e344bde06ab8d7496f9cf685"
+  version = "1.1.0"
 
 [[constraint]]
   name = "github.com/3scale/3scale-go-client"
