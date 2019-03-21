@@ -15,6 +15,13 @@ This project uses `dep` for dependency management. Follow the [installation inst
       * [Test the adapter](#test-the-adapter)
   * [Creating a debuggable adapter](#creating-a-debuggable-adapter)
   * [Making changes to configuration](#making-changes-to-configuration)
+  * [End-to-end walk-through](#end-to-end-walk-through)
+    * [Deploying OpenShift with Istio](#deploying-openshift-with-istio)
+    * [Create sample application](#create-sample-application)
+    * [Create an Api on 3scale](#create-an-api-on-3scale)
+    * [Generate the custom resources](#generate-the-custom-resources)
+    * [Integrating your OpenShift service](#integrating-your-openshift-service)
+    * [Testing Integration](#testing-integration)
 
 ## Testing the adapter
 
@@ -189,3 +196,107 @@ into the `testdata` directory in this repository. Run `make test`.
 
 Assuming a successful test run, copy the required generated files to `config`.
 Build the adapter image with these changes and verify the functionality.
+
+## End-to-end walk-through
+
+The guide will walk you through the creation of the required OpenShift cluster and the deployment of
+the 3scale adapter and its' integration with a 3scale API.
+
+### Deploying OpenShift with Istio
+
+The upstream [Maistra project](https://github.com/Maistra/) contains a fork of Origin which we will use for this walk-through.
+Follow the [Maistra documentation](https://maistra.io/docs/install/) to install and Istio as required. The all-in-one setup is the
+likely the quickest to get started with. When creating the `Installation` custom resource, ensure 3scale is enabled:
+
+```yaml
+  threeScale:
+    enabled: true
+```
+
+Alternatively, you can tweak as required, and run [this script for CentOS/RHEL based installation from the ground up](https://gist.github.com/unleashed/dea133398805fb2daef391ff960d0479)
+
+### Create sample application
+
+The Istio project uses the following [bookinfo application](https://istio.io/docs/examples/bookinfo/) for demonstration and testing purposes.
+It consists of a set of microservices integrated within the service mesh.
+
+The Maistra project also ships this example app and we will use that for the walk-through. Log into the OpenShift cluster we created
+in the last step as a `cluster-admin` and run the [following script](https://gist.github.com/unleashed/5f1aaeed880474fc9eb1861f0c6444e8).
+Wait for all the Pods in the `bookinfo` namespace to become ready.
+
+### Create an API on 3scale
+
+We are assuming that an active 3scale account exists at this point. If not, [go create one](https://www.3scale.net/signup/).
+
+[Create an API](https://access.redhat.com/documentation/en-us/red_hat_3scale/2-saas/html-single/deployment_options/index?lb_target=preview#configure_your_service)
+an [Application Plan](https://access.redhat.com/documentation/en-us/red_hat_3scale/2-saas/html/access_control/application-plans?lb_target=preview#how_to_create_an_application_plan)
+and an [Application](https://access.redhat.com/documentation/en-us/red_hat_3scale/2-saas/html/api_bizops/add-developers)
+and note down the following:
+
+* The service ID
+* The system URL
+* The access token
+
+Set the integration method to Istio. For this example, we are going to use the API Key authentication pattern, so scroll down and select that option.
+Create a Mapping Rule for this service in 3scale with `GET` verb and `/productpage` pattern. Create some limits if desired.
+
+### Generate the custom resources
+
+Follow the instructions to generate the sample resources [here](README.md#generating-sample-custom-resources). THis will print the sample
+YAML to your terminal. As well as a unique identifier. Note down this `UID` for the next section.
+Save this to a file and edit as required. You may want to look at changing the location of the credentials or the
+API Key label etc. For more details see [the instructions in main documentation](README.md#api-key-pattern)
+
+Once you are happy with your changes. Run `oc create -f` on the modified file.
+
+### Integrating your OpenShift service
+
+Now that the rules are configured and the adapter is deployed we want to use the `productpage-v1` deployment in the
+`bookinfo` project to be managed by 3scale for example purposes.
+
+Run `istiooc edit deploy productpage-v1 -n bookinfo`
+Ensure the following block exists under `.spec.template.metadata`
+
+```yaml
+      labels:
+        app: productpage
+        version: v1
+        service-mesh.3scale.net: 'true'
+        service-mesh.3scale.net/uid: 'replace-with-uid-from-previous-section'
+```
+
+Alternatively, follow the [main documentation](README.md#generating-sample-custom-resources), we provide a command there to patch the deployment.
+This process is also [documented in more detail](README.md#routing-service-traffic-through-the-adapter)
+
+### Testing Integration
+
+Next we need to test the integration worked as expected. Lets export the ingress gateway as an environment variable for convenience
+
+```bash
+export GW=$(istiooc get route istio-ingressgateway -n istio-system -o go-template='http://{{ .spec.host }}')
+```
+
+Now lets call the service we have integrated without any authentication:
+
+```bash
+curl ${GW}/productpage
+```
+
+As expected you should see an error that include the following text: `PERMISSION_DENIED`
+
+Next, lets add a fake/incorrect `user_key`:
+
+```bash
+curl ${GW}/productpage?user_key=intruder
+```
+
+Again we see an error similar to `PERMISSION_DENIED` with some additional information
+
+Now lets add our correct `user_key`
+```bash
+curl ${GW}/productpage?user_key=XXX_REPLACE_ME_XXX
+```
+
+At this point we should see the request allowed through and you can get all the book information you desire :)
+
+Make repeated calls to verify the limits that were set and ensure they are enforced. Verify the hits act as expected and analytics are reported.
