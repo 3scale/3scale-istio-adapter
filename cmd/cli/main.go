@@ -15,16 +15,20 @@ var (
 	accessToken   string
 	svcID         string
 	threescaleURL string
+	uid           string
 	outputTo      string
 	authType      int
+	fixup         bool
 )
 
 const (
 	tokenDescription      = "3scale access token (required)"
 	svcIDDescription      = "The ID of the 3scale service (required)"
+	uidDescription        = "Unique UID for the handler, if you don't want it derived from the URL (optional)"
 	threescaleDescription = "The 3scale admin portal URL (required)"
 	outputDescription     = "File to output templates. Prints to stdout if none provided"
 	authTypeDescription   = "3scale authentication pattern to use. 1=ApiKey, 2=AppID. Default template supports both if none provided"
+	fixupDescription      = "Try to automatically fix validation errors"
 
 	outputDefault, tokenDefault, svcDefault, urlDefault = "", "", "", ""
 )
@@ -36,6 +40,8 @@ func init() {
 	flag.StringVar(&svcID, "service", svcDefault, svcIDDescription)
 	flag.StringVar(&svcID, "s", svcDefault, svcIDDescription+" (short)")
 
+	flag.StringVar(&uid, "uid", "", uidDescription)
+
 	flag.StringVar(&threescaleURL, "url", urlDefault, threescaleDescription)
 	flag.StringVar(&threescaleURL, "u", urlDefault, threescaleDescription+" (short)")
 
@@ -43,6 +49,8 @@ func init() {
 	flag.StringVar(&outputTo, "o", outputDefault, outputDescription+" (short)")
 
 	flag.IntVar(&authType, "auth", 0, authTypeDescription)
+
+	flag.BoolVar(&fixup, "fixup", false, fixupDescription)
 
 	flag.Parse()
 
@@ -65,35 +73,54 @@ func checkEnv() {
 
 func validate() []error {
 	var errs []error
+
 	if accessToken == "" {
 		errs = append(errs, errors.New("error missing parameter. --token is required"))
+	}
+
+	if threescaleURL == "" {
+		errs = append(errs, errors.New("error missing parameter. --url is required"))
 	}
 
 	if svcID == "" {
 		errs = append(errs, errors.New("error missing parameter. --service is required"))
 	}
 
-	if threescaleURL == "" {
-		errs = append(errs, errors.New("error missing parameter. --url is required"))
-	}
 	return errs
 }
 
-func execute() error {
+func execute() []error {
+	var errs []error
 	var writeTo io.Writer
 
-	handler := templating.Handler{
-		AccessToken: accessToken,
-		SystemURL:   threescaleURL,
-		ServiceID:   svcID,
+	handler, errList := templating.NewHandler(accessToken, threescaleURL, svcID, fixup)
+	if len(errList) > 0 {
+		errs = append(errs, errList...)
 	}
 
 	instance := templating.GetDefaultInstance()
 	instance.AuthnMethod = templating.AuthenticationMethod(authType)
 
-	cg, err := templating.NewConfigGenerator(handler, instance, templating.Rule{})
-	if err != nil {
-		return fmt.Errorf("error - generating configuration - %s", err.Error())
+	if uid == "" {
+		// generate a UID from the URL
+		url, err := templating.ParseURL(handler.SystemURL)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("URL parsing for UID generation failed: %s", err.Error()))
+		} else {
+			uid, err = templating.UidGenerator(url, handler.ServiceID)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("UID generation failed: %s", err.Error()))
+			}
+		}
+	}
+
+	cg, errList := templating.NewConfigGenerator(*handler, instance, uid, fixup)
+	if len(errList) > 0 {
+		errs = append(errs, errList...)
+	}
+
+	if len(errs) > 0 {
+		return errs
 	}
 
 	cg.Rule.Conditions = append(cg.Rule.Conditions, cg.GetDefaultMatchConditions()...)
@@ -108,12 +135,17 @@ func execute() error {
 		writeTo = f
 	}
 
-	err = cg.OutputAll(writeTo)
+	err := cg.OutputAll(writeTo)
 	if err != nil {
-		return err
+		return []error{err}
 	}
 
-	return cg.OutputUID(writeTo)
+	err = cg.OutputUID(writeTo)
+	if err != nil {
+		return []error{err}
+	}
+
+	return nil
 }
 
 func main() {
@@ -126,9 +158,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	err := execute()
-	if err != nil {
-		log.Printf(err.Error())
+	errs = execute()
+	if errs != nil {
+		for _, i := range errs {
+			fmt.Println(i.Error())
+		}
 		os.Exit(1)
 	}
 }
