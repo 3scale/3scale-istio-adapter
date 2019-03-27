@@ -17,5 +17,6 @@ The program accepts a number of flags which are documented in the table below:
 |    `-t`, `--token`   |  3scale access token                                                    |   Yes   |         |
 |    `-u`, `--url`     |  3scale Admin Portal URL                                                |   Yes   |         |
 |    `-s`, `--service` |  3scale API/Service ID                                                  |   Yes   |         |
+|    `--uid`           |  Unique UID for resource names. Derived from URL and service  if unset  |   No    |         |
 |    `--auth`          |  3scale authentication pattern to specify (1=Api Key, 2=App Id/App Key) |   No    | Hybrid  |
 |    `-o`, `--output`  |  File to save produced manifests to                                     |   No    | STDOUT  |
