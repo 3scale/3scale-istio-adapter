@@ -228,10 +228,12 @@ Wait for all the Pods in the `bookinfo` namespace to become ready.
 
 We are assuming that an active 3scale account exists at this point. If not, [go create one](https://www.3scale.net/signup/).
 
-[Create an API](https://access.redhat.com/documentation/en-us/red_hat_3scale/2-saas/html-single/deployment_options/index?lb_target=preview#configure_your_service)
-an [Application Plan](https://access.redhat.com/documentation/en-us/red_hat_3scale/2-saas/html/access_control/application-plans?lb_target=preview#how_to_create_an_application_plan)
-and an [Application](https://access.redhat.com/documentation/en-us/red_hat_3scale/2-saas/html/api_bizops/add-developers)
-and note down the following:
+Create the following 3scale resources:
+1. Create an API
+2. Create an Application Plan
+3. Create an Application
+
+Note down the following:
 
 * The service ID
 * The system URL
