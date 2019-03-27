@@ -7,8 +7,6 @@ import (
 	"net/url"
 	"strings"
 	"text/template"
-
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 const (
@@ -37,22 +35,61 @@ const (
 	legalCharSeparator = "-"
 )
 
-// NewConfigGenerator - constructor for ConfigGenerator which validates the input and generates a UID
-// Constructor should be used in order to guarantee the generation of valid templates.
-func NewConfigGenerator(h Handler, i Instance, r Rule) (*ConfigGenerator, error) {
-	u, err := h.parseURL()
-	if err != nil {
-		return nil, err
+// Maximum length for UID, as we are already consuming quite a few of the remaining in templates (253-200 = 53)
+const templateUIDMaxLength int = 200
+
+func NewHandler(accessToken, threescaleURL, svcID string, fixup bool) (*Handler, []error) {
+	var errs []error
+	if accessToken == "" || threescaleURL == "" || svcID == "" {
+		return &Handler{}, []error{fmt.Errorf("access token, url and service id required for valid handler and cannot be empty")}
 	}
 
-	uid, err := h.uidGenerator(u)
+	// validate that we can create a k8s label with this value
+	newSvcID, validationErrs := K8sLabelValueValidation(svcID, -1, fixup)
+	if len(validationErrs) > 0 {
+		errs = append(errs, validationErrs...)
+	}
+
+	return &Handler{
+		AccessToken: accessToken,
+		SystemURL:   threescaleURL,
+		ServiceID:   newSvcID,
+	}, errs
+}
+
+// NewConfigGenerator - constructor for ConfigGenerator which validates the input and generates a UID
+// Constructor should be used in order to guarantee the generation of valid templates.
+func NewConfigGenerator(h Handler, i Instance, uid string, fixup bool) (*ConfigGenerator, []error) {
+	var errs []error
+
+	u, err := ParseURL(h.SystemURL)
 	if err != nil {
-		return nil, fmt.Errorf("UID generation failed: %s", err.Error())
+		errs = append(errs, err)
+	}
+
+	// validate that we can create a k8s resource with this name
+	newUID, validationErrs := K8sResourceNameValidation(uid, templateUIDMaxLength, fixup)
+	if len(validationErrs) > 0 {
+		errs = append(errs, validationErrs...)
+	}
+
+	// validate that we can create a k8s label with this value
+	var hostname string
+	if u != nil {
+		hostname = u.Hostname()
+	}
+	newHostname, validationErrs := K8sLabelValueValidation(hostname, -1, fixup)
+	if len(validationErrs) > 0 {
+		errs = append(errs, validationErrs...)
+	}
+
+	if len(errs) > 0 {
+		return nil, errs
 	}
 
 	i.validate()
 
-	return &ConfigGenerator{h, i, r, uid, u.Hostname()}, nil
+	return &ConfigGenerator{Handler: h, Instance: i, uid: newUID, host: newHostname}, nil
 }
 
 // Return a string of the provided AuthenticationMethod
@@ -223,35 +260,34 @@ func (h Handler) GenerateListenString() string {
 }
 
 // validates and parses Handler url
-func (h Handler) parseURL() (*url.URL, error) {
-	u, err := url.ParseRequestURI(h.SystemURL)
+func ParseURL(uri string) (*url.URL, error) {
+	u, err := url.ParseRequestURI(uri)
 	if err != nil {
-		return u, fmt.Errorf("error parsing provided url. ensure a valid url has been set on Handler")
+		return u, fmt.Errorf("error parsing provided url")
 	}
+
 	return u, nil
 }
 
-// Generates a unique UID from the Handler struct - provided values must conform to k8 validation.
-func (h Handler) uidGenerator(url *url.URL) (string, error) {
+// Generates a unique UID - provided values should conform to k8s validation.
+func UidGenerator(url *url.URL, svcID string) (string, error) {
 	var uid string
-	if url.Host == "" || h.ServiceID == "" {
+	var host string
+
+	if url == nil {
+		return host, fmt.Errorf("non nil url must be provided")
+
+	}
+	if url.Host == "" || svcID == "" {
 		return uid, fmt.Errorf("error generating UID. Required seeds cannot be empty")
 	}
 
-	replacer := strings.NewReplacer(":", legalCharSeparator, ".", legalCharSeparator, "/", legalCharSeparator, "--", legalCharSeparator)
-	uid = replacer.Replace(url.Host + legalCharSeparator + url.Path + legalCharSeparator + h.ServiceID)
-	// safely strip duplicate hyphens
-	uid = replacer.Replace(uid)
-
-	//validate that we can create a k8 object with this name
-	validationErrs := validation.IsDNS1035Label(uid)
-	if len(validation.IsDNS1035Label(uid)) > 0 {
-		var errStr string
-		for _, err := range validationErrs {
-			errStr += err + " "
-		}
-		return "", fmt.Errorf("error. Generated UID does not conform to requirements. %s. UID %s", errStr, uid)
+	uid = url.Host + legalCharSeparator
+	if url.Path != "" {
+		uid = uid + url.Path + legalCharSeparator
 	}
+
+	uid = uid + svcID
 	return uid, nil
 }
 

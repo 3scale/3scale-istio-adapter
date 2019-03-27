@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"path/filepath"
 	"testing"
 )
@@ -33,8 +32,9 @@ var defaultTestFixture = ConfigGenerator{
 }
 
 func TestNewConfigGenerator(t *testing.T) {
-	_, err := NewConfigGenerator(Handler{}, Instance{}, Rule{})
-	if err == nil {
+	// expect failure no uid provided and fixup set to false
+	_, errs := NewConfigGenerator(Handler{}, Instance{}, "", false)
+	if len(errs) < 1 {
 		t.Fatalf("expected validation to fail - empty uid")
 	}
 
@@ -42,18 +42,87 @@ func TestNewConfigGenerator(t *testing.T) {
 		ServiceID: "any",
 		SystemURL: "http://valid.com",
 	}
-
-	_, err = NewConfigGenerator(validHandler, Instance{}, Rule{})
-	if err != nil {
-		t.Fatalf("unexpected error")
+	// expect success, no uid provided but asked for fixup
+	_, errs = NewConfigGenerator(validHandler, Instance{}, "", true)
+	if len(errs) > 0 {
+		var errString string
+		for _, e := range errs {
+			errString = errString + " " + e.Error()
+		}
+		t.Fatalf("unexpected errors - %s", errString)
 	}
 
+	// expect a panic when the user provides an invalid input
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("expected validation to fail - invalid auth method")
 		}
 	}()
-	NewConfigGenerator(validHandler, Instance{AuthnMethod: AuthenticationMethod(5)}, Rule{})
+	NewConfigGenerator(validHandler, Instance{AuthnMethod: AuthenticationMethod(5)}, "", true)
+}
+
+func TestNewHandler(t *testing.T) {
+	inputs := []struct {
+		name       string
+		token      string
+		svcID      string
+		url        string
+		fixup      bool
+		expectErrs bool
+	}{
+		{
+			name:       "Test expect un-fixable errors - no svc id",
+			token:      "12345",
+			url:        "https://test.com",
+			fixup:      true,
+			expectErrs: true,
+		},
+		{
+			name:       "Test expect un-fixable errors -  no url",
+			token:      "1234",
+			svcID:      "12345",
+			fixup:      true,
+			expectErrs: true,
+		},
+		{
+			name:       "Test expect un-fixable errors -  no token",
+			svcID:      "12345",
+			url:        "https://test.com",
+			fixup:      true,
+			expectErrs: true,
+		},
+		{
+			name:       "Test expect fixable errors -  invalid service id. no fix",
+			token:      "12345",
+			svcID:      "--",
+			url:        "https://test.com",
+			fixup:      false,
+			expectErrs: true,
+		},
+		{
+			name:       "Test expect fixable errors -  invalid service id. fix",
+			token:      "12345",
+			svcID:      "--",
+			url:        "https://test.com",
+			fixup:      true,
+			expectErrs: false,
+		},
+	}
+	for _, input := range inputs {
+		t.Run(input.name, func(t *testing.T) {
+			_, errs := NewHandler(input.token, input.url, input.svcID, input.fixup)
+			if input.expectErrs {
+				if len(errs) < 1 {
+					t.Errorf("expected errors but got none")
+				}
+				return
+			} else {
+				if len(errs) > 0 {
+					t.Errorf("uneexpected errors. expected 0 but got %d", len(errs))
+				}
+			}
+		})
+	}
 }
 
 func TestOutputHandler(t *testing.T) {
@@ -333,36 +402,31 @@ func TestUidGenerator(t *testing.T) {
 		{
 			name:   "Test simple input",
 			url:    "https://test.com",
-			expect: "test-com-12345",
+			expect: "test.com-12345",
 		},
 		{
 			name:   "Test port colon replaced",
 			url:    "https://test.com:443",
-			expect: "test-com-443-12345",
+			expect: "test.com:443-12345",
 		},
 		{
 			name:   "Test credentials stripped",
 			url:    "https://secret:password@test.com:443",
-			expect: "test-com-443-12345",
+			expect: "test.com:443-12345",
 		},
 		{
 			name:   "Test path converted",
 			url:    "https://test.com/example",
-			expect: "test-com-example-12345",
+			expect: "test.com-/example-12345",
 		},
 		{
 			name:   "Test query params ignored",
 			url:    "https://test.com/example?fake=param&atest=query",
-			expect: "test-com-example-12345",
+			expect: "test.com-/example-12345",
 		},
 		{
 			name:      "Test fail url parse",
 			url:       "httpf:///.invalid.example",
-			expectErr: true,
-		},
-		{
-			name:      "Test fail k8 validation",
-			url:       ".invalid.example",
 			expectErr: true,
 		},
 		{
@@ -373,22 +437,12 @@ func TestUidGenerator(t *testing.T) {
 	}
 	for _, input := range inputs {
 		t.Run(input.name, func(t *testing.T) {
-			h := Handler{
-				SystemURL: input.url,
-				ServiceID: serviceID,
-			}
-
-			u, _ := h.parseURL()
+			u, _ := ParseURL(input.url)
 			if u == nil && !input.expectErr {
 				t.Errorf("expected to fail on url parsing")
-			} else if u == nil {
-				// want to test k8 validation so reset url
-				u = &url.URL{
-					Host: input.url,
-				}
 			}
 
-			uid, err := h.uidGenerator(u)
+			uid, err := UidGenerator(u, serviceID)
 			if err != nil && !input.expectErr {
 				t.Errorf(err.Error())
 				return
