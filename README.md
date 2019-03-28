@@ -4,9 +4,8 @@ An [out of process gRPC Adapter](https://github.com/istio/istio/wiki/Mixer-Out-O
 
 * [Overview](#overview)
 * [Prerequisites](#prerequisites)
+* [Enabling Policies](#enabling-policies)
 * [Deploy the adapter](#deploy-the-adapter)
-* [Configuring the adapter](#configuring-the-adapter)
-  * [Caching behaviour](#caching-behaviour)
 * [Customise adapter manifests and create the resources](#customise-adapter-manifests-and-create-the-resources)
 * [Routing service traffic through the adapter](#routing-service-traffic-through-the-adapter)
 * [Authenticating requests](#authenticating-requests)
@@ -27,9 +26,16 @@ running within the mesh, and have that service integrated with the [3scale Api M
 
 ## Prerequisites
 
-1. Istio version 1.1
+1. Istio version 1.1 with [policies enabled](#enabling-policies)
 1. A working [3scale account](https://www.3scale.net/signup) (SaaS or On-Premises)
 1. `kubectl` or `oc` command line tool
+
+## Enabling Policies
+
+As of Istio 1.1.0 GA, policies are now disabled by default. This impacts the 3scale adapter and policies need to be re-enabled
+in order for the adapter to receive traffic.
+
+Follow [these instructions](https://istio.io/docs/tasks/policy-enforcement/enabling-policy/) to enable policies.
 
 ## Deploy the adapter
 
@@ -60,7 +66,7 @@ your 3scale configuration.
 apiVersion: "config.istio.io/v1alpha2"
 kind: handler
 metadata:
- name: threescalehandler
+ name: threescale
  namespace: istio-system
 spec:
  adapter: threescale
@@ -115,7 +121,7 @@ metadata:
   name: threescale-authorization
   namespace: istio-system
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
       user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
@@ -142,7 +148,7 @@ metadata:
   name: threescale-authorization
   namespace: istio-system
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
         app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
@@ -162,10 +168,10 @@ metadata:
   name: threescale-authorization
   namespace: istio-system
 spec:
-  template: authorization
+  template: threescale-authorization
   params:
     subject:
-      user: request.query_params["user_key"] | request.headers["x-user-key"] | request.api_key | ""
+      user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
       properties:
         app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
         app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
@@ -195,9 +201,9 @@ Edit these samples if required and create the objects using `oc create` command.
 Update the workload (target service deployment's Pod Spec) with the required annotations:
 
 ```bash
-export SVC_ID="replace-me"
+export UNIQUE_ID="replace-me"
 export DEPLOYMENT="replace-me"
-patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net":"true","service-mesh.3scale.net/uid":"'"${SVC_ID}"'"}}}}}' )"
+patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net":"true","service-mesh.3scale.net/uid":"'"${UNIQUE_ID}"'"}}}}}' )"
 oc patch deployment "${DEPLOYMENT}" --patch ''"${patch}"''
 ```
 
