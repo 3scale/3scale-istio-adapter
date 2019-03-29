@@ -197,6 +197,25 @@ into the `testdata` directory in this repository. Run `make test`.
 Assuming a successful test run, copy the required generated files to `config`.
 Build the adapter image with these changes and verify the functionality.
 
+## Creating a release
+
+There is a `make` target to help with creating a release. It requires `VERSION=vx.y.z` as an argument. Please follow [Semantic Versioning](https://github.com/semver/semver/blob/master/semver.md)
+
+The target will do the following:
+
+1. Update the dependencies
+1. Generate the Deployment definition with correct container image
+1. Build the Docker image with the specified version as a tag
+1. Push said image
+1. Ask the user to commit the changes
+
+When you have committed and reviewed the changes push to github and create a PR for review.
+
+After the PR is approved and merged to master, checkout and pull the changes to master and run `make tag-release VERSION=vx.y.z`. 
+Push the tag to the remote repo. Create a release based on this tag with the appropriate changelog.
+
+
+
 ## End-to-end walk-through
 
 The guide will walk you through the creation of the required OpenShift cluster and the deployment of
