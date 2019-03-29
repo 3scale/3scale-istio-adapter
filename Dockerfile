@@ -1,13 +1,14 @@
 FROM golang:1.10 AS build
 
+ARG VERSION="undefined"
 ENV WORKDIR=/go/src/github.com/3scale/3scale-istio-adapter
 
 ADD . ${WORKDIR}
 WORKDIR ${WORKDIR}
 
 RUN go get -u github.com/golang/dep/cmd/dep && \
-    make build-adapter && \
-    make build-cli
+    make build-adapter VERSION=${VERSION} && \
+    make build-cli VERSION=${VERSION}
 
 FROM centos
 
