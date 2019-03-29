@@ -28,6 +28,10 @@
   name = "github.com/prometheus/client_golang"
   version = "0.9.2"
 
+[[constraint]]
+  name = "github.com/ghodss/yaml"
+  version = "1.0.0"
+
 [prune]
   unused-packages = true
   go-tests = true

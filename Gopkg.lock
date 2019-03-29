@@ -1072,6 +1072,7 @@
     "github.com/3scale/3scale-go-client/fake",
     "github.com/3scale/3scale-porta-go-client/client",
     "github.com/3scale/3scale-porta-go-client/fake",
+    "github.com/ghodss/yaml",
     "github.com/gogo/googleapis/google/rpc",
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
@@ -1086,6 +1087,10 @@
     "istio.io/istio/mixer/pkg/status",
     "istio.io/istio/mixer/template/authorization",
     "istio.io/istio/pkg/log",
+    "k8s.io/api/apps/v1",
+    "k8s.io/api/core/v1",
+    "k8s.io/apimachinery/pkg/apis/meta/v1",
+    "k8s.io/apimachinery/pkg/util/intstr",
     "k8s.io/apimachinery/pkg/util/validation",
   ]
   solver-name = "gps-cdcl"
