@@ -19,6 +19,8 @@ var (
 	outputTo      string
 	authType      int
 	fixup         bool
+
+	version string
 )
 
 const (
@@ -52,7 +54,16 @@ func init() {
 
 	flag.BoolVar(&fixup, "fixup", false, fixupDescription)
 
+	v := flag.Bool("v", false, "Prints CLI version")
+
 	flag.Parse()
+	if *v {
+		if version == "" {
+			version = "undefined"
+		}
+		log.Printf("3scale-config-gen version is %s", version)
+		os.Exit(0)
+	}
 
 	checkEnv()
 }

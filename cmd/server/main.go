@@ -17,6 +17,8 @@ import (
 	"istio.io/istio/pkg/log"
 )
 
+var version string
+
 func init() {
 	viper.SetEnvPrefix("threescale")
 	viper.BindEnv("log_level")
@@ -150,6 +152,11 @@ func main() {
 		log.Errorf("Unable to start sever: %v", err)
 		os.Exit(1)
 	}
+
+	if version == "" {
+		version = "undefined"
+	}
+	log.Infof("Started server version %s", version)
 
 	proxyCache.StartRefreshWorker()
 	if err != nil {
