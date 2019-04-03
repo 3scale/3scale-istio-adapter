@@ -32,6 +32,10 @@
   name = "github.com/ghodss/yaml"
   version = "1.0.0"
 
+[[constraint]]
+  name = "github.com/coreos/go-oidc"
+  version = "v2.0.0"
+
 [prune]
   unused-packages = true
   go-tests = true
