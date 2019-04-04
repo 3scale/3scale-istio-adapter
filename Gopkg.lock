@@ -278,14 +278,17 @@
   version = "v1.1.5"
 
 [[projects]]
-  branch = "master"
-  digest = "1:5d05f81d2061cd92e62a23d92c01060e9162bbc74962f876241bd4b3238bc6f3"
+  digest = "1:932f61879fdf354278ea76cd0bcca3776bff3a275867b2f967ddc59a6b17613e"
   name = "github.com/lestrrat-go/jwx"
   packages = [
     "internal/base64",
     "internal/option",
     "jwa",
     "jwk",
+    "jws",
+    "jws/sign",
+    "jws/verify",
+    "jwt",
   ]
   pruneopts = "NUT"
   revision = "e346d0eba260079c4fb03c5ccd0e62d92347ee03"
@@ -1134,7 +1137,9 @@
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
+    "github.com/lestrrat-go/jwx/jwa",
     "github.com/lestrrat-go/jwx/jwk",
+    "github.com/lestrrat-go/jwx/jwt",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/prometheus/client_golang/prometheus/testutil",

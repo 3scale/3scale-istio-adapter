@@ -36,6 +36,10 @@
   name = "github.com/coreos/go-oidc"
   version = "v2.0.0"
 
+[[constraint]]
+  name = "github.com/lestrrat-go/jwx"
+  revision = "e346d0eba260079c4fb03c5ccd0e62d92347ee03"
+
 [prune]
   unused-packages = true
   go-tests = true
