@@ -3,7 +3,6 @@ package templating
 import (
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"strings"
 	"text/template"
@@ -368,9 +367,10 @@ func GetDefaultInstance() Instance {
 }
 
 // formatHeaderLabel formats a string to header value in an opinionated way.
-// String underscores are replaced with '-' and the canonical string returned replacing the first character of each word in key to uppercase.
+// String underscores are replaced with '-' and the Istio canonical (enforces lower case)
+// string returned replacing the first character of each word in key to uppercase.
 // Underscores are allowed in header fields, although uncommon. We choose to replace since some proxies will
 // will silently drop them by default if containing underscores.
 func formatHeaderLabel(queryLabel string) string {
-	return http.CanonicalHeaderKey(strings.Replace(queryLabel, "_", "-", -1))
+	return strings.ToLower(strings.Replace(queryLabel, "_", "-", -1))
 }
