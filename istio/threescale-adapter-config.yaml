@@ -24,7 +24,7 @@ spec:
   template: threescale-authorization
   params:
     subject:
-      user: request.query_params["user_key"] | request.headers["x-user-key"] | request.api_key | ""
+      user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
       properties:
         app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
         app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
