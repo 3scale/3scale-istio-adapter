@@ -1,6 +1,8 @@
+# This code was generated as part of the release process using make release for version v0.5.1
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  creationTimestamp: "2019-04-08T17:48:12Z"
   labels:
     app: 3scale-istio-adapter
   name: 3scale-istio-adapter
@@ -10,42 +12,43 @@ spec:
     matchLabels:
       app: 3scale-istio-adapter
   strategy:
-    type: RollingUpdate
     rollingUpdate:
-      maxSurge: 25%
-      maxUnavailable: 25%
+      maxSurge: 25
+      maxUnavailable: 25
+    type: RollingUpdate
   template:
     metadata:
+      creationTimestamp: "2019-04-08T17:48:12Z"
       labels:
         app: 3scale-istio-adapter
     spec:
       containers:
-      - image: quay.io/3scale/3scale-istio-adapter:v0.5.0
+      - env:
+        - name: THREESCALE_LOG_JSON
+          value: "true"
+        - name: THREESCALE_REPORT_METRICS
+          value: "true"
+        - name: THREESCALE_METRICS_PORT
+          value: "8080"
+        image: quay.io/3scale/3scale-istio-adapter:v0.5.1
         imagePullPolicy: Always
+        livenessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          tcpSocket:
+            port: 3333
         name: 3scale-istio-adapter
         ports:
         - containerPort: 3333
-          protocol: TCP
           name: adapter
-        - containerPort: 8080
           protocol: TCP
+        - containerPort: 8080
           name: prometheus
-        livenessProbe:
-          tcpSocket:
-            port: 3333
-          initialDelaySeconds: 10
-          periodSeconds: 5
-        env:
-        - name: "THREESCALE_LOG_JSON"
-          value: "true"
-        - name: "THREESCALE_REPORT_METRICS"
-          value: "true"
-        - name: "THREESCALE_METRICS_PORT"
-          value: "8080"
+          protocol: TCP
         resources: {}
         terminationMessagePath: /dev/termination-log
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       securityContext: {}
       terminationGracePeriodSeconds: 30
-
+status: {}
