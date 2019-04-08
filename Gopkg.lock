@@ -10,15 +10,14 @@
   version = "v0.33.0"
 
 [[projects]]
-  digest = "1:e7d94a12452c0227d07d557b44b01d57a08772d12a603391cbacdd9ee792cd84"
+  digest = "1:e973a630b7d0ab7466215fcae007779c1760ae4af7fc4dba011ad9fc101a8f98"
   name = "github.com/3scale/3scale-go-client"
   packages = [
     "client",
     "fake",
   ]
   pruneopts = "NUT"
-  revision = "278f01eb0eab1d32267e38e7d59a5e7f2a1c2367"
-  version = "v0.0.1"
+  revision = "e366adc214e96578b5e53fd5b0250c5cfaec414c"
 
 [[projects]]
   digest = "1:91981d63946f5d802a03ab508e7d5a701f6c3f85100949719a467dd81033a9eb"

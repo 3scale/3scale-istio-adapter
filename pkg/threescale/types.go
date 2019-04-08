@@ -34,7 +34,7 @@ type AdapterConfig struct {
 // reportMetrics - function that defines requirements for reporting metrics around interactions between 3scale and the adapter
 type reportMetrics func(serviceID string, l prometheus.LatencyReport, s prometheus.StatusReport)
 
-type authRepFn func(auth client.TokenAuth, key string, svcID string, params client.AuthRepParams) (client.ApiResponse, error)
+type authRepFn func(auth client.TokenAuth, key string, svcID string, params client.AuthRepParams, ext map[string]string) (client.ApiResponse, error)
 
 type authRepRequest struct {
 	svcID   string
