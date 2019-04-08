@@ -108,7 +108,11 @@ You can read more detailed information about these patterns and their behaviour 
 
 ### Applying Patterns
 
-When you have decided what pattern best fits your needs, you can modify the `instance` CustomResource to configure this behaviour. You can also decide if authentication credentials should be read from headers or query parameters, or allow both.
+When you have decided what pattern best fits your needs, you can modify the `instance` CustomResource to configure this behaviour.
+You can also decide if authentication credentials should be read from headers or query parameters, or allow both.
+
+It is important to note that when specifying values from headers, Istio expects they key to be lower case.
+So for example if you want to send a header as `X-User-Key`, this must be referenced in the configuration as `request.headers["x-user-key"]`.
 
 
 #### API Key Pattern
