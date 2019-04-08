@@ -18,7 +18,7 @@
 
 [[constraint]]
   name = "github.com/3scale/3scale-go-client"
-  version = "v0.0.1"
+  revision = "e366adc214e96578b5e53fd5b0250c5cfaec414c"
 
 [[constraint]]
   name = "github.com/3scale/3scale-porta-go-client"
