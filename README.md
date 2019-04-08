@@ -92,8 +92,8 @@ In order to drive traffic for your service through the adapter and be managed by
 If you need to support multiple services an additional label is required. It should be unique per service, we have chosen the
 label `"service-mesh.3scale.net/uid"` as a default. Of course, you are free to modify the sample templates as you wish.
 
-To do so, we need to add a label to the PodTemplateSpec on the Deployment of the target workload. 
-For example, if we have a `productpage` service, whose Pod is managed by the `productpage-v1` deployment, 
+To do so, we need to add a label to the PodTemplateSpec on the Deployment of the target workload.
+For example, if we have a `productpage` service, whose Pod is managed by the `productpage-v1` deployment,
 by adding the above label under `spec.template.labels` in `productpage-v1`, we can have the adapter authorise requests to this service.
 
 ## Authenticating requests
@@ -108,7 +108,11 @@ You can read more detailed information about these patterns and their behaviour 
 
 ### Applying Patterns
 
-When you have decided what pattern best fits your needs, you can modify the `instance` CustomResource to configure this behaviour. You can also decide if authentication credentials should be read from headers or query parameters, or allow both.
+When you have decided what pattern best fits your needs, you can modify the `instance` CustomResource to configure this behaviour.
+You can also decide if authentication credentials should be read from headers or query parameters, or allow both.
+
+It is important to note that when specifying values from headers, Istio expects they key to be lower case.
+So for example if you want to send a header as `X-User-Key`, this must be referenced in the configuration as `request.headers["x-user-key"]`.
 
 
 #### API Key Pattern
@@ -192,7 +196,7 @@ To generate these manifests from a deployed adapter, run the following:
 oc exec -n istio-system $(oc get po -n istio-system -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
 -it -- ./3scale-config-gen \
 --url="https://replace-me.3scale.net:443" --service="example-service-id" --token="access-token"
-``` 
+```
 
 This will produce some sample output to the terminal. As well as a unique UID which must be used for multiple service use case.
 Edit these samples if required and create the objects using `oc create` command.

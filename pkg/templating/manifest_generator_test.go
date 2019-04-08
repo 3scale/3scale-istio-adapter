@@ -190,10 +190,10 @@ spec:
   template: threescale-authorization
   params:
     subject:
-      user: request.query_params["user_key"] | request.headers["User-Key"] | ""
+      user: request.query_params["user_key"] | request.headers["user-key"] | ""
       properties:
-        app_id: request.query_params["app_id"] | request.headers["App-Id"] | ""
-        app_key: request.query_params["app_key"] | request.headers["App-Key"] | ""
+        app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"`, testUid, host, testUid),
@@ -243,7 +243,7 @@ spec:
   template: threescale-authorization
   params:
     subject:
-      user: request.headers["X-Test"] | ""
+      user: request.headers["x-test"] | ""
     action:
       path: request.url_path
       method: request.method | "get"`, testUid, host, testUid),
@@ -298,8 +298,8 @@ spec:
   params:
     subject:
       properties:
-        app_id: request.headers["X-Test-Id"] | ""
-        app_key: request.headers["X-Test-Key"] | ""
+        app_id: request.headers["x-test-id"] | ""
+        app_key: request.headers["x-test-key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"`, testUid, host, testUid),
