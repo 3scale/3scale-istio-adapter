@@ -51,5 +51,5 @@ spec:
   actions:
   - handler: threescale-123456.handler.istio-system
     instances:
-    - threescale-authorization-123456
+    - threescale-authorization-123456.instance.istio-system
 ---

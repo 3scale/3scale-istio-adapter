@@ -339,7 +339,7 @@ spec:
   actions:
   - handler: threescale-%s.handler.istio-system
     instances:
-    - threescale-authorization-%s`, testUid, host, testUid, testUid, testUid, testUid)
+    - threescale-authorization-%s.instance.istio-system`, testUid, host, testUid, testUid, testUid, testUid)
 
 	b := newTestBuffer(t)
 	err := defaultTestFixture.OutputRule(b)

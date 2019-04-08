@@ -195,7 +195,7 @@ spec:
   actions:
   - handler: threescale-{{.GetUID}}.handler.istio-system
     instances:
-    - threescale-authorization-{{.GetUID}}`)
+    - threescale-authorization-{{.GetUID}}.instance.istio-system`)
 	if err != nil {
 		return err
 	}
