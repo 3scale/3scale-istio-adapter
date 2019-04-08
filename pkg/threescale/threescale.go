@@ -182,7 +182,7 @@ func (s *Threescale) doAuthRep(request authRepRequest, callback authRepFn, backe
 	)
 
 	start = time.Now()
-	resp, apiErr := callback(request.auth, request.authKey, request.svcID, request.params)
+	resp, apiErr := callback(request.auth, request.authKey, request.svcID, request.params, nil)
 	elapsed = time.Since(start)
 
 	go s.reportMetrics(request.svcID, prometheus.NewLatencyReport(endpoint, elapsed, backendEndpoint, target),
