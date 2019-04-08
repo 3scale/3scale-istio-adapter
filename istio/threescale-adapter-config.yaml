@@ -44,5 +44,5 @@ spec:
   actions:
     - handler: threescale.handler.istio-system
       instances:
-        - threescale-authorization
+        - threescale-authorization.instance.istio-system
 ---
