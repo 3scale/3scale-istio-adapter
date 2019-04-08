@@ -93,7 +93,7 @@ func TestAuthorizationCheck(t *testing.T) {
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
 						"request.url_path":   "/thispath",
-						"request.headers":    map[string]string{"User-Key": "VALID"},
+						"request.headers":    map[string]string{"user-key": "VALID"},
 						"request.method":     "get",
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
 					},
@@ -124,7 +124,7 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"request.url_path":   "/thispath",
 						"request.method":     "get",
-						"request.headers":    map[string]string{"App-Id": "test", "App-Key": "secret"},
+						"request.headers":    map[string]string{"app-id": "test", "app-key": "secret"},
 						"destination.labels": map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
 					},
 				},
