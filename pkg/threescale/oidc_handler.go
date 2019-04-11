@@ -10,6 +10,11 @@ import (
 	"github.com/coreos/go-oidc"
 )
 
+// oauthTypeIdentifier refers to the name by which 3scale config described oauth OpenID connect authentication pattern
+const openIDTypeIdentifier = "oauth"
+const splitHeaderOn = "Bearer"
+const defaultClaimLabel = "azp"
+
 // OIDCHandler manages threescale services integrated with Istio using the OpenID connect authentication option.
 // For backwards compatibility the code here will need to match the behaviour of APIcast.
 // There are some interesting discussions around this so we need to keep in sync with changes.
@@ -36,6 +41,36 @@ func NewOIDCHandler(client *http.Client) *OIDCHandler {
 	return &OIDCHandler{
 		context: cc,
 	}
+}
+
+// HandleIDToken is responsible for end to end handling handling and validation of a JWT passed in Authorisation header.
+// It expects the headers to be passed in the format `Bearer ${TOKEN}` and will parse ${TOKEN} into raw JWT.
+// After successfully parsing a JWT it will use the discovery protocol from the provided issuer which will then be used to verify the token.
+// Upon successful verification, the claims are parsed for the provided JSON key to retrieve the client id.
+// The specific behaviour and parameters required here are intrinsic to the incoming request and the contents of
+// the configuration stored in 3scale system.
+func (o *OIDCHandler) HandleIDToken(authHeader string, issuer string, claimLabel string) (string, error) {
+	var clientId string
+	jwt, err := splitToken(authHeader)
+	if err != nil {
+		return clientId, err
+	}
+
+	p, err := o.CreateProvider(issuer)
+	if err != nil {
+		return clientId, err
+	}
+
+	idToken, err := o.VerifyJWT(jwt, o.newDefaultConfig(), p)
+	if err != nil {
+		return clientId, err
+	}
+
+	if claimLabel == "" {
+		claimLabel = defaultClaimLabel
+	}
+
+	return o.parseClaims(idToken, claimLabel)
 }
 
 /*
@@ -84,6 +119,30 @@ func (o *OIDCHandler) newDefaultConfig() *oidc.Config {
 	}
 }
 
+// parseClaims takes the id token and attempts to parse it's claims and return the value
+// provided by claimLabel key, assuming it exists.
+func (o *OIDCHandler) parseClaims(idToken *oidc.IDToken, claimLabel string) (string, error) {
+	var clientID string
+	var to map[string]interface{}
+
+	err := idToken.Claims(&to)
+	if err != nil {
+		return clientID, err
+	}
+
+	id, ok := to[claimLabel]
+	if !ok {
+		return clientID, fmt.Errorf("provided label value for client id not present in jwt claims")
+	}
+
+	clientID, ok = id.(string)
+	if !ok {
+		return clientID, fmt.Errorf("error when parsing claims for label %s", claimLabel)
+	}
+
+	return clientID, nil
+}
+
 // strips basic auth from provided url and returns the credentials and stripped url as string
 func stripCredentials(u *url.URL) (clientCredentials, string) {
 	var cc clientCredentials
@@ -94,4 +153,14 @@ func stripCredentials(u *url.URL) (clientCredentials, string) {
 		return cc, stripped
 	}
 	return cc, u.String()
+}
+
+// splits a raw Authorisation header based on the Bearer value
+func splitToken(bearerToken string) (string, error) {
+	var idToken string
+	splitHeaderVal := strings.Split(bearerToken, splitHeaderOn)
+	if len(splitHeaderVal) < 2 {
+		return idToken, fmt.Errorf("unable to parse jwt from provided string")
+	}
+	return splitHeaderVal[1], nil
 }
