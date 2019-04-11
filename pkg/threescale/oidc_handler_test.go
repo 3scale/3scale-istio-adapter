@@ -14,11 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lestrrat-go/jwx/jwt"
-
 	"github.com/coreos/go-oidc"
 	"github.com/lestrrat-go/jwx/jwa"
 	"github.com/lestrrat-go/jwx/jwk"
+	"github.com/lestrrat-go/jwx/jwt"
 )
 
 var globalPK *rsa.PrivateKey
@@ -29,6 +28,73 @@ func init() {
 		panic(fmt.Errorf("failed to generate private key: %s", err))
 	}
 	globalPK = pk
+}
+
+func TestOIDCHandler_HandleIDToken(t *testing.T) {
+	const listener = "127.0.0.1:8090"
+	const issuer = "http://" + listener
+
+	ts := createTestServer(listener, t)
+	defer ts.Close()
+
+	o := NewOIDCHandler(nil)
+
+	inputs := []struct {
+		name         string
+		headerVal    string
+		issuer       string
+		claimLabel   string
+		expectErr    bool
+		expectResult string
+	}{
+		{
+			name:      "Test unexpected header format",
+			headerVal: "any",
+			expectErr: true,
+		},
+		{
+			name:      "Test provider unavailable",
+			headerVal: "Bearer " + buildJwt(issuer, "test", time.Now().Add(time.Hour), map[string]string{"azp": "fake-client"}, jwa.RS256, t),
+			issuer:    "unreachable",
+			expectErr: true,
+		},
+		{
+			name:      "Test invalid jwt",
+			headerVal: "Bearer " + buildJwt(issuer, "test", time.Now().AddDate(0, 0, -1), map[string]string{"azp": "fake-client"}, jwa.RS256, t),
+			issuer:    issuer,
+			expectErr: true,
+		},
+		{
+			name:       "Test parsing claim label",
+			headerVal:  "Bearer " + buildJwt(issuer, "test", time.Now().Add(time.Hour), map[string]string{"azp": "fake-client"}, jwa.RS256, t),
+			claimLabel: "not-azp",
+			issuer:     issuer,
+			expectErr:  true,
+		},
+		{
+			name:         "Test happy path with default claim",
+			headerVal:    "Bearer " + buildJwt(issuer, "test", time.Now().Add(time.Hour), map[string]string{"azp": "fake-client"}, jwa.RS256, t),
+			issuer:       issuer,
+			expectErr:    true,
+			expectResult: "fake-client",
+		},
+	}
+
+	for _, input := range inputs {
+		t.Run(input.name, func(t *testing.T) {
+			token, err := o.HandleIDToken(input.headerVal, input.issuer, input.claimLabel)
+			if err != nil {
+				if !input.expectErr {
+					t.Errorf("unexpected error - %s", err.Error())
+				}
+				return
+			}
+
+			if token != input.expectResult {
+				t.Errorf("unexpected client id  wanted %s but got %s", input.expectResult, token)
+			}
+		})
+	}
 }
 
 func TestOIDCHandler_CreateProvider(t *testing.T) {
