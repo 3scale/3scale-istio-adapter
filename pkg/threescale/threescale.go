@@ -128,6 +128,9 @@ func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMs
 		// Application Key auth pattern
 		userKey string
 
+		// OpenID Connect pattern ID Token
+		idToken string
+
 		// Function to be called when authn patter has been determined
 		authRep authRepFn
 	)
@@ -141,9 +144,17 @@ func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMs
 		appKey = request.Subject.Properties["app_key"].GetStringValue()
 
 		userKey = request.Subject.User
+
+		idToken = request.Subject.Properties["id_token"].GetStringValue()
 	}
 
-	if appID == "" && userKey == "" {
+	var oidcErr error
+	if proxyConf.Content.BackendVersion == openIDTypeIdentifier {
+		h := NewOIDCHandler(s.client)
+		appID, oidcErr = h.HandleIDToken(idToken, proxyConf.Content.Proxy.OidcIssuerEndpoint.(string), "")
+	}
+
+	if (appID == "" && userKey == "") || oidcErr != nil {
 		return status.WithPermissionDenied(unauthenticatedErr)
 	}
 
