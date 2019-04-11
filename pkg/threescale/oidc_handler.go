@@ -58,6 +58,32 @@ func (o *OIDCHandler) CreateProvider(issuerUrl string) (*oidc.Provider, error) {
 	return p, err
 }
 
+// VerifyJWT verifies the raw JWT against the public key of the provider
+func (o *OIDCHandler) VerifyJWT(jwt string, config *oidc.Config, p *oidc.Provider) (*oidc.IDToken, error) {
+	var idToken *oidc.IDToken
+	verifier := p.Verifier(config)
+	idToken, err := verifier.Verify(o.context, jwt)
+	if err != nil {
+		return idToken, fmt.Errorf("error verifying jwt - %s", err.Error())
+	}
+
+	return idToken, nil
+}
+
+// newDefaultConfig returns a default configuration as specified by 3scale
+// 3scale only supports RS* family and checking of client_id is enforced at the backend so we
+// can ignore this when verifying the jwt and client_id will be read from the claims.
+func (o *OIDCHandler) newDefaultConfig() *oidc.Config {
+	return &oidc.Config{
+		SkipClientIDCheck: true,
+		SupportedSigningAlgs: []string{
+			oidc.RS256,
+			oidc.RS384,
+			oidc.RS512,
+		},
+	}
+}
+
 // strips basic auth from provided url and returns the credentials and stripped url as string
 func stripCredentials(u *url.URL) (clientCredentials, string) {
 	var cc clientCredentials
