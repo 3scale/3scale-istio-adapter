@@ -159,7 +159,7 @@ make debug-image REGISTRY=$(whoami) IMAGE=3scale-istio-adapter TAG=debug
 
 The debugger listens on port 40000 and we need to patch the service, run the following:
 ```bash
-oc patch svc -n istio-system threescaleistioadapter \
+oc patch svc -n istio-system threescale-istio-adapter \
    --patch='{"spec":{"ports":[{"name":"debug", "port":40000,"targetPort":40000}]}}'
 ```
 
