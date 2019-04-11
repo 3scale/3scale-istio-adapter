@@ -1,6 +1,7 @@
 package threescale
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -13,6 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lestrrat-go/jwx/jwt"
+
+	"github.com/coreos/go-oidc"
+	"github.com/lestrrat-go/jwx/jwa"
 	"github.com/lestrrat-go/jwx/jwk"
 )
 
@@ -55,6 +60,93 @@ func TestOIDCHandler_CreateProvider(t *testing.T) {
 		t.Errorf("expected error when creating provide with invalid url - %v", err)
 	}
 
+}
+
+func TestOIDCHandler_VerifyJWT(t *testing.T) {
+	const listener = "127.0.0.1:8090"
+	const issuer = "http://" + listener
+	const invalidJWt = "oidc: malformed jwt"
+
+	ctx := context.TODO()
+
+	ts := createTestServer(listener, t)
+	defer ts.Close()
+
+	o := NewOIDCHandler(nil)
+	p, err := oidc.NewProvider(ctx, issuer)
+	if err != nil {
+		t.Errorf("failed to create new provider - %s/n", err.Error())
+	}
+
+	inputs := []struct {
+		name              string
+		jwt               string
+		c                 *oidc.Config
+		expectErr         bool
+		expectErrContains string
+	}{
+		{
+			name:              "Test fail invalid jwt",
+			jwt:               "",
+			c:                 nil,
+			expectErr:         true,
+			expectErrContains: invalidJWt,
+		},
+		{
+			name: "Test fail - aud mismatch",
+			jwt:  buildJwt(issuer, "not-test", time.Now().Add(time.Hour), nil, jwa.RS256, t),
+			c: &oidc.Config{
+				ClientID: "test",
+			},
+			expectErr:         true,
+			expectErrContains: `expected audience "test"`,
+		},
+		{
+			name: "Test fail - unsupported algorithm",
+			jwt:  buildJwt(issuer, "test", time.Now().Add(time.Hour), nil, jwa.HS256, t),
+			c: &oidc.Config{
+				ClientID:             "test",
+				SupportedSigningAlgs: []string{},
+			},
+			expectErr:         true,
+			expectErrContains: `id token signed with unsupported algorithm`,
+		},
+		{
+			name: "Test expired token",
+			jwt:  buildJwt(issuer, "test", time.Now().AddDate(0, 0, -1), nil, jwa.RS256, t),
+			c: &oidc.Config{
+				ClientID:             "test",
+				SupportedSigningAlgs: []string{string(jwa.RS256)},
+			},
+			expectErr:         true,
+			expectErrContains: "token is expired",
+		},
+		{
+			name: "Test happy path",
+			jwt:  buildJwt(issuer, "test", time.Now().Add(time.Hour), nil, jwa.RS256, t),
+			c:    o.newDefaultConfig(),
+		},
+	}
+
+	for _, input := range inputs {
+		t.Run(input.name, func(t *testing.T) {
+			_, err = o.VerifyJWT(input.jwt, input.c, p)
+			if input.expectErr {
+				if err == nil {
+					t.Error("expected validation to fail but error is nil")
+				}
+
+				if !strings.Contains(err.Error(), input.expectErrContains) {
+					t.Errorf("unexpected error returned - got %s\n", err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("failed to validate jwt - %s", err.Error())
+			}
+		})
+	}
 }
 
 // This is testing an internal function and can potentially be integrated into the CreateProviderTest
@@ -185,6 +277,36 @@ func getDiscoveryResponse(providerUrl string) []byte {
    "request_uri_parameter_supported":true,
    "code_challenge_methods_supported":["plain","S256"]
 }`, providerUrl, providerUrl, providerUrl, providerUrl, providerUrl))
+}
+
+func buildJwt(issuer string, aud string, expiresAt time.Time, opts map[string]string, alg jwa.SignatureAlgorithm, t *testing.T) string {
+	t.Helper()
+	const secret = "12345"
+
+	token := jwt.New()
+	token.Set(jwt.IssuerKey, issuer)
+	token.Set(jwt.IssuedAtKey, time.Now().Unix())
+	token.Set(jwt.ExpirationKey, expiresAt.Unix())
+	token.Set(jwt.SubjectKey, "f9651481-bbbb-4710-9722-0f81c5803c6d")
+	token.Set(jwt.AudienceKey, aud)
+
+	for k, v := range opts {
+		token.Set(k, v)
+	}
+
+	var b []byte
+	var err error
+	if alg == jwa.HS256 {
+		b, err = token.Sign(jwa.HS256, []byte(secret))
+	} else {
+		b, err = token.Sign(jwa.RS256, globalPK)
+	}
+
+	if err != nil {
+		t.Fatalf("Could not sign token - %v", err)
+	}
+
+	return string(b)
 }
 
 func buildJwk(t *testing.T) []byte {
