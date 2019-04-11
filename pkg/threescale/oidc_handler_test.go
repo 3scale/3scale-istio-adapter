@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,61 @@ func TestOIDCHandler_CreateProvider(t *testing.T) {
 		t.Errorf("expected error when creating provide with invalid url - %v", err)
 	}
 
+}
+
+// This is testing an internal function and can potentially be integrated into the CreateProviderTest
+func TestStripCredentials(t *testing.T) {
+	inputs := []struct {
+		name   string
+		in     string
+		expect string
+	}{
+		{
+			name:   "Test removing basic auth",
+			in:     "https://fake:user@somewhere.com",
+			expect: "https://somewhere.com",
+		},
+		{
+			name:   "Test removing basic auth with path",
+			in:     "https://fake:user@somewhere.com/with/some/path",
+			expect: "https://somewhere.com/with/some/path",
+		},
+		{
+			name:   "Test removing basic auth with and query",
+			in:     "https://fake:user@somewhere.com/with/some/path?test=yes",
+			expect: "https://somewhere.com/with/some/path?test=yes",
+		},
+		{
+			name:   "Test removing basic auth no password",
+			in:     "https://fake:@somewhere.com",
+			expect: "https://somewhere.com",
+		},
+		{
+			name:   "Test removing basic auth no user",
+			in:     "https://:user@somewhere.com",
+			expect: "https://somewhere.com",
+		},
+		{
+			name:   "Test no basic auth behaves correctly",
+			in:     "https://somewhere.com",
+			expect: "https://somewhere.com",
+		},
+	}
+
+	for _, input := range inputs {
+		t.Run(input.name, func(t *testing.T) {
+			u, err := url.Parse(input.in)
+			if err != nil {
+				t.Error("invalid input provided")
+			}
+
+			_, s := stripCredentials(u)
+			if s != input.expect {
+				t.Errorf("parsed result does not match expected output. Got %s but want %s\n", s, input.expect)
+			}
+		})
+
+	}
 }
 
 func getDiscoveryResponse(providerUrl string) []byte {
