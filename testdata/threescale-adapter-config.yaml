@@ -33,6 +33,7 @@ spec:
       properties:
         app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
         app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
+        client_id: request.auth.claims["azp"] | ""
     action:
       path: request.url_path
       method: request.method | "get"
