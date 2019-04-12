@@ -162,6 +162,53 @@ spec:
       method: request.method | "get"
 ```
 
+#### OpenID Connect Pattern
+To use the *OpenID Connect authentication pattern*, you should use the `properties` value on the `subject` field to set `client_id`, and **optionally** `app_key`.
+
+Manipulation of this object can be done in using the methods described previously.
+An example configuration is shown below. Here the client identifier (application ID) is parsed from the JWT under the label "azp". Modify this as desired.
+
+```yaml
+apiVersion: "config.istio.io/v1alpha2"
+kind: instance
+metadata:
+  name: threescale-authorization
+  namespace: istio-system
+spec:
+  template: threescale-authorization
+  params:
+    subject:
+        app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
+        client_id: request.auth.claims["azp"] | ""
+    action:
+      path: request.url_path
+      method: request.method | "get"
+```
+
+For this integration to work correctly. OpenID configuration must still be done in 3scale in order for the client to be created in the IdP.
+For the service the user wants to protect, they should create [end-user authentication](https://istio.io/help/ops/security/end-user-auth/) in the same namespace as that service.
+The JWT should then be passed in the `Authorization` header of the request.
+
+In the sample `Policy` defined below, replace `issuer` and `jwksUri` as appropriate.
+
+```yaml
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: jwt-example
+  namespace: bookinfo
+spec:
+  origins:
+    - jwt:
+        issuer: >-
+          http://keycloak-keycloak.34.242.107.254.nip.io/auth/realms/3scale-keycloak
+        jwksUri: >-
+          http://keycloak-keycloak.34.242.107.254.nip.io/auth/realms/3scale-keycloak/protocol/openid-connect/certs
+  principalBinding: USE_ORIGIN
+  targets:
+    - name: productpage
+```
+
 #### Hybrid Pattern
 
 Finally, you may decide to not enforce a particular authentication method but accept any valid credentials for either pattern. In that case, you can do a hybrid configuration where the user key pattern will be preferred if both are provided:
