@@ -1,0 +1,15 @@
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: jwt-example
+  namespace: bookinfo
+spec:
+  origins:
+    - jwt:
+        issuer: >-
+          http://keycloak-keycloak.34.242.107.254.nip.io/auth/realms/3scale-keycloak
+        jwksUri: >-
+          http://keycloak-keycloak.34.242.107.254.nip.io/auth/realms/3scale-keycloak/protocol/openid-connect/certs
+  principalBinding: USE_ORIGIN
+  targets:
+    - name: productpage
