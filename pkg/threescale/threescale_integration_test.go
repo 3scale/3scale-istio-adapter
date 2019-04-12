@@ -63,14 +63,11 @@ func TestAuthorizationCheck(t *testing.T) {
 		conf = append(conf, string(adapterConf))
 	}
 
-	sysServer, backendServer := startTestBackends(t)
-	defer sysServer.Close()
-	defer backendServer.Close()
-
 	inputs := []struct {
-		name     string
-		callWith []integration.Call
-		expect   string
+		name            string
+		callWith        []integration.Call
+		expect          string
+		injectProxyConf string
 	}{
 		{
 			name: "Test No Authn Credentials Provided Denied",
@@ -146,9 +143,42 @@ func TestAuthorizationCheck(t *testing.T) {
 			},
 			expect: authenticatedSuccess,
 		},
+		{
+			name: "Test OIDC integration no client_id failure",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"request.url_path":   "/oidc",
+						"request.method":     "get",
+						"destination.labels": map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+					},
+				},
+			},
+			expect:          generatedExpectedError(t, rpc.PERMISSION_DENIED, unauthenticatedErr),
+			injectProxyConf: strings.Replace(sysFake.GetProxyConfigLatestJson(), `"backend_version": "1",`, `"backend_version": "oauth",`, -1),
+		},
+		{
+			name: "Test OIDC integration success",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"request.url_path":    "/oidc",
+						"request.method":      "get",
+						"request.auth.claims": map[string]string{"azp": "VALID"},
+						"destination.labels":  map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+					},
+				},
+			},
+			expect:          authenticatedSuccess,
+			injectProxyConf: strings.Replace(sysFake.GetProxyConfigLatestJson(), `"backend_version": "1",`, `"backend_version": "oauth",`, -1),
+		},
 	}
 
 	for _, input := range inputs {
+		sysServer, backendServer := startTestBackends(t, input.injectProxyConf)
+
 		s := integration.Scenario{
 			Setup: func() (ctx interface{}, err error) {
 				pServer, err := NewThreescale("3333", http.DefaultClient, &AdapterConfig{})
@@ -179,13 +209,15 @@ func TestAuthorizationCheck(t *testing.T) {
 		}
 		t.Run(input.name, func(t *testing.T) {
 			integration.RunTest(t, nil, s)
+			sysServer.Close()
+			backendServer.Close()
 		})
 
 	}
 
 }
 
-func startTestBackends(t *testing.T) (*httptest.Server, *httptest.Server) {
+func startTestBackends(t *testing.T, proxyConfResp string) (*httptest.Server, *httptest.Server) {
 	sysListener, err := net.Listen("tcp", "127.0.0.1:8090")
 	if err != nil {
 		t.Fatalf("error listening on port for test data")
@@ -198,7 +230,10 @@ func startTestBackends(t *testing.T) (*httptest.Server, *httptest.Server) {
 
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, strings.Replace(sysFake.GetProxyConfigLatestJson(), "https://su1.3scale.net", "http://127.0.0.1:8091", -1))
+		if proxyConfResp == "" {
+			proxyConfResp = sysFake.GetProxyConfigLatestJson()
+		}
+		io.WriteString(w, strings.Replace(proxyConfResp, "https://su1.3scale.net", "http://127.0.0.1:8091", -1))
 	}))
 	ts.Listener.Close()
 	ts.Listener = sysListener
