@@ -29,7 +29,7 @@ const (
 	uidDescription        = "Unique UID for the handler, if you don't want it derived from the URL (optional)"
 	threescaleDescription = "The 3scale admin portal URL (required)"
 	outputDescription     = "File to output templates. Prints to stdout if none provided"
-	authTypeDescription   = "3scale authentication pattern to use. 1=ApiKey, 2=AppID. Default template supports both if none provided"
+	authTypeDescription   = "3scale authentication pattern to use. 1=ApiKey, 2=AppID, 3=OpenID Connect. Default template supports a hybrid if none provided"
 	fixupDescription      = "Try to automatically fix validation errors"
 
 	outputDefault, tokenDefault, svcDefault, urlDefault = "", "", "", ""
