@@ -47,6 +47,7 @@ type Instance struct {
 	ApiKeyLabel         string
 	AppIDLabel          string
 	AppKeyLabel         string
+	ClientIDLabel       string
 	AuthnMethod         AuthenticationMethod
 }
 
