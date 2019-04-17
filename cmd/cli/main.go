@@ -61,7 +61,7 @@ func init() {
 		if version == "" {
 			version = "undefined"
 		}
-		log.Printf("3scale-config-gen version is %s", version)
+		fmt.Printf("3scale-config-gen version %s\n", version)
 		os.Exit(0)
 	}
 
@@ -169,10 +169,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// ensure we either have a UID or we request the URL derivation to be fixed up
+	if uid == "" {
+		if !fixup {
+			log.Println("info: UID derivation from URL requires fixup mode, enabling.")
+		}
+		fixup = true
+	}
+
 	errs = execute()
 	if errs != nil {
 		for _, i := range errs {
 			fmt.Println(i.Error())
+		}
+		if !fixup {
+			log.Println("info: you might want to try --fixup to autocorrect the above errors.")
 		}
 		os.Exit(1)
 	}
