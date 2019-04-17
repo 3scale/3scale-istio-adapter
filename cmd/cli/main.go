@@ -61,7 +61,7 @@ func init() {
 		if version == "" {
 			version = "undefined"
 		}
-		log.Printf("3scale-config-gen version is %s", version)
+		fmt.Printf("3scale-config-gen version %s\n", version)
 		os.Exit(0)
 	}
 
