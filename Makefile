@@ -7,15 +7,15 @@ REGISTRY ?= quay.io/3scale
 LISTEN_ADDR ?= 3333
 PROJECT_PATH := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
-DEP_LOCK = $(PROJECT_PATH)/Gopkg.lock
+MOD_SUM = $(PROJECT_PATH)/go.sum
 SOURCES := $(shell find $(PROJECT_PATH)/pkg -name '*.go')
 
 ## Build targets ##
 
-3scale-istio-adapter: update-dependencies $(DEP_LOCK) $(PROJECT_PATH)/cmd/server/main.go $(SOURCES) ## Build the adapter binary
+3scale-istio-adapter: $(MOD_SUM) $(PROJECT_PATH)/cmd/server/main.go $(SOURCES) ## Build the adapter binary
 	go build -ldflags="-X main.version=$(TAG)" -o _output/3scale-istio-adapter cmd/server/main.go
 
-3scale-config-gen: update-dependencies $(DEP_LOCK) $(PROJECT_PATH)/cmd/cli/main.go $(SOURCES) ## Build the config generator cli
+3scale-config-gen: $(MOD_SUM) $(PROJECT_PATH)/cmd/cli/main.go $(SOURCES) ## Build the config generator cli
 	go build -ldflags="-s -w -X main.version=$(TAG)" -o _output/3scale-config-gen cmd/cli/main.go
 
 .PHONY: build-adapter
@@ -71,9 +71,6 @@ debug-image: ## Builds a debuggable image which is started via Delve
 generate-config: ## Generates required artifacts for an out-of-process adapter based on the current .proto file
 	$(PROJECT_PATH)/scripts/generate-config.sh
 
-.PHONY: update-dependencies
-update-dependencies:
-	dep ensure
 
 .PHONY: build-adapter
 run-adapter: ## Run the adapter
@@ -86,7 +83,7 @@ run-mixer-server: ## Run the mixer server with test configuration
 ## Release ##
 
 .PHONY: release
-release: validate-release update-dependencies generate-template git-add docker-build docker-push
+release: validate-release generate-template git-add docker-build docker-push
 
 .PHONY: validate-release
 validate-release:
