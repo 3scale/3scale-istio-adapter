@@ -6,47 +6,31 @@ jobs:
   build:
     docker:
       - image: circleci/golang:1.11
-        environment:
-          ISTIO: /go/src/istio.io/
-          ADAPTER_CODE: /go/src/github.com/3scale/3scale-istio-adapter
-
-    working_directory: /go/src/github.com/3scale/3scale-istio-adapter/
     steps:
       - checkout
 
-      - run: echo 'export PATH=/go/out/linux_amd64/release/:$PATH' >> $BASH_ENV
-
       - restore_cache:
           keys:
-            - deps-vendor
-
-      - run:
-          name: Download 3scale Istio Adapter dependencies
-          command: |
-            cd ${ADAPTER_CODE}
-            dep ensure -v
-
-      - save_cache:
-          key: deps-vendor
-          paths:
-            - "/go/src/github.com/3scale/3scale-istio-adapter/vendor"
+            - go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Run unit tests
           command: |
-            cd ${ADAPTER_CODE}
             make unit
 
       - run:
           name: Run integration tests
           command: |
-            cd ${ADAPTER_CODE}
             make integration
+
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
 
       - run:
           name: Merge coverage profiles and pipe to Codecov
           command: |
-            cd ${ADAPTER_CODE}
             go get github.com/wadey/gocovmerge
             gocovmerge _output/integration.cov _output/unit.cov > coverage.txt
             bash <(curl -s https://codecov.io/bash)
