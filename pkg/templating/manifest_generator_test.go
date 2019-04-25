@@ -194,6 +194,7 @@ spec:
       properties:
         app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
         app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
+        client_id: request.auth.claims["azp"] | ""
     action:
       path: request.url_path
       method: request.method | "get"`, testUid, host, testUid),
@@ -304,6 +305,34 @@ spec:
       path: request.url_path
       method: request.method | "get"`, testUid, host, testUid),
 		},
+		{
+			name: "Test OpenID Connect Pattern Output",
+			fixture: instanceModifier(t, Instance{
+				CredentialsLocation: Headers,
+				AppKeyLabel:         "x-test-key",
+				ClientIDLabel:       "azp",
+				AuthnMethod:         3,
+			}),
+			expect: fmt.Sprintf(`# instance for template authorization
+apiVersion: "config.istio.io/v1alpha2"
+kind: instance
+metadata:
+  name: threescale-authorization-%s
+  namespace: istio-system
+  labels:
+    "service-mesh.3scale.net/host": "%s"
+    "service-mesh.3scale.net/service-id": "%s"
+spec:
+  template: threescale-authorization
+  params:
+    subject:
+      properties:
+        app_key: request.headers["x-test-key"] | ""
+        client_id: request.auth.claims["azp"] | ""
+    action:
+      path: request.url_path
+      method: request.method | "get"`, testUid, host, testUid),
+		},
 	}
 
 	for _, input := range inputs {
@@ -315,10 +344,7 @@ spec:
 			}
 
 			if b.String() != input.expect {
-				fmt.Println(b.String())
-				fmt.Println()
-				fmt.Println(input.expect)
-				t.Fatalf("unexpected template output for instance")
+				t.Fatalf("unexpected template output for instance \n Got: %s \n Want: %s", b.String(), input.expect)
 			}
 		})
 	}

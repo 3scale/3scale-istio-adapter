@@ -15,6 +15,8 @@ const (
 	ApiKey
 	// Generate templates that support immutable identifier and (optional) mutable secret key strings
 	ApplicationID
+	// Generate templates that support app identifier in JWT claims and (optional) mutable secret key string
+	OpenIdConnect
 )
 
 const (
@@ -30,6 +32,10 @@ const (
 	defaultUserKeyLabel  = "user_key"
 	defaultAppIdLabel    = "app_id"
 	defaultAppKeyLabel   = "app_key"
+	defaultOIDCLabel     = "client_id"
+
+	// default OpenID Connect label supports Keycloak claim label
+	defaultOIDCClaimValue = "azp"
 
 	legalCharSeparator = "-"
 )
@@ -93,7 +99,7 @@ func NewConfigGenerator(h Handler, i Instance, uid string, fixup bool) (*ConfigG
 
 // Return a string of the provided AuthenticationMethod
 func (am AuthenticationMethod) String() string {
-	return [...]string{"Hybrid", "ApiKey", "ApplicationID"}[am]
+	return [...]string{"Hybrid", "ApiKey", "ApplicationID", "OpenID Connect"}[am]
 }
 
 // Returns the hostname for the ConfigGenerator
@@ -300,8 +306,10 @@ func (i Instance) GenerateAuthenticationAttributes(an AuthenticationMethod) stri
 		attributes = i.generateApiKeyAttributes()
 	case ApplicationID:
 		attributes = i.generateApplicationIdAttributes()
+	case OpenIdConnect:
+		attributes = i.generateOIDCAttributes()
 	case Hybrid:
-		attributes = i.generateApiKeyAttributes() + "\n      " + i.generateApplicationIdAttributes()
+		attributes = i.generateApiKeyAttributes() + "\n      " + i.generateApplicationIdAttributes() + "\n        " + i.generateJWTClaim()
 	default:
 		panic("unknown field passed to string generator")
 	}
@@ -338,6 +346,17 @@ func (i Instance) generateApplicationIdAttributes() string {
 		fmt.Sprintf(`%s: %s | ""`, defaultAppKeyLabel, i.formatCredentialsLocation(i.AppKeyLabel)))
 }
 
+// yaml generator for oidc attributes
+func (i Instance) generateOIDCAttributes() string {
+	return fmt.Sprintf("properties:\n        %s\n        %s",
+		fmt.Sprintf(`%s: %s | ""`, defaultAppKeyLabel, i.formatCredentialsLocation(i.AppKeyLabel)), i.generateJWTClaim())
+}
+
+// yaml generator for oidc attributes
+func (i Instance) generateJWTClaim() string {
+	return fmt.Sprintf(`%s: request.auth.claims["%s"] | ""`, defaultOIDCLabel, i.ClientIDLabel)
+}
+
 // Validates the input by fetching a string version for the provided authentication method
 func (i *Instance) validate() {
 	i.AuthnMethod.String()
@@ -359,10 +378,11 @@ func (r Rule) ConditionsToMatchString() string {
 // Returns an instance with the default values
 func GetDefaultInstance() Instance {
 	return Instance{
-		ApiKeyLabel: defaultUserKeyLabel,
-		AppIDLabel:  defaultAppIdLabel,
-		AppKeyLabel: defaultAppKeyLabel,
-		AuthnMethod: Hybrid,
+		ApiKeyLabel:   defaultUserKeyLabel,
+		AppIDLabel:    defaultAppIdLabel,
+		AppKeyLabel:   defaultAppKeyLabel,
+		ClientIDLabel: defaultOIDCClaimValue,
+		AuthnMethod:   Hybrid,
 	}
 }
 

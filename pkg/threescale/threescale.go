@@ -36,6 +36,14 @@ var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 const (
 	pathErr            = "missing request path"
 	unauthenticatedErr = "no auth credentials provided or provided in invalid location"
+
+	// oauthTypeIdentifier refers to the name by which 3scale config described oauth OpenID connect authentication pattern
+	openIDTypeIdentifier = "oauth"
+
+	// consts reflect key values in instance config
+	appIDAttributeKey  = "app_id"
+	appKeyAttributeKey = "app_key"
+	oidcAttributeKey   = "client_id"
 )
 
 // HandleAuthorization takes care of the authorization request from mixer
@@ -122,7 +130,7 @@ func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClie
 // grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
 func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMsg, proxyConf sysC.ProxyConfig, client *backendC.ThreeScaleClient) rpc.Status {
 	var (
-		// Application ID authentication pattern - App Key is optional when using this authn
+		// Application ID/OpenID Connect authentication pattern - App Key is optional when using this authn
 		appID, appKey string
 
 		// Application Key auth pattern
@@ -137,8 +145,17 @@ func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMs
 	}
 
 	if request.Subject != nil {
-		appID = request.Subject.Properties["app_id"].GetStringValue()
-		appKey = request.Subject.Properties["app_key"].GetStringValue()
+		var appIdentifierKey string
+
+		if proxyConf.Content.BackendVersion == openIDTypeIdentifier {
+			// OIDC integration configured so force app identifier to come from jwt claims
+			appIdentifierKey = oidcAttributeKey
+		} else {
+			appIdentifierKey = appIDAttributeKey
+		}
+
+		appID = request.Subject.Properties[appIdentifierKey].GetStringValue()
+		appKey = request.Subject.Properties[appKeyAttributeKey].GetStringValue()
 
 		userKey = request.Subject.User
 	}
