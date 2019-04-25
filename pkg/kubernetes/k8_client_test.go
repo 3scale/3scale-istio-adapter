@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -100,4 +102,25 @@ func TestDiscoverManagedServices(t *testing.T) {
 		})
 	}
 
+}
+
+func TestNewIstioClient(t *testing.T) {
+	client := fake.NewSimpleClientset()
+	cfg := &rest.Config{
+		Host: "fake",
+	}
+	k8 := K8Client{conf: cfg, cs: client}
+	ic, err := k8.NewIstioClient()
+	if err != nil {
+		t.Errorf("unexpected error when creating istio client")
+	}
+
+	if ic.conf.Host != "fake" {
+		t.Errorf("host not propogated from k8 client")
+	}
+	expect := schema.GroupVersion{Group: istioObjGroupName, Version: istioObjGroupVersion}
+
+	if *ic.conf.ContentConfig.GroupVersion != expect {
+		t.Errorf("incorrect GVK specified")
+	}
 }
