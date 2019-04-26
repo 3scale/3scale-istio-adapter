@@ -33,7 +33,7 @@ type IstioClient interface {
 // These resources are currently specific to the out-of-process adapters
 type IstioClientImpl struct {
 	conf *rest.Config
-	rc   *rest.RESTClient
+	rc   rest.Interface
 }
 
 //HandlerSpec - encapsulates the logic necessary to interface Mixer with OOP adapter
