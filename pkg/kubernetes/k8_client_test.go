@@ -5,12 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+	ktesting "k8s.io/client-go/testing"
 )
 
 func TestNewK8Client(t *testing.T) {
@@ -102,6 +104,117 @@ func TestDiscoverManagedServices(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetSecret(t *testing.T) {
+	const kind = "Secret"
+	const version = "v1"
+
+	testSecrets := []*corev1.Secret{
+		{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       kind,
+				APIVersion: version,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "secret-one",
+				Namespace: "test",
+				Labels:    map[string]string{"generic": "true"},
+			},
+			Data: map[string][]byte{
+				"test": []byte("yes"),
+				"mock": []byte("kind of"),
+			},
+			Type: corev1.SecretTypeOpaque,
+		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       kind,
+				APIVersion: version,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "secret-two",
+				Namespace: "test",
+				Labels: map[string]string{
+					"test-search": "true",
+					"generic":     "true",
+				},
+			},
+			Data: map[string][]byte{
+				"test-2": []byte("yes"),
+				"mock":   []byte("kind of"),
+			},
+			Type: corev1.SecretTypeOpaque,
+		},
+	}
+
+	client := fake.NewSimpleClientset()
+	for _, secret := range testSecrets {
+		client.CoreV1().Secrets(secret.ObjectMeta.Namespace).Create(secret)
+	}
+
+	k8 := K8Client{cs: client}
+
+	inputs := []struct {
+		name       string
+		namespace  string
+		secretName string
+		labels     []string
+		expectKey  string
+		expectErr  bool
+		reactor    func()
+	}{
+		{
+			name:       "Test search for secret by name",
+			secretName: "secret-one",
+			expectKey:  "test",
+		},
+		{
+			name:      "Test search for secret by label not found",
+			labels:    []string{"test-search=false"},
+			expectErr: true,
+		},
+		{
+			name:      "Test expect error on multiple label matches",
+			labels:    []string{"generic=true"},
+			expectErr: true,
+		},
+		{
+			name:      "Test search for secret by label",
+			expectKey: "test-2",
+			labels:    []string{"test-search=true"},
+		},
+		{
+			name:      "Test error when list request fails request",
+			namespace: "none",
+			expectErr: true,
+			reactor: func() {
+				client.PrependReactor("list", "secrets", func(action ktesting.Action) (handled bool, ret runtime.Object, err error) {
+					return true, nil, fmt.Errorf("401")
+				})
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		t.Run(input.name, func(t *testing.T) {
+			if input.reactor != nil {
+				input.reactor()
+			}
+
+			s, err := k8.GetSecret(input.secretName, input.namespace, input.labels...)
+			if err != nil {
+				if input.expectErr {
+					return
+				}
+				t.Errorf("unexpected error" + err.Error())
+			}
+			if len(s.Data[input.expectKey]) == 0 {
+				t.Errorf("expected key not present in secret data")
+			}
+		})
+
+	}
 }
 
 func TestNewIstioClient(t *testing.T) {
