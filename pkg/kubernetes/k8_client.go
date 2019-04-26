@@ -1,9 +1,11 @@
 package kubernetes
 
 import (
+	"fmt"
 	"strings"
 
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,15 +36,37 @@ func NewK8Client(confPath string, conf *rest.Config) (*K8Client, error) {
 // DiscoverManagedServices for deployments whose labels match the provided filter
 // If provided namespace is empty string, all readable namespaces as authorised by the receivers config will be read
 func (c *K8Client) DiscoverManagedServices(namespace string, filterByLabels ...string) (*v1.DeploymentList, error) {
-	var filterBy string
-
-	for i := 0; i < len(filterByLabels); i++ {
-		filterBy += filterByLabels[i] + ","
-	}
-	filterBy = strings.TrimSuffix(filterBy, ",")
-	opts := metav1.ListOptions{LabelSelector: filterBy}
+	opts := metav1.ListOptions{LabelSelector: formatLabelFilter(filterByLabels)}
 
 	return c.cs.AppsV1().Deployments(namespace).List(opts)
+}
+
+// GetSecret by name from the provided namespace
+// If no name is provided search is done by provided filter.
+// Name and filters are mutually exclusive with provided name taking precedence.
+// If search by filter is done and multiple or no secrets are found then an error is returned.
+func (c *K8Client) GetSecret(name, namespace string, filterByLabels ...string) (*corev1.Secret, error) {
+	if name != "" {
+		return c.cs.CoreV1().Secrets(namespace).Get(name, metav1.GetOptions{})
+	}
+
+	opts := metav1.ListOptions{LabelSelector: formatLabelFilter(filterByLabels)}
+	secrets, err := c.cs.CoreV1().Secrets(namespace).List(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	var matchingSecret *corev1.Secret
+	var e error
+	switch len(secrets.Items) {
+	case 0:
+		e = fmt.Errorf("no secret found in accessible namesapce that match provided filter(s)")
+	case 1:
+		matchingSecret = &secrets.Items[0]
+	default:
+		e = fmt.Errorf("unable to determine a matching secret from provided info - multiple secrets found")
+	}
+	return matchingSecret, e
 }
 
 // NewIstioClient creates a new client from an existing kubernetes client
@@ -113,4 +137,8 @@ func getKnownGvk(name string) schema.GroupVersionKind {
 		Version: istioObjGroupVersion,
 		Kind:    name,
 	}
+}
+
+func formatLabelFilter(input []string) string {
+	return strings.Join(input, ",")
 }
