@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/3scale/3scale-istio-adapter/config"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale"
 	"istio.io/api/policy/v1beta1"
 	v1 "k8s.io/api/core/v1"
 )
@@ -20,6 +21,10 @@ const (
 	defaultThreescaleAdapterListenPort    = 3333
 
 	defaultThreescaleAuthorizationTemplateName = "threescale-authorization"
+
+	defaultThreescaleAppIdLabel  = threescale.AppIDAttributeKey
+	defaultThreescaleAppKeyLabel = threescale.AppKeyAttributeKey
+	defaultThreescaleOIDCLabel   = threescale.OIDCAttributeKey
 )
 
 // NewThreescaleHandlerSpec returns a handler spec as per 3scale config
@@ -58,8 +63,52 @@ func NewApiKeyInstance(userIdentifier string) *BaseInstance {
 	}
 }
 
+// NewAppIDAppKeyInstance - new base instance supporting AppID/App Key authentication
+func NewAppIDAppKeyInstance(appIdentifier, appKeyIdentifier string) *BaseInstance {
+	return &BaseInstance{
+		Template: defaultThreescaleAuthorizationTemplateName,
+		Params: InstanceParams{
+			Subject: InstanceSubject{
+				Properties: map[string]interface{}{
+					defaultThreescaleAppIdLabel:  appIdentifier,
+					defaultThreescaleAppKeyLabel: appKeyIdentifier,
+				},
+			},
+			Action: getDefaultThreescaleInstanceAction(),
+		},
+	}
+}
+
+// NewOIDCInstance - new base instance supporting config required by OIDC integration
+func NewOIDCInstance(appIdentifier, appKeyIdentifier string) *BaseInstance {
+	return &BaseInstance{
+		Template: defaultThreescaleAuthorizationTemplateName,
+		Params: InstanceParams{
+			Subject: InstanceSubject{
+				Properties: map[string]interface{}{
+					defaultThreescaleAppKeyLabel: appKeyIdentifier,
+					defaultThreescaleOIDCLabel:   appIdentifier,
+				},
+			},
+			Action: getDefaultThreescaleInstanceAction(),
+		},
+	}
+}
+
 func getDefaultApiKeyAttributeString() string {
 	return `request.query_params["user_key"] | request.headers["x-user-key"] | ""`
+}
+
+func getDefaultAppIDAttributeString() string {
+	return `request.query_params["app_id"] | request.headers["app-id"] | ""`
+}
+
+func getDefaultAppKeyAttributeString() string {
+	return `request.query_params["app_key"] | request.headers["app-key"] | ""`
+}
+
+func getDefaultOIDCAttributeString() string {
+	return `request.auth.claims["azp"] | ""`
 }
 
 func getDefaultThreescaleInstanceAction() InstanceAction {
