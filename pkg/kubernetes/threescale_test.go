@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -103,6 +104,63 @@ func TestNewApiKeyInstance(t *testing.T) {
     user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
 template: threescale-authorization`
 	instance := NewApiKeyInstance(getDefaultApiKeyAttributeString())
+	b, err := json.MarshalIndent(instance, "", "  ")
+	if err != nil {
+		t.Errorf("unexpected error when converting to JSON")
+	}
+
+	b, err = yaml.JSONToYAML(b)
+	if err != nil {
+		t.Errorf("unexpected error when converting JSON to YAML")
+	}
+
+	if strings.TrimSpace(string(b)) != expect {
+		t.Errorf("unexpected YAML returned.\nWanted:\n%s\nGot:\n%s", expect, string(b))
+	}
+}
+
+func TestNewAppIDAppKeyInstance(t *testing.T) {
+	expect := `params:
+  action:
+    method: request.method | "get"
+    path: request.url_path
+    service: destination.labels["service-mesh.3scale.net/service-id"] | ""
+  subject:
+    properties:
+      app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
+      app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
+template: threescale-authorization`
+	instance := NewAppIDAppKeyInstance(getDefaultAppIDAttributeString(), getDefaultAppKeyAttributeString())
+	b, err := json.MarshalIndent(instance, "", "  ")
+	if err != nil {
+		t.Errorf("unexpected error when converting to JSON")
+	}
+
+	b, err = yaml.JSONToYAML(b)
+	if err != nil {
+		t.Errorf("unexpected error when converting JSON to YAML")
+	}
+
+	if strings.TrimSpace(string(b)) != expect {
+		t.Errorf("unexpected YAML returned.\nWanted:\n%s\nGot:\n%s", expect, string(b))
+	}
+}
+
+func TestNewOIDCInstance(t *testing.T) {
+	appIdentifier := getDefaultOIDCAttributeString()
+	appKeyAttr := getDefaultAppKeyAttributeString()
+
+	expect := fmt.Sprintf(`params:
+  action:
+    method: request.method | "get"
+    path: request.url_path
+    service: destination.labels["service-mesh.3scale.net/service-id"] | ""
+  subject:
+    properties:
+      app_key: %s
+      client_id: %s
+template: threescale-authorization`, appKeyAttr, appIdentifier)
+	instance := NewOIDCInstance(appIdentifier, appKeyAttr)
 	b, err := json.MarshalIndent(instance, "", "  ")
 	if err != nil {
 		t.Errorf("unexpected error when converting to JSON")
