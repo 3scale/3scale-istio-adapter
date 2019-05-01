@@ -36,6 +36,10 @@ type IstioClientImpl struct {
 	rc   rest.Interface
 }
 
+/*
+ 3scale specific types
+*/
+
 //HandlerSpec - encapsulates the logic necessary to interface Mixer with OOP adapter
 type HandlerSpec struct {
 	// Adapter name which this handler should use
@@ -44,4 +48,38 @@ type HandlerSpec struct {
 	Params config.Params `json:"params"`
 	// Connection allows the operator to specify the endpoint for out-of-process infrastructure backend.
 	Connection v1beta1.Connection `json:"connection"`
+}
+
+// BaseInstance that all 3scale authorization methods build from
+type BaseInstance struct {
+	// Template name - a template defines parameters for performing policy enforcement within Istio.
+	Template string         `json:"template"`
+	Params   InstanceParams `json:"params"`
+}
+
+// InstanceParams subset of authorization fields required by 3scale
+type InstanceParams struct {
+	Subject InstanceSubject `json:"subject"`
+	Action  InstanceAction  `json:"action"`
+}
+
+// InstanceSubject contains information that identifies the caller
+type InstanceSubject struct {
+	// The user name/ID that the subject represents.
+	User string `json:"user,omitempty"`
+	// Additional attributes about the subject.
+	Properties map[string]interface{} `json:"properties,omitempty"`
+}
+
+// InstanceAction defines how a resource is accessed
+type InstanceAction struct {
+	Path    string `json:"path,omitempty"`
+	Method  string `json:"method,omitempty"`
+	Service string `json:"service,omitempty"`
+}
+
+// ThreescaleCredentials required to call 3scale APIs
+type ThreescaleCredentials struct {
+	systemURL   string
+	accessToken string
 }
