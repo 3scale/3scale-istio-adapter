@@ -2,6 +2,19 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 0.6.0 - 2019-05-02
+
+## Added
+
+- The [OpenID Connect](https://github.com/3scale/3scale-istio-adapter/blob/v0.6.0/README.md#openid-connect-pattern) authentication pattern is now supported via Istio's [end user authn](https://istio.io/help/ops/security/end-user-auth/) and the CLI tool to generate templates can now generate an instance template supporting this pattern. The hybrid pattern has been updated to include OIDC as well. (#[89](https://github.com/3scale/3scale-istio-adapter/pull/89))
+
+## Changed
+
+- The CLI tool enables the so-called "fixup" mode when no explicit unique id is
+  specified, so that automatic generation of identifierss from URLs are modified
+  to comply with k8s format and rules. Now calling the tool without the --uid
+  option will autoenable the --fixup one. ([#91](https://github.com/3scale/3scale-istio-adapter/pull/91))
+
 ## 0.5.1 - 2019-04-09
 
 ### Fixed
