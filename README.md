@@ -12,6 +12,7 @@ An [out of process gRPC Adapter](https://github.com/istio/istio/wiki/Mixer-Out-O
   * [Applying Patterns](#applying-patterns)
     * [API Key Pattern](#api-key-pattern)
     * [Application ID Pattern](#application-id-pattern)
+    * [OpenID Connect Pattern](#openid-connect-pattern)
     * [Hybrid](#hybrid-pattern)
 * [Generating sample CustomResources](#generating-sample-custom-resources)
 * [Adapter metrics](#adapter-metrics)
