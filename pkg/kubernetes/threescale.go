@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/3scale/3scale-istio-adapter/config"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale"
@@ -95,6 +96,21 @@ func NewOIDCInstance(appIdentifier, appKeyIdentifier string) *BaseInstance {
 	}
 }
 
+// NewRule constructor for Istio Rule specific to 3scale requirements
+// This rule will 'AND' the provided match conditions and does not accept multiple handlers,instances
+func NewRule(matchConditions MatchConditions, handler string, instance string) Rule {
+	matchOn := matchConditions.conditionsToMatchString()
+	r := Rule{
+		Match: matchOn,
+		Actions: []*v1beta1.Action{
+			{
+				Handler:   handler,
+				Instances: []string{instance}},
+		},
+	}
+	return r
+}
+
 func getDefaultApiKeyAttributeString() string {
 	return `request.query_params["user_key"] | request.headers["x-user-key"] | ""`
 }
@@ -117,6 +133,11 @@ func getDefaultThreescaleInstanceAction() InstanceAction {
 		Method:  `request.method | "get"`,
 		Service: `destination.labels["service-mesh.3scale.net/service-id"] | ""`,
 	}
+}
+
+// conditionsToMatchString returns a valid expression for Istio match condition
+func (mc MatchConditions) conditionsToMatchString() string {
+	return strings.Join(mc, " &&\n")
 }
 
 // convertSecret contents to 3scale credentials

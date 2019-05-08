@@ -78,6 +78,12 @@ type InstanceAction struct {
 	Service string `json:"service,omitempty"`
 }
 
+// MatchConditions - A list of conditions that must be through for a request to match
+type MatchConditions []string
+
+// Rule defines when the adapter should be invoked
+type Rule v1beta1.Rule
+
 // ThreescaleCredentials required to call 3scale APIs
 type ThreescaleCredentials struct {
 	systemURL   string
