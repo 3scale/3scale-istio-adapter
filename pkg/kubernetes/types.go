@@ -89,3 +89,16 @@ type ThreescaleCredentials struct {
 	systemURL   string
 	accessToken string
 }
+
+// OutputFormat for configuration
+type OutputFormat int
+
+// ConfigGenerator - Used to expose and generate the desired config as Kubernetes resources
+type ConfigGenerator struct {
+	handler   HandlerSpec
+	instance  BaseInstance
+	rule      Rule
+	name      string
+	namespace string
+	outputAs  OutputFormat
+}
