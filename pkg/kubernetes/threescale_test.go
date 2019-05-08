@@ -175,3 +175,29 @@ template: threescale-authorization`, appKeyAttr, appIdentifier)
 		t.Errorf("unexpected YAML returned.\nWanted:\n%s\nGot:\n%s", expect, string(b))
 	}
 }
+
+func TestNewRule(t *testing.T) {
+	conditions := MatchConditions{`context.reporter.kind == "inbound"`, `destination.namespace == "default"`}
+	r := NewRule(conditions, "handler-test", "instance-test")
+	expect := `actions:
+- handler: handler-test
+  instances:
+  - instance-test
+match: |-
+  context.reporter.kind == "inbound" &&
+  destination.namespace == "default"`
+
+	b, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		t.Errorf("unexpected error when converting to JSON")
+	}
+
+	b, err = yaml.JSONToYAML(b)
+	if err != nil {
+		t.Errorf("unexpected error when converting JSON to YAML")
+	}
+
+	if strings.TrimSpace(string(b)) != expect {
+		t.Errorf("unexpected YAML returned.\nWanted:\n%s\nGot:\n%s", expect, string(b))
+	}
+}
