@@ -62,6 +62,11 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		goto out
 	}
 
+	// Support receiving system_url as both hardcoded value in handler and at request time
+	if cfg.SystemUrl == "" {
+		cfg.SystemUrl = r.Instance.Action.Service
+	}
+
 	systemClient, err = s.systemClientBuilder(cfg.SystemUrl)
 	if err != nil {
 		result.Status, err = rpcStatusErrorHandler("error building HTTP client for 3scale system", status.WithInvalidArgument, err)
