@@ -1,6 +1,10 @@
 package kubernetes
 
 import (
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -55,4 +59,39 @@ func TestNewConfigGenerator(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOutputAll(t *testing.T) {
+	const credentialsName = "threescale"
+	const accessToken = "secret-token"
+	const systemURL = "http://127.0.0.1:8090"
+	const configSource = "threescale-adapter-config.yaml"
+
+	var w bytes.Buffer
+
+	path, _ := filepath.Abs("../../testdata")
+	testdata, err := ioutil.ReadFile(fmt.Sprintf("%s/%s", path, configSource))
+	if err != nil {
+		t.Fatalf("error finding testdata file")
+	}
+
+	conditions := getDefaultMatchConditions(credentialsName)
+
+	h, _ := NewThreescaleHandlerSpec(accessToken, systemURL, "")
+	h.Connection.Address = "[::]:3333"
+
+	instance := NewDefaultHybridInstance()
+
+	rule := NewRule(conditions, credentialsName, credentialsName)
+
+	cg, err := NewConfigGenerator(credentialsName, *h, *instance, rule)
+	if err != nil {
+		t.Errorf("unexpected error when crearting config generator")
+	}
+
+	cg.OutputAll(&w)
+	if !bytes.Equal(testdata, w.Bytes()) {
+		t.Fatal("Output should match integration testing test fixtures")
+	}
+
 }
