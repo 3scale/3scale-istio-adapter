@@ -75,9 +75,10 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.url_path":   "/",
-						"request.method":     "get",
-						"destination.labels": map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/",
+						"request.method":        "get",
+						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
 			},
@@ -89,10 +90,11 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.url_path":   "/thispath",
-						"request.headers":    map[string]string{"user-key": "VALID"},
-						"request.method":     "get",
-						"destination.labels": map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/thispath",
+						"request.headers":       map[string]string{"x-user-key": "VALID"},
+						"request.method":        "get",
+						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
 			},
@@ -104,10 +106,11 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.url_path":     "/thispath",
-						"request.query_params": map[string]string{"user_key": "VALID"},
-						"request.method":       "get",
-						"destination.labels":   map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/thispath",
+						"request.query_params":  map[string]string{"user_key": "VALID"},
+						"request.method":        "get",
+						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
 			},
@@ -119,10 +122,11 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.url_path":   "/thispath",
-						"request.method":     "get",
-						"request.headers":    map[string]string{"app-id": "test", "app-key": "secret"},
-						"destination.labels": map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/thispath",
+						"request.method":        "get",
+						"request.headers":       map[string]string{"app-id": "test", "app-key": "secret"},
+						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
 			},
@@ -134,10 +138,11 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.url_path":     "/thispath",
-						"request.method":       "get",
-						"request.query_params": map[string]string{"app_id": "VALID"},
-						"destination.labels":   map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/thispath",
+						"request.method":        "get",
+						"request.query_params":  map[string]string{"app_id": "VALID"},
+						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
 			},
@@ -149,9 +154,10 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.url_path":   "/oidc",
-						"request.method":     "get",
-						"destination.labels": map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/oidc",
+						"request.method":        "get",
+						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
 			},
@@ -164,10 +170,11 @@ func TestAuthorizationCheck(t *testing.T) {
 				{
 					CallKind: integration.CHECK,
 					Attrs: map[string]interface{}{
-						"request.url_path":    "/oidc",
-						"request.method":      "get",
-						"request.auth.claims": map[string]string{"azp": "VALID"},
-						"destination.labels":  map[string]string{"service-mesh.3scale.net": "true", "service-mesh.3scale.net/uid": "123456"},
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/oidc",
+						"request.method":        "get",
+						"request.auth.claims":   map[string]string{"azp": "VALID"},
+						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
 			},
@@ -261,7 +268,7 @@ func generatedExpectedError(t *testing.T, status rpc.Code, reason string) string
 				"Check":{
 					"Status":{
 						"code":%d,
-						"message":"threescale-123456.handler.istio-system:%s"
+						"message":"threescale.handler.istio-system:%s"
 					},
 					"ValidDuration": 0,
 					"ValidUseCount": -1
