@@ -9,7 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-const defaultNamespace = "istio-system"
+// DefaultNamespace to generate configuration for
+const DefaultNamespace = "istio-system"
 
 const (
 	// Optional output formatting for configuration
@@ -36,7 +37,7 @@ func NewConfigGenerator(name string, handler HandlerSpec, instance BaseInstance,
 		instance:  instance,
 		rule:      rule,
 		name:      name,
-		namespace: defaultNamespace,
+		namespace: DefaultNamespace,
 		outputAs:  YAML,
 	}, nil
 }

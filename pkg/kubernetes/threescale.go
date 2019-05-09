@@ -26,6 +26,15 @@ const (
 	defaultThreescaleAppIdLabel  = threescale.AppIDAttributeKey
 	defaultThreescaleAppKeyLabel = threescale.AppKeyAttributeKey
 	defaultThreescaleOIDCLabel   = threescale.OIDCAttributeKey
+
+	//DefaultApiKeyAttribute string for a 3scale adapter instance - Api Key pattern
+	DefaultApiKeyAttribute = `request.query_params["user_key"] | request.headers["x-user-key"] | ""`
+	//DefaultAppIDAttribute string for a 3scale adapter instance - App ID pattern
+	DefaultAppIDAttribute = `request.query_params["app_id"] | request.headers["app-id"] | ""`
+	//DefaultAppKeyAttribute string for a 3scale adapter instance - App ID/OIDC pattern
+	DefaultAppKeyAttribute = `request.query_params["app_key"] | request.headers["app-key"] | ""`
+	//DefaultOIDCAttribute string for a 3scale adapter instance - OIDC pattern
+	DefaultOIDCAttribute = `request.auth.claims["azp"] | ""`
 )
 
 // NewThreescaleHandlerSpec returns a handler spec as per 3scale config
@@ -49,6 +58,24 @@ func NewThreescaleHandlerSpec(accessToken, systemURL, svcID string) (*HandlerSpe
 			Address: fmt.Sprintf("%s:%d", defaultThreescaleAdapterListenAddress, defaultThreescaleAdapterListenPort),
 		},
 	}, nil
+}
+
+// NewDefaultHybridInstance - new base instance supporting all authentication methods with default values
+func NewDefaultHybridInstance() *BaseInstance {
+	return &BaseInstance{
+		Template: defaultThreescaleAuthorizationTemplateName,
+		Params: InstanceParams{
+			Subject: InstanceSubject{
+				User: DefaultApiKeyAttribute,
+				Properties: map[string]interface{}{
+					defaultThreescaleAppIdLabel:  DefaultAppIDAttribute,
+					defaultThreescaleAppKeyLabel: DefaultAppKeyAttribute,
+					defaultThreescaleOIDCLabel:   DefaultOIDCAttribute,
+				},
+			},
+			Action: getDefaultThreescaleInstanceAction(),
+		},
+	}
 }
 
 // NewApiKeyInstance - new base instance supporting Api Key authentication
@@ -111,27 +138,20 @@ func NewRule(matchConditions MatchConditions, handler string, instance string) R
 	return r
 }
 
-func getDefaultApiKeyAttributeString() string {
-	return `request.query_params["user_key"] | request.headers["x-user-key"] | ""`
-}
-
-func getDefaultAppIDAttributeString() string {
-	return `request.query_params["app_id"] | request.headers["app-id"] | ""`
-}
-
-func getDefaultAppKeyAttributeString() string {
-	return `request.query_params["app_key"] | request.headers["app-key"] | ""`
-}
-
-func getDefaultOIDCAttributeString() string {
-	return `request.auth.claims["azp"] | ""`
-}
-
 func getDefaultThreescaleInstanceAction() InstanceAction {
 	return InstanceAction{
 		Path:    "request.url_path",
 		Method:  `request.method | "get"`,
 		Service: `destination.labels["service-mesh.3scale.net/service-id"] | ""`,
+	}
+}
+
+// GetDefaultMatchConditions for a 3scale adapter rule, formatted for the provided credentials(handler)
+func GetDefaultMatchConditions(credentialsName string) MatchConditions {
+	return MatchConditions{
+		`context.reporter.kind == "inbound"`,
+		fmt.Sprintf(`destination.labels["service-mesh.3scale.net/credentials"] == "%s"`, credentialsName),
+		`destination.labels["service-mesh.3scale.net/authentication-method"] == ""`,
 	}
 }
 
