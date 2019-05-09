@@ -1,8 +1,11 @@
 package kubernetes
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 
+	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -38,8 +41,37 @@ func NewConfigGenerator(name string, handler HandlerSpec, instance BaseInstance,
 	}, nil
 }
 
+// OutputAll required manifests(instance, handler,rule) to provided writer
+func (cg *ConfigGenerator) OutputAll(w io.Writer) error {
+	buffer := bytes.Buffer{}
+
+	objs := []*IstioResource{
+		getBaseResource(cg.name, handlerKind).spec(cg.handler),
+		getBaseResource(cg.name, instanceKind).spec(cg.instance),
+		getBaseResource(cg.name, ruleKind).spec(cg.rule),
+	}
+
+	for _, obj := range objs {
+		b, err := cg.marshalIstioResource(obj)
+		if err != nil {
+			return err
+		}
+		buffer.Write(b)
+		buffer.Write([]byte("---\n"))
+	}
+	_, err := w.Write(buffer.Bytes())
+	return err
+}
+
 // SetNamespace the configuration should be generated for
 func (cg *ConfigGenerator) SetNamespace(ns string) *ConfigGenerator {
 	cg.namespace = ns
 	return cg
+}
+
+func (cg *ConfigGenerator) marshalIstioResource(obj *IstioResource) ([]byte, error) {
+	if cg.outputAs == YAML {
+		return yaml.Marshal(obj)
+	}
+	return nil, fmt.Errorf("currently unsupported output format provided")
 }
