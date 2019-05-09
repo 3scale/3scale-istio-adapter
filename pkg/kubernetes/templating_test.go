@@ -82,7 +82,9 @@ func TestOutputAll(t *testing.T) {
 
 	instance := NewDefaultHybridInstance()
 
-	rule := NewRule(conditions, credentialsName, credentialsName)
+	rule := NewRule(conditions,
+		fmt.Sprintf("%s.handler.istio-system", credentialsName),
+		fmt.Sprintf("%s.instance.istio-system", credentialsName))
 
 	cg, err := NewConfigGenerator(credentialsName, *h, *instance, rule)
 	if err != nil {
