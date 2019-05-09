@@ -33,16 +33,17 @@ func NewIstioClient(confPath string, conf *rest.Config) (*IstioClientImpl, error
 // CreateHandler for Istio adapter
 func (c *IstioClientImpl) CreateHandler(name string, inNamespace string, spec HandlerSpec) (*IstioResource, error) {
 	result := IstioResource{}
-	obj := getBaseResource(name, handlerKind).spec(spec)
+	obj := getBaseResource(name, inNamespace, handlerKind).spec(spec)
 	err := c.rc.Post().Namespace(inNamespace).Resource(handlerPlural).Body(obj).Do().Into(&result)
 	return &result, err
 }
 
-func getBaseResource(name, kind string) *IstioResource {
+func getBaseResource(name, namespace, kind string) *IstioResource {
 	return &IstioResource{
 		TypeMeta: getTypeMeta(kind),
 		ObjectMeta: v1.ObjectMeta{
-			Name: name,
+			Name:      name,
+			Namespace: namespace,
 		},
 	}
 }

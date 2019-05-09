@@ -47,9 +47,9 @@ func (cg *ConfigGenerator) OutputAll(w io.Writer) error {
 	buffer := bytes.Buffer{}
 
 	objs := []*IstioResource{
-		getBaseResource(cg.name, handlerKind).spec(cg.handler),
-		getBaseResource(cg.name, instanceKind).spec(cg.instance),
-		getBaseResource(cg.name, ruleKind).spec(cg.rule),
+		getBaseResource(cg.name, cg.namespace, handlerKind).spec(cg.handler),
+		getBaseResource(cg.name, cg.namespace, instanceKind).spec(cg.instance),
+		getBaseResource(cg.name, cg.namespace, ruleKind).spec(cg.rule),
 	}
 
 	for _, obj := range objs {
