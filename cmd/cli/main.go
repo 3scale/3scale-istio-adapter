@@ -8,29 +8,28 @@ import (
 	"log"
 	"os"
 
-	"github.com/3scale/3scale-istio-adapter/pkg/templating"
+	"github.com/3scale/3scale-istio-adapter/pkg/kubernetes"
 )
 
 var (
 	accessToken   string
 	svcID         string
 	threescaleURL string
-	uid           string
+	name          string
 	outputTo      string
 	authType      int
-	fixup         bool
 
 	version string
 )
 
 const (
+	nameDescription       = "Unique name for this (url,token) pair (required)"
 	tokenDescription      = "3scale access token (required)"
-	svcIDDescription      = "The ID of the 3scale service (required)"
-	uidDescription        = "Unique UID for the handler, if you don't want it derived from the URL (optional)"
 	threescaleDescription = "The 3scale admin portal URL (required)"
-	outputDescription     = "File to output templates. Prints to stdout if none provided"
-	authTypeDescription   = "3scale authentication pattern to use. 1=ApiKey, 2=AppID, 3=OpenID Connect. Default template supports a hybrid if none provided"
-	fixupDescription      = "Try to automatically fix validation errors"
+
+	svcIDDescription    = "The ID of the 3scale service. If set the generated configuration will apply to this service only."
+	outputDescription   = "File to output templates. Prints to stdout if none provided"
+	authTypeDescription = "3scale authentication pattern to use. 1=ApiKey, 2=AppID, 3=OpenID Connect. Default template supports a hybrid if none provided"
 
 	outputDefault, tokenDefault, svcDefault, urlDefault = "", "", "", ""
 )
@@ -40,9 +39,8 @@ func init() {
 	flag.StringVar(&accessToken, "t", tokenDefault, tokenDescription+" (short)")
 
 	flag.StringVar(&svcID, "service", svcDefault, svcIDDescription)
-	flag.StringVar(&svcID, "s", svcDefault, svcIDDescription+" (short)")
 
-	flag.StringVar(&uid, "uid", "", uidDescription)
+	flag.StringVar(&name, "name", "", nameDescription)
 
 	flag.StringVar(&threescaleURL, "url", urlDefault, threescaleDescription)
 	flag.StringVar(&threescaleURL, "u", urlDefault, threescaleDescription+" (short)")
@@ -52,9 +50,7 @@ func init() {
 
 	flag.IntVar(&authType, "auth", 0, authTypeDescription)
 
-	flag.BoolVar(&fixup, "fixup", false, fixupDescription)
-
-	v := flag.Bool("v", false, "Prints CLI version")
+	v := flag.Bool("version", false, "Prints CLI version")
 
 	flag.Parse()
 	if *v {
@@ -73,10 +69,6 @@ func checkEnv() {
 		accessToken = os.Getenv("THREESCALE_ACCESS_TOKEN")
 	}
 
-	if svcID == "" {
-		svcID = os.Getenv("THREESCALE_SERVICE_ID")
-	}
-
 	if threescaleURL == "" {
 		threescaleURL = os.Getenv("THREESCALE_ADMIN_PORTAL")
 	}
@@ -84,6 +76,9 @@ func checkEnv() {
 
 func validate() []error {
 	var errs []error
+	if name == "" {
+		errs = append(errs, errors.New("error missing parameter. --name is required"))
+	}
 
 	if accessToken == "" {
 		errs = append(errs, errors.New("error missing parameter. --token is required"))
@@ -93,48 +88,40 @@ func validate() []error {
 		errs = append(errs, errors.New("error missing parameter. --url is required"))
 	}
 
-	if svcID == "" {
-		errs = append(errs, errors.New("error missing parameter. --service is required"))
-	}
-
 	return errs
 }
 
-func execute() []error {
-	var errs []error
+func execute() error {
 	var writeTo io.Writer
 
-	handler, errList := templating.NewHandler(accessToken, threescaleURL, svcID, fixup)
-	if len(errList) > 0 {
-		errs = append(errs, errList...)
+	handler, err := kubernetes.NewThreescaleHandlerSpec(accessToken, threescaleURL, svcID)
+	if err != nil {
+		panic("error creating required handler " + err.Error())
 	}
 
-	instance := templating.GetDefaultInstance()
-	instance.AuthnMethod = templating.AuthenticationMethod(authType)
+	var instance *kubernetes.BaseInstance
+	switch authType {
+	case 0:
+		instance = kubernetes.NewDefaultHybridInstance()
+	case 1:
+		instance = kubernetes.NewApiKeyInstance(kubernetes.DefaultApiKeyAttribute)
+	case 2:
+		instance = kubernetes.NewAppIDAppKeyInstance(kubernetes.DefaultAppIDAttribute, kubernetes.DefaultAppKeyAttribute)
+	case 3:
+		instance = kubernetes.NewOIDCInstance(kubernetes.DefaultOIDCAttribute, kubernetes.DefaultAppKeyAttribute)
+	default:
+		return fmt.Errorf("unsupported authentication type provided")
 
-	if uid == "" {
-		// generate a UID from the URL
-		url, err := templating.ParseURL(handler.SystemURL)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("URL parsing for UID generation failed: %s", err.Error()))
-		} else {
-			uid, err = templating.UidGenerator(url, handler.ServiceID)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("UID generation failed: %s", err.Error()))
-			}
-		}
 	}
 
-	cg, errList := templating.NewConfigGenerator(*handler, instance, uid, fixup)
-	if len(errList) > 0 {
-		errs = append(errs, errList...)
-	}
+	handlerName := fmt.Sprintf("%s.handler.istio-system", name)
+	instanceName := fmt.Sprintf("%s.instance.istio-system", name)
+	rule := kubernetes.NewRule(kubernetes.GetDefaultMatchConditions(name), handlerName, instanceName)
 
-	if len(errs) > 0 {
-		return errs
+	cg, err := kubernetes.NewConfigGenerator(name, *handler, *instance, rule)
+	if err != nil {
+		panic("error creating config generator " + err.Error())
 	}
-
-	cg.Rule.Conditions = append(cg.Rule.Conditions, cg.GetDefaultMatchConditions()...)
 
 	if outputTo == "" {
 		writeTo = os.Stdout
@@ -146,17 +133,7 @@ func execute() []error {
 		writeTo = f
 	}
 
-	err := cg.OutputAll(writeTo)
-	if err != nil {
-		return []error{err}
-	}
-
-	err = cg.OutputUID(writeTo)
-	if err != nil {
-		return []error{err}
-	}
-
-	return nil
+	return cg.OutputAll(writeTo)
 }
 
 func main() {
@@ -169,22 +146,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// ensure we either have a UID or we request the URL derivation to be fixed up
-	if uid == "" {
-		if !fixup {
-			log.Println("info: UID derivation from URL requires fixup mode, enabling.")
-		}
-		fixup = true
-	}
-
-	errs = execute()
-	if errs != nil {
-		for _, i := range errs {
-			fmt.Println(i.Error())
-		}
-		if !fixup {
-			log.Println("info: you might want to try --fixup to autocorrect the above errors.")
-		}
+	err := execute()
+	if err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 }
