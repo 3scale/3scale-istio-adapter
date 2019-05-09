@@ -34,7 +34,7 @@ func TestNewConfigGenerator(t *testing.T) {
 				instance:  BaseInstance{},
 				rule:      Rule{},
 				name:      "good",
-				namespace: defaultNamespace,
+				namespace: DefaultNamespace,
 				outputAs:  YAML,
 			},
 		},
@@ -75,7 +75,7 @@ func TestOutputAll(t *testing.T) {
 		t.Fatalf("error finding testdata file")
 	}
 
-	conditions := getDefaultMatchConditions(credentialsName)
+	conditions := GetDefaultMatchConditions(credentialsName)
 
 	h, _ := NewThreescaleHandlerSpec(accessToken, systemURL, "")
 	h.Connection.Address = "[::]:3333"

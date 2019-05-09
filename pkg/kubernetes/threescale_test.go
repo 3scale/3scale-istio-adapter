@@ -103,7 +103,7 @@ func TestNewApiKeyInstance(t *testing.T) {
   subject:
     user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
 template: threescale-authorization`
-	instance := NewApiKeyInstance(getDefaultApiKeyAttributeString())
+	instance := NewApiKeyInstance(DefaultApiKeyAttribute)
 	b, err := json.MarshalIndent(instance, "", "  ")
 	if err != nil {
 		t.Errorf("unexpected error when converting to JSON")
@@ -130,7 +130,7 @@ func TestNewAppIDAppKeyInstance(t *testing.T) {
       app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
       app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
 template: threescale-authorization`
-	instance := NewAppIDAppKeyInstance(getDefaultAppIDAttributeString(), getDefaultAppKeyAttributeString())
+	instance := NewAppIDAppKeyInstance(DefaultAppIDAttribute, DefaultAppKeyAttribute)
 	b, err := json.MarshalIndent(instance, "", "  ")
 	if err != nil {
 		t.Errorf("unexpected error when converting to JSON")
@@ -147,8 +147,8 @@ template: threescale-authorization`
 }
 
 func TestNewOIDCInstance(t *testing.T) {
-	appIdentifier := getDefaultOIDCAttributeString()
-	appKeyAttr := getDefaultAppKeyAttributeString()
+	appIdentifier := DefaultOIDCAttribute
+	appKeyAttr := DefaultAppKeyAttribute
 
 	expect := fmt.Sprintf(`params:
   action:
