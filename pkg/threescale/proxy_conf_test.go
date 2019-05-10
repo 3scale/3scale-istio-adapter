@@ -83,7 +83,7 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 				},
 				Action: &authorization.ActionMsg{
 					Path:   "/?user_key=secret",
-					Method: "Get",
+					Method: "get",
 				},
 			},
 		},
@@ -101,7 +101,7 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 				},
 				Action: &authorization.ActionMsg{
 					Path:   "/?user_key=secret",
-					Method: "Get",
+					Method: "get",
 				},
 			},
 		},
@@ -152,7 +152,7 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 
 	testStopNotStartedErr := c.conf.systemCache.StopFlushWorker()
 	if testStopNotStartedErr == nil {
-		t.Fatalf("expected to Get error when stopping unstarted worker")
+		t.Fatalf("expected to get error when stopping unstarted worker")
 	}
 
 	c.conf.systemCache.StartFlushWorker()
@@ -236,7 +236,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 				},
 				Action: &authorization.ActionMsg{
 					Path:   "/?user_key=secret",
-					Method: "Get",
+					Method: "get",
 				},
 			},
 		},
@@ -254,7 +254,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 				},
 				Action: &authorization.ActionMsg{
 					Path:   "/?user_key=secret",
-					Method: "Get",
+					Method: "get",
 				},
 			},
 		},
@@ -272,7 +272,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 				},
 				Action: &authorization.ActionMsg{
 					Path:   "/?user_key=secret",
-					Method: "Get",
+					Method: "get",
 				},
 			},
 		},

@@ -146,7 +146,7 @@ func (pc *ProxyConfigCache) Get(cfg *config.Params, c *sysC.ThreeScaleClient) (s
 	pc.mutex.RUnlock()
 
 	if !ok {
-		conf, err = getFromRemote(cfg, c, pc.metricsReporter.ReportMetrics)
+		conf, err = GetFromRemote(cfg, c, pc.metricsReporter.ReportMetrics)
 		if err == nil {
 			replayWith := cacheRefreshStore{cfg, c}
 			go pc.set(cacheKey, conf, replayWith)
@@ -277,7 +277,7 @@ func (pc *ProxyConfigCache) refreshCache() bool {
 			continue
 		}
 
-		pce, err := getFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ReportMetrics)
+		pce, err := GetFromRemote(store.replayWith.cfg, store.replayWith.client, pc.metricsReporter.ReportMetrics)
 		if err != nil {
 			log.Infof("error fetching from remote while refreshing cache for service id %s", store.replayWith.cfg.ServiceId)
 			pc.addMisbehavingHost(host, err)
@@ -359,8 +359,8 @@ func isExpired(currentTime time.Time, expiryTime time.Time) bool {
 	return currentTime.After(expiryTime)
 }
 
-// Fetch the proxy config from 3scale using the client
-func getFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportMetrics) (sysC.ProxyConfigElement, error) {
+// GetFromRemote is used to fetch the proxy config from 3scale using the client
+func GetFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportMetrics) (sysC.ProxyConfigElement, error) {
 	log.Debugf("proxy config for service id %s is being fetching from 3scale", cfg.ServiceId)
 
 	start := time.Now()
