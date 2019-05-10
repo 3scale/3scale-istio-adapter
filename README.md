@@ -87,15 +87,27 @@ oc create -f istio/ -n istio-system
 
 ## Routing service traffic through the adapter
 
+The following statements assume that configuration has been generated using the tool provided. Custom modifications
+to the match condition in the rule are possible, but explanation of any or all combinations is outside of the scope of
+this document. If interested, check out the [upstream documentation](https://istio.io) 
+
 In order to drive traffic for your service through the adapter and be managed by 3scale, we need to match the rule
-`destination.labels["service-mesh.3scale.net"] == "true"` we previously created in the configuration, in the `kind: rule` resource.
+`destination.labels["service-mesh.3scale.net/credentials"] == "threescale"` we previously created in the configuration, in the `kind: rule` resource.
 
-If you need to support multiple services an additional label is required. It should be unique per service, we have chosen the
-label `"service-mesh.3scale.net/uid"` as a default. Of course, you are free to modify the sample templates as you wish.
+Integration of a service requires that the above label be added to PodTemplateSpec on the Deployment of the target workload.
+The value, `threescale`, refers to the name of the generated handler. This handler will store the access token required to call 3scale.
 
-To do so, we need to add a label to the PodTemplateSpec on the Deployment of the target workload.
-For example, if we have a `productpage` service, whose Pod is managed by the `productpage-v1` deployment,
-by adding the above label under `spec.template.labels` in `productpage-v1`, we can have the adapter authorise requests to this service.
+When the request reaches the adapter, the adapter needs to know the how the service maps to the an API on 3scale.
+This can be provided in one of two ways:
+
+1. As a label on the workload (recommended)
+1. Hardcoded in the handler as `service_id`
+
+To pass the service ID to the adapter via the instance at request time, add the following label to the workload:
+
+`destination.labels["service-mesh.3scale.net/service-id"] == "replace-me"`
+
+Your 3scale administrator should be able to provide you with both the required credentials name and the service ID.
 
 ## Authenticating requests
 
@@ -133,6 +145,7 @@ spec:
     action:
       path: request.url_path
       method: request.method | "get"
+      service: destination.labels["service-mesh.3scale.net/service-id"] | ""
 ```
 
 This configuration will examine the `user_key` query parameter, followed by the `x-user-key` header in search of the api key. As mentioned, this can be restricted to one or the other by removing that particular attribute.
@@ -161,6 +174,7 @@ spec:
     action:
       path: request.url_path
       method: request.method | "get"
+      service: destination.labels["service-mesh.3scale.net/service-id"] | ""
 ```
 
 #### OpenID Connect Pattern
@@ -184,6 +198,7 @@ spec:
     action:
       path: request.url_path
       method: request.method | "get"
+      service: destination.labels["service-mesh.3scale.net/service-id"] | ""
 ```
 
 For this integration to work correctly. OpenID configuration must still be done in 3scale in order for the client to be created in the IdP.
@@ -230,6 +245,7 @@ spec:
     action:
       path: request.url_path
       method: request.method | "get"
+      service: destination.labels["service-mesh.3scale.net/service-id"] | ""
 
 ```
 
@@ -243,19 +259,19 @@ To generate these manifests from a deployed adapter, run the following:
 ```bash
 oc exec -n istio-system $(oc get po -n istio-system -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
 -it -- ./3scale-config-gen \
---url="https://replace-me.3scale.net:443" --service="example-service-id" --token="access-token"
+--url="https://replace-me.3scale.net:443" --name="example-name" --token="access-token"
 ```
 
-This will produce some sample output to the terminal. As well as a unique UID which must be used for multiple service use case.
-Edit these samples if required and create the objects using `oc create` command.
+This will produce some sample output to the terminal. Edit these samples if required and create the objects using `oc create` command.
 
 
 Update the workload (target service deployment's Pod Spec) with the required annotations:
 
 ```bash
-export UNIQUE_ID="replace-me"
+export CREDENTIALS_NAME="replace-me"
+export SERVICE_ID="replace-me"
 export DEPLOYMENT="replace-me"
-patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net":"true","service-mesh.3scale.net/uid":"'"${UNIQUE_ID}"'"}}}}}' )"
+patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net/service-id":""'"${SERVICE_ID}"'","service-mesh.3scale.net/credentials":"'"${CREDENTIALS_NAME}"'"}}}}}' )"
 oc patch deployment "${DEPLOYMENT}" --patch ''"${patch}"''
 ```
 
