@@ -41,9 +41,9 @@ const (
 	openIDTypeIdentifier = "oauth"
 
 	// consts reflect key values in instance config
-	appIDAttributeKey  = "app_id"
-	appKeyAttributeKey = "app_key"
-	oidcAttributeKey   = "client_id"
+	AppIDAttributeKey  = "app_id"
+	AppKeyAttributeKey = "app_key"
+	OIDCAttributeKey   = "client_id"
 )
 
 // HandleAuthorization takes care of the authorization request from mixer
@@ -60,6 +60,11 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	if err != nil {
 		result.Status, err = rpcStatusErrorHandler("", status.WithInternal, err)
 		goto out
+	}
+
+	// Support receiving system_url as both hardcoded value in handler and at request time
+	if cfg.SystemUrl == "" {
+		cfg.SystemUrl = r.Instance.Action.Service
 	}
 
 	systemClient, err = s.systemClientBuilder(cfg.SystemUrl)
@@ -149,13 +154,13 @@ func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMs
 
 		if proxyConf.Content.BackendVersion == openIDTypeIdentifier {
 			// OIDC integration configured so force app identifier to come from jwt claims
-			appIdentifierKey = oidcAttributeKey
+			appIdentifierKey = OIDCAttributeKey
 		} else {
-			appIdentifierKey = appIDAttributeKey
+			appIdentifierKey = AppIDAttributeKey
 		}
 
 		appID = request.Subject.Properties[appIdentifierKey].GetStringValue()
-		appKey = request.Subject.Properties[appKeyAttributeKey].GetStringValue()
+		appKey = request.Subject.Properties[AppKeyAttributeKey].GetStringValue()
 
 		userKey = request.Subject.User
 	}

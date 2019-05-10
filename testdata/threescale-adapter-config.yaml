@@ -1,56 +1,50 @@
-# handler for adapter threescale
-apiVersion: "config.istio.io/v1alpha2"
+apiVersion: config.istio.io/v1alpha2
 kind: handler
 metadata:
-  name: threescale-123456
+  creationTimestamp: null
+  name: threescale
   namespace: istio-system
-  labels:
-    "service-mesh.3scale.net/host": "127.0.0.1"
-    "service-mesh.3scale.net/service-id": "123456"
 spec:
   adapter: threescale
-  params:
-    service_id: "123456"
-    system_url: "http://127.0.0.1:8090"
-    access_token: "secret-token"
   connection:
-    address: "[::]:3333"
+    address: '[::]:3333'
+  params:
+    access_token: secret-token
+    system_url: http://127.0.0.1:8090
 ---
-# instance for template authorization
-apiVersion: "config.istio.io/v1alpha2"
+apiVersion: config.istio.io/v1alpha2
 kind: instance
 metadata:
-  name: threescale-authorization-123456
+  creationTimestamp: null
+  name: threescale
   namespace: istio-system
-  labels:
-    "service-mesh.3scale.net/host": "127.0.0.1"
-    "service-mesh.3scale.net/service-id": "123456"
 spec:
-  template: threescale-authorization
   params:
+    action:
+      method: request.method | "get"
+      path: request.url_path
+      service: destination.labels["service-mesh.3scale.net/service-id"] | ""
     subject:
-      user: request.query_params["user_key"] | request.headers["user-key"] | ""
       properties:
         app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
         app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
         client_id: request.auth.claims["azp"] | ""
-    action:
-      path: request.url_path
-      method: request.method | "get"
+      user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
+  template: threescale-authorization
 ---
-# rule to dispatch to handler threescale.handler
-apiVersion: "config.istio.io/v1alpha2"
+apiVersion: config.istio.io/v1alpha2
 kind: rule
 metadata:
-  name: threescale-123456
+  creationTimestamp: null
+  name: threescale
   namespace: istio-system
-  labels:
-    "service-mesh.3scale.net/host": "127.0.0.1"
-    "service-mesh.3scale.net/service-id": "123456"
 spec:
-  match: destination.labels["service-mesh.3scale.net"] == "true" && destination.labels["service-mesh.3scale.net/uid"] == "123456"
   actions:
-  - handler: threescale-123456.handler.istio-system
+  - handler: threescale.handler.istio-system
     instances:
-    - threescale-authorization-123456.instance.istio-system
+    - threescale.instance.istio-system
+  match: |-
+    context.reporter.kind == "inbound" &&
+    destination.labels["service-mesh.3scale.net/credentials"] == "threescale" &&
+    destination.labels["service-mesh.3scale.net/authentication-method"] == ""
 ---
