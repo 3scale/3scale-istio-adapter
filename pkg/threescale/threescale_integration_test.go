@@ -77,7 +77,7 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/",
-						"request.method":        "get",
+						"request.method":        "Get",
 						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
@@ -93,7 +93,7 @@ func TestAuthorizationCheck(t *testing.T) {
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
 						"request.headers":       map[string]string{"x-user-key": "VALID"},
-						"request.method":        "get",
+						"request.method":        "Get",
 						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
@@ -109,7 +109,7 @@ func TestAuthorizationCheck(t *testing.T) {
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
 						"request.query_params":  map[string]string{"user_key": "VALID"},
-						"request.method":        "get",
+						"request.method":        "Get",
 						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
@@ -124,7 +124,7 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
-						"request.method":        "get",
+						"request.method":        "Get",
 						"request.headers":       map[string]string{"app-id": "test", "app-key": "secret"},
 						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
@@ -140,7 +140,7 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
-						"request.method":        "get",
+						"request.method":        "Get",
 						"request.query_params":  map[string]string{"app_id": "VALID"},
 						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
@@ -156,7 +156,7 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/oidc",
-						"request.method":        "get",
+						"request.method":        "Get",
 						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},
 				},
@@ -172,7 +172,7 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/oidc",
-						"request.method":        "get",
+						"request.method":        "Get",
 						"request.auth.claims":   map[string]string{"azp": "VALID"},
 						"destination.labels":    map[string]string{"service-mesh.3scale.net/credentials": "threescale"},
 					},

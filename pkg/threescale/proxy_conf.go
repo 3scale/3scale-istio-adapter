@@ -134,7 +134,8 @@ func (pc *ProxyConfigCache) StopRefreshWorker() error {
 	return nil
 }
 
-func (pc *ProxyConfigCache) get(cfg *config.Params, c *sysC.ThreeScaleClient) (sysC.ProxyConfigElement, error) {
+// Get returns a proxyConfig for a given ThreescaleClient, either from the local Cache or fetching it remotely
+func (pc *ProxyConfigCache) Get(cfg *config.Params, c *sysC.ThreeScaleClient) (sysC.ProxyConfigElement, error) {
 	var conf sysC.ProxyConfigElement
 	var err error
 

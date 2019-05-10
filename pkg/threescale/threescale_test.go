@@ -72,7 +72,7 @@ func TestHandleAuthorization(t *testing.T) {
 			expectStatus: int32(rpc.PERMISSION_DENIED),
 			template: authorization.InstanceMsg{
 				Action: &authorization.ActionMsg{
-					Method: "get",
+					Method: "Get",
 					Path:   "/",
 				},
 			},
@@ -88,7 +88,7 @@ func TestHandleAuthorization(t *testing.T) {
 			expectStatus: int32(rpc.UNAVAILABLE),
 			template: authorization.InstanceMsg{
 				Action: &authorization.ActionMsg{
-					Method: "get",
+					Method: "Get",
 					Path:   "/test",
 				},
 				Subject: &authorization.SubjectMsg{
@@ -108,7 +108,7 @@ func TestHandleAuthorization(t *testing.T) {
 
 			template: authorization.InstanceMsg{
 				Action: &authorization.ActionMsg{
-					Method: "get",
+					Method: "Get",
 					Path:   "/test",
 				},
 				Subject: &authorization.SubjectMsg{
@@ -146,7 +146,7 @@ func TestHandleAuthorization(t *testing.T) {
 			expectStatus: int32(rpc.OK),
 			template: authorization.InstanceMsg{
 				Action: &authorization.ActionMsg{
-					Method: "get",
+					Method: "Get",
 					Path:   "/",
 				},
 				Subject: &authorization.SubjectMsg{
