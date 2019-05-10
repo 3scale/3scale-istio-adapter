@@ -18,7 +18,7 @@ import (
 // NewK8Client creates a new Kubernetes client from the provided configuration path
 // or existing configuration. If no configuration is provided confPath will be used to generate one.
 // This is a wrapper supporting both out-of-cluster and in-cluster configs
-func NewK8Client(confPath string, conf *rest.Config) (*K8Client, error) {
+func NewK8Client(confPath string, conf *rest.Config) (*K8sClient, error) {
 	if conf == nil {
 		config, err := getConfigFromConfPath(confPath)
 		if err != nil {
@@ -30,12 +30,12 @@ func NewK8Client(confPath string, conf *rest.Config) (*K8Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &K8Client{conf, cs}, nil
+	return &K8sClient{conf, cs}, nil
 }
 
 // DiscoverManagedServices for deployments whose labels match the provided filter
 // If provided namespace is empty string, all readable namespaces as authorised by the receivers config will be read
-func (c *K8Client) DiscoverManagedServices(namespace string, filterByLabels ...string) (*v1.DeploymentList, error) {
+func (c *K8sClient) DiscoverManagedServices(namespace string, filterByLabels ...string) (*v1.DeploymentList, error) {
 	opts := metav1.ListOptions{LabelSelector: formatLabelFilter(filterByLabels)}
 
 	return c.cs.AppsV1().Deployments(namespace).List(opts)
@@ -45,7 +45,7 @@ func (c *K8Client) DiscoverManagedServices(namespace string, filterByLabels ...s
 // If no name is provided search is done by provided filter.
 // Name and filters are mutually exclusive with provided name taking precedence.
 // If search by filter is done and multiple or no secrets are found then an error is returned.
-func (c *K8Client) GetSecret(name, namespace string, filterByLabels ...string) (*corev1.Secret, error) {
+func (c *K8sClient) GetSecret(name, namespace string, filterByLabels ...string) (*corev1.Secret, error) {
 	if name != "" {
 		return c.cs.CoreV1().Secrets(namespace).Get(name, metav1.GetOptions{})
 	}
@@ -72,7 +72,7 @@ func (c *K8Client) GetSecret(name, namespace string, filterByLabels ...string) (
 // NewIstioClient creates a new client from an existing kubernetes client
 // capable of manipulating known custom resources handler, instance and rule.
 // It does not take care of creating the CRD for these extensions
-func (c *K8Client) NewIstioClient() (*IstioClientImpl, error) {
+func (c *K8sClient) NewIstioClient() (*IstioClientImpl, error) {
 	s := runtime.NewScheme()
 	schemeGroupVersion := schema.GroupVersion{Group: istioObjGroupName, Version: istioObjGroupVersion}
 

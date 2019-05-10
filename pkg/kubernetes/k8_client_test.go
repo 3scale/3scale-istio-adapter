@@ -51,7 +51,7 @@ func TestDiscoverManagedServices(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	client.AppsV1().Deployments("test").Create(fakeDeployOne)
 	client.AppsV1().Deployments("test").Create(fakeDeployTwo)
-	k8 := K8Client{cs: client}
+	k8 := K8sClient{cs: client}
 
 	inputs := []struct {
 		name       string
@@ -153,7 +153,7 @@ func TestGetSecret(t *testing.T) {
 		client.CoreV1().Secrets(secret.ObjectMeta.Namespace).Create(secret)
 	}
 
-	k8 := K8Client{cs: client}
+	k8 := K8sClient{cs: client}
 
 	inputs := []struct {
 		name       string
@@ -222,7 +222,7 @@ func TestNewIstioClient(t *testing.T) {
 	cfg := &rest.Config{
 		Host: "fake",
 	}
-	k8 := K8Client{conf: cfg, cs: client}
+	k8 := K8sClient{conf: cfg, cs: client}
 	ic, err := k8.NewIstioClient()
 	if err != nil {
 		t.Errorf("unexpected error when creating istio client")

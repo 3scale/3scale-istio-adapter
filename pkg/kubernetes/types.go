@@ -17,8 +17,8 @@ type IstioResource struct {
 	Spec              interface{} `json:"spec"`
 }
 
-// K8Client provides access to core Kubernetes resources
-type K8Client struct {
+// K8sClient provides access to core Kubernetes resources
+type K8sClient struct {
 	conf *rest.Config
 	cs   kubernetes.Interface
 }
