@@ -62,9 +62,13 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		goto out
 	}
 
-	// Support receiving system_url as both hardcoded value in handler and at request time
-	if cfg.SystemUrl == "" {
-		cfg.SystemUrl = r.Instance.Action.Service
+	// Support receiving service_id as both hardcoded value in handler and at request time
+	if cfg.ServiceId == "" {
+		if r.Instance.Action.Service == "" {
+			result.Status, err = rpcStatusErrorHandler("error. No Service ID provided", status.WithInvalidArgument, err)
+			goto out
+		}
+		cfg.ServiceId = r.Instance.Action.Service
 	}
 
 	systemClient, err = s.systemClientBuilder(cfg.SystemUrl)
@@ -308,7 +312,11 @@ func parseURL(url *url.URL) (string, string, int) {
 // returned to the user in cases where the authorization request is rejected.
 func rpcStatusErrorHandler(userFacingErrMsg string, fn func(string) rpc.Status, err error) (rpc.Status, error) {
 	if userFacingErrMsg != "" {
-		err = fmt.Errorf("%s - %s", userFacingErrMsg, err.Error())
+		var errMsg string
+		if err != nil {
+			errMsg = fmt.Sprintf("- %s", err.Error())
+		}
+		err = fmt.Errorf("%s %s", userFacingErrMsg, errMsg)
 	}
 
 	log.Error(err.Error())
