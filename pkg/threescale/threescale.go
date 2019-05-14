@@ -123,9 +123,9 @@ func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClie
 	var proxyConfErr error
 
 	if s.conf.systemCache != nil {
-		pce, proxyConfErr = s.conf.systemCache.get(cfg, c)
+		pce, proxyConfErr = s.conf.systemCache.Get(cfg, c)
 	} else {
-		pce, proxyConfErr = getFromRemote(cfg, c, s.reportMetrics)
+		pce, proxyConfErr = GetFromRemote(cfg, c, s.reportMetrics)
 	}
 	return pce, proxyConfErr
 }
