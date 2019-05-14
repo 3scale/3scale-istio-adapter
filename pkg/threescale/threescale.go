@@ -311,12 +311,12 @@ func parseURL(url *url.URL) (string, string, int) {
 // rpcStatusErrorHandler provides a uniform way to log and format error messages and status which should be
 // returned to the user in cases where the authorization request is rejected.
 func rpcStatusErrorHandler(userFacingErrMsg string, fn func(string) rpc.Status, err error) (rpc.Status, error) {
-	var errMsg string
-	if err != nil {
-		errMsg = err.Error()
-	}
 	if userFacingErrMsg != "" {
-		err = fmt.Errorf("%s - %s", userFacingErrMsg, errMsg)
+		var errMsg string
+		if err != nil {
+			errMsg = fmt.Sprintf("- %s", err.Error())
+		}
+		err = fmt.Errorf("%s %s", userFacingErrMsg, errMsg)
 	}
 
 	log.Error(err.Error())
