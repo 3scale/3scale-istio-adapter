@@ -33,8 +33,8 @@ RUN PATH="${PATH}:${GOPATH//://bin:}/bin" \
 FROM registry.access.redhat.com/ubi8/ubi-minimal
 
 WORKDIR /app
-COPY --from=build "${BUILDDIR}"/_output/3scale-istio-adapter /app/
-COPY --from=build "${BUILDDIR}"/_output/3scale-config-gen /app/
+COPY --from=build ${BUILDDIR}/_output/3scale-istio-adapter /app/
+COPY --from=build ${BUILDDIR}/_output/3scale-config-gen /app/
 ENV THREESCALE_LISTEN_ADDR 3333
 EXPOSE 3333
 EXPOSE 8080
