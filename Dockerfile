@@ -1,6 +1,7 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal AS build
 
 ENV GOPATH=/go
+ARG BUILDDIR="/go/src/github.com/3scale/3scale-istio-adapter"
 
 RUN microdnf update --nodocs -y \
  && microdnf install --nodocs -y findutils git go-toolset make perl-Digest-SHA \
@@ -17,7 +18,6 @@ RUN mkdir -p "${GOPATH}/src/github.com/golang" \
  && mkdir -p "${GOPATH}/bin" \
  && make install
 
-ARG BUILDDIR="${GOPATH}/src/github.com/3scale/3scale-istio-adapter"
 WORKDIR "${BUILDDIR}"
 
 ARG VERSION=
@@ -31,6 +31,8 @@ RUN PATH="${PATH}:${GOPATH//://bin:}/bin" \
       build-adapter build-cli
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal
+
+ARG BUILDDIR="/go/src/github.com/3scale/3scale-istio-adapter"
 
 WORKDIR /app
 COPY --from=build "${BUILDDIR}/_output/3scale-istio-adapter" /app/
