@@ -3,7 +3,6 @@ apiVersion: "config.istio.io/v1alpha2"
 kind: handler
 metadata:
   name: threescale
-  namespace: istio-system
 spec:
   adapter: threescale
   params:
@@ -19,7 +18,6 @@ apiVersion: "config.istio.io/v1alpha2"
 kind: instance
 metadata:
   name: threescale-authorization
-  namespace: istio-system
 spec:
   template: threescale-authorization
   params:
@@ -39,11 +37,10 @@ apiVersion: "config.istio.io/v1alpha2"
 kind: rule
 metadata:
   name: threescale
-  namespace: istio-system
 spec:
   match: destination.labels["service-mesh.3scale.net"] == "true"
   actions:
-    - handler: threescale.handler.istio-system
+    - handler: threescale.handler
       instances:
-        - threescale-authorization.instance.istio-system
+        - threescale-authorization.instance
 ---
