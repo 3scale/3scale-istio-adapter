@@ -17,3 +17,4 @@ spec:
       name: prometheus
   selector:
     app: 3scale-istio-adapter
+  clusterIP: None
