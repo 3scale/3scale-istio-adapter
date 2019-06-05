@@ -24,6 +24,7 @@ import (
 	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"istio.io/api/mixer/adapter/model/v1beta1"
 	"istio.io/istio/mixer/pkg/status"
 	"istio.io/istio/mixer/template/authorization"
@@ -368,7 +369,9 @@ func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Serve
 
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
 
-	s.server = grpc.NewServer()
+	s.server = grpc.NewServer(grpc.KeepaliveParams(keepalive.ServerParameters{
+		MaxConnectionAge: 1 * time.Minute,
+	}))
 	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
 	return s, nil
 }
