@@ -370,16 +370,16 @@ func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Serve
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
 
 	s.server = grpc.NewServer(grpc.KeepaliveParams(keepalive.ServerParameters{
-		MaxConnectionAge: 1 * time.Minute,
+		MaxConnectionAge: conf.keepAliveMaxAge,
 	}))
 	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
 	return s, nil
 }
 
 // NewAdapterConfig - Creates configuration for Threescale adapter
-func NewAdapterConfig(cache *ProxyConfigCache, metrics *prometheus.Reporter) *AdapterConfig {
+func NewAdapterConfig(cache *ProxyConfigCache, metrics *prometheus.Reporter, grpcKeepalive time.Duration) *AdapterConfig {
 	if cache != nil {
 		cache.metricsReporter = metrics
 	}
-	return &AdapterConfig{cache, metrics}
+	return &AdapterConfig{cache, metrics, grpcKeepalive}
 }
