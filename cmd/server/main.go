@@ -4,6 +4,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,7 +16,8 @@ import (
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"github.com/spf13/viper"
-	"istio.io/istio/pkg/log"
+	"google.golang.org/grpc/grpclog"
+	istiolog "istio.io/istio/pkg/log"
 )
 
 var version string
@@ -23,6 +26,7 @@ func init() {
 	viper.SetEnvPrefix("threescale")
 	viper.BindEnv("log_level")
 	viper.BindEnv("log_json")
+	viper.BindEnv("log_grpc")
 	viper.BindEnv("listen_addr")
 	viper.BindEnv("report_metrics")
 	viper.BindEnv("metrics_port")
@@ -34,7 +38,7 @@ func init() {
 	viper.BindEnv("client_timeout_seconds")
 	viper.BindEnv("allow_insecure_conn")
 
-	options := log.DefaultOptions()
+	options := istiolog.DefaultOptions()
 
 	if viper.IsSet("log_level") {
 		loglevel := viper.GetString("log_level")
@@ -45,33 +49,38 @@ func init() {
 			os.Exit(1)
 		}
 
-		options.SetOutputLevel(log.DefaultScopeName, parsedLogLevel)
+		options.SetOutputLevel(istiolog.DefaultScopeName, parsedLogLevel)
 	}
 
 	if viper.IsSet("log_json") {
 		options.JSONEncoding = viper.GetBool("log_json")
 	}
 
-	log.Configure(options)
-	log.Infof("Logging started")
+	if !viper.IsSet("log_grpc") || !viper.GetBool("log_grpc") {
+		options.LogGrpc = false
+		grpclog.SetLogger(log.New(ioutil.Discard, "", 0))
+	}
+
+	istiolog.Configure(options)
+	istiolog.Infof("Logging started")
 
 }
 
-func stringToLogLevel(loglevel string) (log.Level, error) {
+func stringToLogLevel(loglevel string) (istiolog.Level, error) {
 
-	stringToLevel := map[string]log.Level{
-		"debug": log.DebugLevel,
-		"info":  log.InfoLevel,
-		"warn":  log.WarnLevel,
-		"error": log.ErrorLevel,
-		"none":  log.NoneLevel,
+	stringToLevel := map[string]istiolog.Level{
+		"debug": istiolog.DebugLevel,
+		"info":  istiolog.InfoLevel,
+		"warn":  istiolog.WarnLevel,
+		"error": istiolog.ErrorLevel,
+		"none":  istiolog.NoneLevel,
 	}
 
 	if val, ok := stringToLevel[strings.ToLower(loglevel)]; ok {
 		return val, nil
 	}
 
-	return log.InfoLevel, errors.New("invalid log_level")
+	return istiolog.InfoLevel, errors.New("invalid log_level")
 }
 
 func parseMetricsConfig() *metrics.Reporter {
@@ -149,18 +158,18 @@ func main() {
 	s, err := threescale.NewThreescale(addr, parseClientConfig(), adapterConfig)
 
 	if err != nil {
-		log.Errorf("Unable to start sever: %v", err)
+		istiolog.Errorf("Unable to start sever: %v", err)
 		os.Exit(1)
 	}
 
 	if version == "" {
 		version = "undefined"
 	}
-	log.Infof("Started server version %s", version)
+	istiolog.Infof("Started server version %s", version)
 
 	proxyCache.StartRefreshWorker()
 	if err != nil {
-		log.Errorf("error while starting cache refresh worker %s", err.Error())
+		istiolog.Errorf("error while starting cache refresh worker %s", err.Error())
 	}
 
 	shutdown := make(chan error, 1)
