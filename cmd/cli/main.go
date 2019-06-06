@@ -18,6 +18,7 @@ var (
 	name          string
 	outputTo      string
 	authType      int
+	namespace     string
 
 	version string
 )
@@ -27,11 +28,14 @@ const (
 	tokenDescription      = "3scale access token (required)"
 	threescaleDescription = "The 3scale admin portal URL (required)"
 
-	svcIDDescription    = "The ID of the 3scale service. If set the generated configuration will apply to this service only."
-	outputDescription   = "File to output templates. Prints to stdout if none provided"
-	authTypeDescription = "3scale authentication pattern to use. 1=ApiKey, 2=AppID, 3=OpenID Connect. Default template supports a hybrid if none provided"
+	svcIDDescription     = "The ID of the 3scale service. If set the generated configuration will apply to this service only."
+	outputDescription    = "File to output templates. Prints to stdout if none provided"
+	authTypeDescription  = "3scale authentication pattern to use. 1=ApiKey, 2=AppID, 3=OpenID Connect. Default template supports a hybrid if none provided"
+	namespaceDescription = "The namespace which the manifests should be generated for. Default 'istio-system'"
 
 	outputDefault, tokenDefault, svcDefault, urlDefault = "", "", "", ""
+
+	istioNamespaceDefault = kubernetes.DefaultNamespace
 )
 
 func init() {
@@ -49,6 +53,9 @@ func init() {
 	flag.StringVar(&outputTo, "o", outputDefault, outputDescription+" (short)")
 
 	flag.IntVar(&authType, "auth", 0, authTypeDescription)
+
+	flag.StringVar(&namespace, "namespace", istioNamespaceDefault, namespaceDescription)
+	flag.StringVar(&namespace, "n", istioNamespaceDefault, namespaceDescription+" (short)")
 
 	v := flag.Bool("version", false, "Prints CLI version")
 
@@ -114,14 +121,16 @@ func execute() error {
 
 	}
 
-	handlerName := fmt.Sprintf("%s.handler.istio-system", name)
-	instanceName := fmt.Sprintf("%s.instance.istio-system", name)
+	handlerName := fmt.Sprintf("%s.handler.%s", name, namespace)
+	instanceName := fmt.Sprintf("%s.instance.%s", name, namespace)
 	rule := kubernetes.NewRule(kubernetes.GetDefaultMatchConditions(name), handlerName, instanceName)
 
 	cg, err := kubernetes.NewConfigGenerator(name, *handler, *instance, rule)
 	if err != nil {
 		panic("error creating config generator " + err.Error())
 	}
+
+	cg.SetNamespace(namespace)
 
 	if outputTo == "" {
 		writeTo = os.Stdout

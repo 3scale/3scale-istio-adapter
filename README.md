@@ -41,7 +41,7 @@ Follow [these instructions](https://istio.io/docs/tasks/policy-enforcement/enabl
 ## Deploy the adapter
 
 A Kubernetes deployment and service manifest are located in the `deploy` directory.
-To deploy the adapter to a Kubernetes/OpenShift cluster, within the `istio-system` project, run
+To deploy the adapter to a Kubernetes/OpenShift cluster, run:
 
 ```bash
 oc create -f deploy/
@@ -68,7 +68,6 @@ apiVersion: "config.istio.io/v1alpha2"
 kind: handler
 metadata:
  name: threescale
- namespace: istio-system
 spec:
  adapter: threescale
  params:
@@ -79,10 +78,11 @@ spec:
    address: "threescale-istio-adapter:3333"
 ```
 
-Create the required resources:
+Create the required resources in the desired istio namespace. By default, this is `istio-system`, however, in a multi-tenant environment,
+this could be different.
 
 ```bash
-oc create -f istio/ -n istio-system
+oc create -f istio/
 ```
 
 ## Routing service traffic through the adapter
@@ -136,7 +136,6 @@ apiVersion: "config.istio.io/v1alpha2"
 kind: instance
 metadata:
   name: threescale-authorization
-  namespace: istio-system
 spec:
   template: threescale-authorization
   params:
@@ -164,7 +163,6 @@ apiVersion: "config.istio.io/v1alpha2"
 kind: instance
 metadata:
   name: threescale-authorization
-  namespace: istio-system
 spec:
   template: threescale-authorization
   params:
@@ -187,8 +185,7 @@ An example configuration is shown below. Here the client identifier (application
 apiVersion: "config.istio.io/v1alpha2"
 kind: instance
 metadata:
-  name: threescale-authorization
-  namespace: istio-system
+  name: threescale-authorization 
 spec:
   template: threescale-authorization
   params:
@@ -233,7 +230,6 @@ apiVersion: "config.istio.io/v1alpha2"
 kind: instance
 metadata:
   name: threescale-authorization
-  namespace: istio-system
 spec:
   template: threescale-authorization
   params:
@@ -254,12 +250,13 @@ spec:
 The adapter embeds a tool which allows generation of the `handler`,`instance` and `rule` CR's.
 More detail can be found in the tools [documentation](cmd/cli/README.md)
 
-To generate these manifests from a deployed adapter, run the following:
+To generate these manifests from a deployed adapter, assuming it is deployed in the `istio-system` namespace, run the following:
 
 ```bash
-oc exec -n istio-system $(oc get po -n istio-system -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
+export NS="istio-system" URL="https://replaceme-admin.3scale.net:443" NAME="name" TOKEN="token"
+oc exec -n ${NS} $(oc get po -n ${NS} -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
 -it -- ./3scale-config-gen \
---url="https://replace-me.3scale.net:443" --name="example-name" --token="access-token"
+--url ${URL} --name ${NAME} --token ${TOKEN} -n ${NS}
 ```
 
 This will produce some sample output to the terminal. Edit these samples if required and create the objects using `oc create` command.

@@ -10,16 +10,17 @@ The manifests produced are tested against the integration test suite in the gRPC
 
 The program accepts a number of flags which are documented in the table below:
 
-| Option               | Description                                                                     | Required| Default |
-|----------------------|---------------------------------------------------------------------------------|---------|---------|
-|    `-h`, `--help`    |  Produces help output for available options                                     |   No    |         |
-|    `--name`          |  Unique name for this (url,token) pair                                          |   Yes   |         |
-|    `-t`, `--token`   |  3scale access token                                                            |   Yes   |         |
-|    `-u`, `--url`     |  3scale Admin Portal URL                                                        |   Yes   |         |
-|    `--service`       |  3scale Service ID. If set, generated config will apply to this service only    |   No    |         |
-|    `--auth`          |  3scale authentication pattern to specify (1=Api Key, 2=App Id/App Key, 3=OIDC) |   No    | Hybrid  |
-|    `-o`, `--output`  |  File to save produced manifests to                                             |   No    | STDOUT  |
-|    `--version`       |  Outputs the CLI version (and exits right away)                                 |   No    |         |
+| Option               | Description                                                                     | Required| Default      |
+|----------------------|---------------------------------------------------------------------------------|---------|--------------|
+|    `-h`, `--help`    |  Produces help output for available options                                     |   No    |              |
+|    `--name`          |  Unique name for this (url,token) pair                                          |   Yes   |              |
+|    `-n`,`--namespace`|  Namespace to generate templates for                                            |   No    | istio-system |
+|    `-t`,`--token`    |  3scale access token                                                            |   Yes   |              |
+|    `-u`,`--url`      |  3scale Admin Portal URL                                                        |   Yes   |              |
+|    `--service`       |  3scale Service ID. If set, generated config will apply to this service only    |   No    |              |
+|    `--auth`          |  3scale authentication pattern to specify (1=Api Key, 2=App Id/App Key, 3=OIDC) |   No    | Hybrid       |
+|    `-o`,`--output`   |  File to save produced manifests to                                             |   No    | STDOUT       |
+|    `--version`       |  Outputs the CLI version (and exits right away)                                 |   No    |              |
 
 ### Example
 
