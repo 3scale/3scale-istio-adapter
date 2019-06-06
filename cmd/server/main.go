@@ -38,6 +38,8 @@ func init() {
 	viper.BindEnv("client_timeout_seconds")
 	viper.BindEnv("allow_insecure_conn")
 
+	viper.BindEnv("grpc_conn_max_seconds")
+
 	options := istiolog.DefaultOptions()
 
 	if viper.IsSet("log_level") {
@@ -154,7 +156,12 @@ func main() {
 
 	proxyCache := cacheConfigBuilder()
 
-	adapterConfig := threescale.NewAdapterConfig(proxyCache, parseMetricsConfig())
+	grpcKeepAliveFor := time.Minute
+	if viper.IsSet("grpc_conn_max_seconds") {
+		grpcKeepAliveFor = time.Second * time.Duration(viper.GetInt("grpc_conn_max_seconds"))
+	}
+	adapterConfig := threescale.NewAdapterConfig(proxyCache, parseMetricsConfig(), grpcKeepAliveFor)
+
 	s, err := threescale.NewThreescale(addr, parseClientConfig(), adapterConfig)
 
 	if err != nil {
