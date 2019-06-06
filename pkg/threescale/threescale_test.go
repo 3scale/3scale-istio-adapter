@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gogo/googleapis/google/rpc"
 
@@ -227,7 +228,7 @@ func TestHandleAuthorization(t *testing.T) {
 
 func Test_NewThreescale(t *testing.T) {
 	addr := "0"
-	threescaleConf := NewAdapterConfig(nil, nil)
+	threescaleConf := NewAdapterConfig(nil, nil, time.Minute)
 	s, err := NewThreescale(addr, http.DefaultClient, threescaleConf)
 	if err != nil {
 		t.Errorf("Error running threescale server %#v", err)
