@@ -91,6 +91,10 @@ release: validate-release generate-template git-add docker-build docker-push
 .PHONY: validate-release
 validate-release:
 	@if [ -z ${VERSION} ]; then echo VERSION is unset && exit 1; fi
+	go mod tidy
+	go mod verify
+	go test all
+	@echo You should check whether there is any change in the module files.
 
 .PHONY: generate-template
 generate-template:
