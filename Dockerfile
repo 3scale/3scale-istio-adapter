@@ -1,6 +1,5 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal AS build
 
-ENV GOPATH=/go
 ARG BUILDDIR="/tmp/3scale-istio-adapter"
 
 RUN microdnf update --nodocs -y \
@@ -13,8 +12,7 @@ WORKDIR "${BUILDDIR}"
 ARG VERSION=
 
 ADD . "${BUILDDIR}"
-RUN PATH="${PATH}:${GOPATH//://bin:}/bin" \
- && if test "x${VERSION}" = "x"; then \
+RUN if test "x${VERSION}" = "x"; then \
       VERSION="$(git describe --dirty --tags || true)" ; \
     fi \
  && make VERSION="${VERSION:? *** No VERSION could be derived, please specify it}" \
