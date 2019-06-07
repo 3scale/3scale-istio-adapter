@@ -91,6 +91,18 @@ release: validate-release generate-template git-add docker-build docker-push
 .PHONY: validate-release
 validate-release:
 	@if [ -z ${VERSION} ]; then echo VERSION is unset && exit 1; fi
+	go mod tidy -v
+	go mod verify
+	@if git diff-files --quiet; then \
+		echo "Vendoring modifies module data from the archive, check it out" ; \
+		git status ; \
+		false ; \
+	fi
+	@if ! git ls-files --other --exclude-standard --error-unmatch; then \
+		echo "Untracked and unignored files present when vendoring, check them out" ; \
+		git status ; \
+		false ; \
+    fi
 
 .PHONY: generate-template
 generate-template:
