@@ -9,6 +9,7 @@ PROJECT_PATH := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 MOD_SUM = $(PROJECT_PATH)/go.sum
 SOURCES := $(shell find $(PROJECT_PATH)/pkg -name '*.go')
+DOCKER ?= $(shell which podman 2> /dev/null || which docker 2> /dev/null || echo "docker")
 
 ## Build targets ##
 
@@ -50,20 +51,20 @@ integration_coverage: integration ## Runs integration tests and generates a html
 
 .PHONY: docker-build
 docker-build: ## Build builder image
-	docker build -f $(PROJECT_PATH)/Dockerfile --build-arg VERSION=$(TAG) --tag $(REGISTRY)/$(IMAGE_NAME) .
+	$(DOCKER) build -f $(PROJECT_PATH)/Dockerfile --build-arg VERSION=$(TAG) --tag $(REGISTRY)/$(IMAGE_NAME) .
 
 .PHONY: docker-test
 docker-test: ## Runs the adapter - useful for smoke testing
-	docker build -f $(PROJECT_PATH)/Dockerfile --tag $(IMAGE_NAME)-test .
-	docker run -e THREESCALE_LISTEN_ADDR=${LISTEN_ADDR} -ti $(IMAGE_NAME)-test
+	$(DOCKER) build -f $(PROJECT_PATH)/Dockerfile --tag $(IMAGE_NAME)-test .
+	$(DOCKER) run -e THREESCALE_LISTEN_ADDR=${LISTEN_ADDR} -ti $(IMAGE_NAME)-test
 
 .PHONY: docker-push
 docker-push: docker-build ## Build and push the adapter image to the docker registry
-	docker push $(REGISTRY)/$(IMAGE_NAME)
+	$(DOCKER) push $(REGISTRY)/$(IMAGE_NAME)
 
 .PHONY: debug-image
 debug-image: ## Builds a debuggable image which is started via Delve
-	docker build -f $(PROJECT_PATH)/Dockerfile.dev --tag $(REGISTRY)/$(IMAGE_NAME) .
+	$(DOCKER) build -f $(PROJECT_PATH)/Dockerfile.dev --tag $(REGISTRY)/$(IMAGE_NAME) .
 
 ## Misc ##
 
