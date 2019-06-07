@@ -14,10 +14,12 @@ DOCKER ?= $(shell which podman 2> /dev/null || which docker 2> /dev/null || echo
 ## Build targets ##
 
 3scale-istio-adapter: $(MOD_SUM) $(PROJECT_PATH)/cmd/server/main.go $(SOURCES) ## Build the adapter binary
-	go build -ldflags="-X main.version=$(TAG)" -o _output/3scale-istio-adapter cmd/server/main.go
+	go build -ldflags="-X main.version=$(TAG)" -o _output/3scale-istio-adapter \
+		$(GO_BUILD_EXTRA) cmd/server/main.go
 
 3scale-config-gen: $(MOD_SUM) $(PROJECT_PATH)/cmd/cli/main.go $(SOURCES) ## Build the config generator cli
-	go build -ldflags="-s -w -X main.version=$(TAG)" -o _output/3scale-config-gen cmd/cli/main.go
+	go build -ldflags="-s -w -X main.version=$(TAG)" -o _output/3scale-config-gen \
+		$(GO_BUILD_EXTRA) cmd/cli/main.go
 
 .PHONY: build-adapter
 build-adapter: 3scale-istio-adapter ## Alias to build the adapter binary
