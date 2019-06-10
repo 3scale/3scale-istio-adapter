@@ -12,7 +12,7 @@ import (
 )
 
 const url = "www.fake.com"
-const serviceID = "123"
+const service_id = "123"
 
 func TestObserveSystemLatency(t *testing.T) {
 	const metricName = "threescale_system_latency"
@@ -20,23 +20,23 @@ func TestObserveSystemLatency(t *testing.T) {
 
                 # HELP threescale_system_latency Request latency for requests to 3scale system URL
                 # TYPE threescale_system_latency histogram
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="0.05"} 0
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="0.08"} 0
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="0.1"} 0
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="0.15"} 0
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="0.2"} 0
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="0.3"} 0
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="0.5"} 0
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="1"} 0
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="1.5"} 1
-                threescale_system_latency_bucket{serviceID="123",systemURL="www.fake.com",le="+Inf"} 1
-                threescale_system_latency_sum{serviceID="123",systemURL="www.fake.com"} 1.001
-                threescale_system_latency_count{serviceID="123",systemURL="www.fake.com"} 1
+                threescale_system_latency_bucket{system_host="www.fake.com",le="0.05"} 0
+                threescale_system_latency_bucket{system_host="www.fake.com",le="0.08"} 0
+                threescale_system_latency_bucket{system_host="www.fake.com",le="0.1"} 0
+                threescale_system_latency_bucket{system_host="www.fake.com",le="0.15"} 0
+                threescale_system_latency_bucket{system_host="www.fake.com",le="0.2"} 0
+                threescale_system_latency_bucket{system_host="www.fake.com",le="0.3"} 0
+                threescale_system_latency_bucket{system_host="www.fake.com",le="0.5"} 0
+                threescale_system_latency_bucket{system_host="www.fake.com",le="1"} 0
+                threescale_system_latency_bucket{system_host="www.fake.com",le="1.5"} 1
+                threescale_system_latency_bucket{system_host="www.fake.com",le="+Inf"} 1
+                threescale_system_latency_sum{system_host="www.fake.com"} 1.001
+                threescale_system_latency_count{system_host="www.fake.com"} 1
 
         `
 	r := NewMetricsReporter(true, 8080)
 	l := NewLatencyReport("", time.Second+time.Millisecond, url, System)
-	r.ObserveLatency(serviceID, l)
+	r.ObserveLatency(l)
 	err := testutil.CollectAndCompare(systemLatency, strings.NewReader(expect), metricName)
 	if err != nil {
 		t.Fatalf(err.Error())
@@ -48,20 +48,20 @@ func TestObserveBackendLatency(t *testing.T) {
 	const expect = `
 		# HELP threescale_backend_latency Request latency for requests to 3scale backend
 		# TYPE threescale_backend_latency histogram
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.01"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.02"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.03"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.05"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.08"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.1"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.15"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.2"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.3"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="0.5"} 0
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="1"} 1
-		threescale_backend_latency_bucket{backendURL="www.fake.com",endpoint="Authorise",serviceID="123",le="+Inf"} 1
-		threescale_backend_latency_sum{backendURL="www.fake.com",endpoint="Authorise",serviceID="123"} 1
-		threescale_backend_latency_count{backendURL="www.fake.com",endpoint="Authorise",serviceID="123"} 1
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.01"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.02"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.03"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.05"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.08"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.1"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.15"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.2"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.3"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="0.5"} 0
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="1"} 1
+		threescale_backend_latency_bucket{backend_host="www.fake.com",le="+Inf"} 1
+		threescale_backend_latency_sum{backend_host="www.fake.com"} 1
+		threescale_backend_latency_count{backend_host="www.fake.com"} 1
 
 	`
 	r := NewMetricsReporter(true, 8080)
@@ -71,7 +71,7 @@ func TestObserveBackendLatency(t *testing.T) {
 		URL:       url,
 		Target:    Backend,
 	}
-	r.ObserveLatency(serviceID, l)
+	r.ObserveLatency(l)
 	err := testutil.CollectAndCompare(backendLatency, strings.NewReader(expect), metricName)
 	if err != nil {
 		t.Fatalf(err.Error())
@@ -110,7 +110,7 @@ func TestReportStatus(t *testing.T) {
 			expect: `
 			       # HELP threescale_backend_http_status HTTP Status response codes for requests to 3scale backend
 			       # TYPE threescale_backend_http_status counter
-			       threescale_backend_http_status{backendURL="www.fake.com",code="200",serviceID="123"} 1
+			       threescale_backend_http_status{backend_host="www.fake.com",code="200",service_id="123"} 1
 		       `,
 			collector: backendStatusCodes,
 			code:      http.StatusOK,
@@ -127,7 +127,7 @@ func TestReportStatus(t *testing.T) {
 
 			s := NewStatusReport("Authorise", input.code, url, input.t)
 			r := NewMetricsReporter(true, 8080)
-			err := r.ReportStatus(serviceID, s)
+			err := r.ReportStatus(service_id, s)
 			if err != nil {
 				if input.expectErr {
 					return

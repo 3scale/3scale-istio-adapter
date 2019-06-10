@@ -368,15 +368,13 @@ func GetFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportMe
 	elapsed := time.Since(start)
 
 	go func() {
-		var httpResponseCode = 200
-		if err != nil {
-			if apiErr, ok := err.(sysC.ApiErr); ok {
-				httpResponseCode = apiErr.Code()
-			} else {
-				return
-			}
+		var httpResponseCode int
+		switch err := err.(type) {
+		case sysC.ApiErr:
+			httpResponseCode = err.Code()
 		}
-		report(cfg.SystemUrl, metrics.NewLatencyReport("", elapsed, cfg.SystemUrl, metrics.System),
+
+		report(cfg.ServiceId, metrics.NewLatencyReport("", elapsed, cfg.SystemUrl, metrics.System),
 			metrics.NewStatusReport("", httpResponseCode, cfg.SystemUrl, metrics.System))
 	}()
 
