@@ -64,7 +64,7 @@ var (
 			Help:    "Request latency for requests to 3scale system URL",
 			Buckets: defaultSystemBucket,
 		},
-		[]string{"systemURL", "serviceID"},
+		[]string{"system_host"},
 	)
 
 	backendLatency = prometheus.NewHistogramVec(
@@ -73,7 +73,7 @@ var (
 			Help:    "Request latency for requests to 3scale backend",
 			Buckets: defaultBackendBucket,
 		},
-		[]string{"backendURL", "serviceID", "endpoint"},
+		[]string{"backend_host"},
 	)
 
 	backendStatusCodes = prometheus.NewCounterVec(
@@ -81,7 +81,7 @@ var (
 			Name: "threescale_backend_http_status",
 			Help: "HTTP Status response codes for requests to 3scale backend",
 		},
-		[]string{"backendURL", "serviceID", "code"},
+		[]string{"backend_host", "service_id", "code"},
 	)
 
 	cacheHits = prometheus.NewCounter(
@@ -122,16 +122,18 @@ func NewStatusReport(endpoint string, code int, url string, target Target) Statu
 // of being logged, the metrics should be reported directly.
 func (r *Reporter) ReportMetrics(serviceID string, l LatencyReport, s StatusReport) {
 	if r != nil && r.shouldReport {
-		r.ObserveLatency(serviceID, l)
-		r.ReportStatus(serviceID, s)
+		r.ObserveLatency(l)
+		if s.Code != 0 {
+			r.ReportStatus(serviceID, s)
+		}
 	}
 }
 
 // ObserveLatency reports a metric to a latency histogram.
 // Logs and returns an error in cases where the metric has not been reported.
-func (r *Reporter) ObserveLatency(serviceID string, l LatencyReport) error {
+func (r *Reporter) ObserveLatency(l LatencyReport) error {
 	if r != nil && r.shouldReport {
-		o, err := l.getObserver(serviceID)
+		o, err := l.getObserver()
 		if err != nil {
 			log.Errorf(err.Error())
 			return err
@@ -189,7 +191,7 @@ func (r *Reporter) Serve() {
 // getObserver generates a Prometheus Observer from the fields of a LatencyReport
 // Returns an error in cases where the LatencyReport contains missing or incomplete
 // data for the chosen Target
-func (l LatencyReport) getObserver(serviceID string) (prometheus.Observer, error) {
+func (l LatencyReport) getObserver() (prometheus.Observer, error) {
 	var o prometheus.Observer
 	var err error
 
@@ -199,13 +201,10 @@ func (l LatencyReport) getObserver(serviceID string) (prometheus.Observer, error
 
 	switch l.Target {
 	case Backend:
-		if l.Endpoint != "" {
-			o = backendLatency.WithLabelValues(l.URL, serviceID, l.Endpoint)
-		} else {
-			err = fmt.Errorf("reporting latency to 3scale backend requires an endpoint label to be set")
-		}
+		o = backendLatency.WithLabelValues(l.URL)
+
 	case System:
-		o = systemLatency.WithLabelValues(l.URL, serviceID)
+		o = systemLatency.WithLabelValues(l.URL)
 	default:
 		err = fmt.Errorf("unsupported target %s", l.Target)
 	}
