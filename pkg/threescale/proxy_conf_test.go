@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 
 	"github.com/gogo/googleapis/google/rpc"
 
@@ -345,6 +348,50 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	err = c.conf.systemCache.StopRefreshWorker()
 	if err == nil {
 		t.Fatalf("unexpected error when stopping refresh worker again")
+	}
+}
+
+func TestGetFromRemote(t *testing.T) {
+	const svcID = "123"
+	const url = "https://www.fake-system.3scale.net"
+	cfg := &pb.Params{ServiceId: svcID, SystemUrl: url}
+	wg := sync.WaitGroup{}
+	ap, _ := client.NewAdminPortal("https", "www.fake-system.3scale.net", 80)
+
+	inputs := []struct {
+		name       string
+		httpClient func() *http.Client
+		metricsFn  reportMetrics
+	}{
+		{
+			name: "Test metrics are reported success case",
+			httpClient: func() *http.Client {
+				return NewTestClient(func(req *http.Request) *http.Response {
+					return sysFake.GetProxyConfigLatestSuccess()
+				})
+			},
+			metricsFn: func(serviceID string, l metrics.LatencyReport, s metrics.StatusReport) {
+				if serviceID != svcID {
+					t.Errorf("unexpected service id propagated - %s", serviceID)
+				}
+				if l.Target != metrics.System {
+					t.Error("expected metric to be reported for system")
+				}
+				if s.Code != 200 {
+					t.Errorf("unexpected http status code reported - %d", s.Code)
+				}
+				wg.Done()
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		wg.Add(1)
+		t.Run(input.name, func(t *testing.T) {
+			c := client.NewThreeScale(ap, input.httpClient())
+			GetFromRemote(cfg, c, input.metricsFn)
+			wg.Wait()
+		})
 	}
 }
 
