@@ -3,7 +3,7 @@
 This document provides some instructions that may be helpfully when contributing changes and testing the adapter locally.
 
 You will need a working Go environment to test and contribute to this project.
-This project uses `dep` for dependency management. Follow the [installation instructions](https://golang.github.io/dep/docs/installation.html) for your operating system.
+This project uses [go modules](https://github.com/golang/go/wiki/Modules) for dependency management.
 
   * [Testing the adapter](#testing-the-adapter)
     * [Running tests](#running-tests)

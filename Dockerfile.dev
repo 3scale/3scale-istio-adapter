@@ -1,6 +1,6 @@
-FROM golang:1.10 AS build
+FROM golang:1.11 AS build
 
-ENV WORKDIR=/go/src/github.com/3scale/3scale-istio-adapter
+ENV WORKDIR=/tmp/build
 
 ADD . ${WORKDIR}
 WORKDIR ${WORKDIR}
@@ -8,7 +8,9 @@ WORKDIR ${WORKDIR}
 RUN go build -race -gcflags "all=-N -l" -o /tmp/3scale-istio-adapter cmd/server/main.go
 
 
-FROM philipgough/dlv:centos as debugger
+FROM philipgough/go-centos:1.11.9 as debugger
+
+RUN go get -u github.com/derekparker/delve/cmd/dlv
 
 FROM centos
 
