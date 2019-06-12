@@ -1,8 +1,8 @@
-# This code was generated as part of the release process using make release for version v0.6.0
+# This code was generated as part of the release process using make release for version v0.7.0
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  creationTimestamp: "2019-05-02T12:50:00Z"
+  creationTimestamp: "2019-06-12T14:25:08Z"
   labels:
     app: 3scale-istio-adapter
   name: 3scale-istio-adapter
@@ -18,7 +18,7 @@ spec:
     type: RollingUpdate
   template:
     metadata:
-      creationTimestamp: "2019-05-02T12:50:00Z"
+      creationTimestamp: "2019-06-12T14:25:08Z"
       labels:
         app: 3scale-istio-adapter
     spec:
@@ -30,7 +30,7 @@ spec:
           value: "true"
         - name: THREESCALE_METRICS_PORT
           value: "8080"
-        image: quay.io/3scale/3scale-istio-adapter:v0.6.0
+        image: quay.io/3scale/3scale-istio-adapter:v0.7.0
         imagePullPolicy: Always
         livenessProbe:
           initialDelaySeconds: 10
