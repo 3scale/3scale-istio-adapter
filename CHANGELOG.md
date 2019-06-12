@@ -2,6 +2,45 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 0.7.0 - 2019-06-12
+
+## Added
+
+- Support for reading a services 3scale service ID from the pod's label providing a service discovery mechanism.
+  This in turn requires a `name` flag to be added to the CLI tool.
+  ([#93](https://github.com/3scale/3scale-istio-adapter/pull/93))
+- A `namesapce` flag has been added to the CLI tool to support multi-tenancy in Maistra.
+  ([#103](https://github.com/3scale/3scale-istio-adapter/pull/103))
+
+## Changed
+
+- The CLI tool now generates different output:
+  The `destination.labels["service-mesh.3scale.net"]` and `destination.labels["service-mesh.3scale.net/uid"]` labels have been changed solely to
+  `destination.labels["service-mesh.3scale.net/credentials"]` in order to support service discovery and the `context.reporter.kind == "inbound"` label has
+  been added to match for ingress only traffic.
+  ([#93](https://github.com/3scale/3scale-istio-adapter/pull/93))
+- The Docker image is now built from RHEL 8's UBI minimal base image in place of Alpine image.
+  The VERSION argument is derived at build time unless specified.
+  ([#98](https://github.com/3scale/3scale-istio-adapter/pull/98))
+- In support of multi-tenancy in Maistra, the `namespace` field has been removed from the provided sample templates.
+  ([#103](https://github.com/3scale/3scale-istio-adapter/pull/103))
+- The removal of non-required labels and the reformatting of some existing labels has been made to Prometheus metrics reporting latency.
+  ([#105](https://github.com/3scale/3scale-istio-adapter/pull/105))
+- The dependency on Istio's `api` and `istio` packages is now based on version `1.1.7`
+  ([#107](https://github.com/3scale/3scale-istio-adapter/pull/107))
+
+## Fixed
+
+- Latency reports between the adapter and 3scale system are now reported correctly.
+  ([#105](https://github.com/3scale/3scale-istio-adapter/pull/105))
+
+## Removed
+
+- The `github.com/3scale/3scale-istio-adapter/pkg/templating` package has been removed.
+  In turn the `service`, `uid` and `fixup` flags have been removed from the CLI.
+  ([#93](https://github.com/3scale/3scale-istio-adapter/pull/93))
+
+
 ## 0.6.0 - 2019-05-02
 
 ## Added

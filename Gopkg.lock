@@ -741,7 +741,7 @@
   version = "v2.2.1"
 
 [[projects]]
-  digest = "1:fd41d0ec5894d4c8c064fe52ea083c8a82185128c180fe2e475d6da455e11924"
+  digest = "1:063d6a64682a2dfec588e439dc559ec6400440a08f047cd4f9a49e8233ad9729"
   name = "istio.io/api"
   packages = [
     "authentication/v1alpha1",
@@ -755,11 +755,11 @@
     "rbac/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "a68257e399a822e1797317563da8cc78edbde8c1"
-  version = "1.1.0"
+  revision = "4a9a2a12a70047350bf30dbb4a15f2a0cb683dc9"
+  version = "1.1.7"
 
 [[projects]]
-  digest = "1:f271e4d071dcdb2d301af4bb266ae584f121efb65a63a72a5602d91445ccf1a0"
+  digest = "1:9a75d34b9a3a3d4aeed2247aa1a8f00e91581f4f0242bc5bd063a7cae14bc187"
   name = "istio.io/istio"
   packages = [
     "galley/pkg/meshconfig",
@@ -840,8 +840,8 @@
     "pkg/version",
   ]
   pruneopts = "T"
-  revision = "82797c0c0649a3f73029b33957ae105260458c6e"
-  version = "1.1.0"
+  revision = "eec7a74473deee98cad0a996f41a32a47dd453c2"
+  version = "1.1.7"
 
 [[projects]]
   branch = "release-1.11"
@@ -1141,10 +1141,11 @@
     "k8s.io/apimachinery/pkg/util/validation",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/fake",
+    "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/rest/fake",
+    "k8s.io/client-go/testing",
     "k8s.io/client-go/tools/clientcmd",
-    "k8s.io/client-go/util/homedir",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
