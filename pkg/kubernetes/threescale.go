@@ -55,7 +55,7 @@ func NewThreescaleHandlerSpec(accessToken, systemURL, svcID string) (*HandlerSpe
 			AccessToken: accessToken,
 		},
 		Connection: v1beta1.Connection{
-			Address: fmt.Sprintf("%s:%d", defaultThreescaleAdapterListenAddress, defaultThreescaleAdapterListenPort),
+			Address: fmt.Sprintf("dns:///%s:%d", defaultThreescaleAdapterListenAddress, defaultThreescaleAdapterListenPort),
 		},
 	}, nil
 }
