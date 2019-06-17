@@ -756,10 +756,10 @@
   ]
   pruneopts = "NUT"
   revision = "4a9a2a12a70047350bf30dbb4a15f2a0cb683dc9"
-  version = "1.1.7"
+  version = "1.1.8"
 
 [[projects]]
-  digest = "1:9a75d34b9a3a3d4aeed2247aa1a8f00e91581f4f0242bc5bd063a7cae14bc187"
+  digest = "1:7505747a0302197ed9e23a5199a92413030fcd4a083e6efe6fda7f69878c2d9f"
   name = "istio.io/istio"
   packages = [
     "galley/pkg/meshconfig",
@@ -840,8 +840,8 @@
     "pkg/version",
   ]
   pruneopts = "T"
-  revision = "eec7a74473deee98cad0a996f41a32a47dd453c2"
-  version = "1.1.7"
+  revision = "145b18a441045d6fad33d7916380d8642c7bf21d"
+  version = "1.1.8"
 
 [[projects]]
   branch = "release-1.11"
@@ -1125,6 +1125,7 @@
     "github.com/prometheus/client_golang/prometheus/testutil",
     "github.com/spf13/viper",
     "google.golang.org/grpc",
+    "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/keepalive",
     "istio.io/api/mixer/adapter/model/v1beta1",
     "istio.io/api/policy/v1beta1",
