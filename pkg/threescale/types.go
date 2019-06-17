@@ -3,6 +3,7 @@ package threescale
 import (
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/3scale/3scale-go-client/client"
 
@@ -29,6 +30,7 @@ type Threescale struct {
 type AdapterConfig struct {
 	systemCache     *ProxyConfigCache
 	metricsReporter *prometheus.Reporter
+	keepAliveMaxAge time.Duration
 }
 
 // reportMetrics - function that defines requirements for reporting metrics around interactions between 3scale and the adapter

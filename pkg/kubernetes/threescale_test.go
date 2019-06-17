@@ -55,7 +55,7 @@ func TestNewThreescaleHandlerSpec(t *testing.T) {
 					AccessToken: "12345",
 				},
 				Connection: v1beta1.Connection{
-					Address: defaultThreescaleAdapterListenAddress + ":" + strconv.Itoa(defaultThreescaleAdapterListenPort),
+					Address: "dns:///" + defaultThreescaleAdapterListenAddress + ":" + strconv.Itoa(defaultThreescaleAdapterListenPort),
 				},
 			},
 		},
@@ -73,7 +73,7 @@ func TestNewThreescaleHandlerSpec(t *testing.T) {
 					AccessToken: "12345",
 				},
 				Connection: v1beta1.Connection{
-					Address: defaultThreescaleAdapterListenAddress + ":" + strconv.Itoa(defaultThreescaleAdapterListenPort),
+					Address: "dns:///" + defaultThreescaleAdapterListenAddress + ":" + strconv.Itoa(defaultThreescaleAdapterListenPort),
 				},
 			},
 		},
