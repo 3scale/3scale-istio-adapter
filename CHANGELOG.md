@@ -2,6 +2,23 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 0.7.1 - 2019-06-17
+
+## Added
+
+- A configuration option to the gRPC server (`THREESCALE_LOG_GRPC`) to allow suppression of gRPC logging.
+  A configuration option to the gRPC server (`THREESCALE_GRPC_CONN_MAX_SECONDS`) to allow setting specific keepalive parameters.
+  ([#104](https://github.com/3scale/3scale-istio-adapter/pull/104))
+
+## Changed
+
+- The Kubernetes service is now headless to support client side load balancing.
+  The CLI tool now generates the connection address prefixed with `dns:///`.
+  ([#104](https://github.com/3scale/3scale-istio-adapter/pull/104))
+- The dependency on Istio's `api` and `istio` packages is now based on version `1.1.8`
+  ([#108](https://github.com/3scale/3scale-istio-adapter/pull/108))
+
+
 ## 0.7.0 - 2019-06-12
 
 ## Added
