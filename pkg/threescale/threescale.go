@@ -25,10 +25,10 @@ import (
 	"github.com/gogo/googleapis/google/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
-	"istio.io/api/mixer/adapter/model/v1beta1"
+	v1beta11 "istio.io/api/mixer/adapter/model/v1beta1"
 	"istio.io/istio/mixer/pkg/status"
 	"istio.io/istio/mixer/template/authorization"
-	"istio.io/istio/pkg/log"
+	"istio.io/pkg/log"
 )
 
 // Implement required interface
@@ -48,8 +48,8 @@ const (
 )
 
 // HandleAuthorization takes care of the authorization request from mixer
-func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
-	var result v1beta1.CheckResult
+func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta11.CheckResult, error) {
+	var result v1beta11.CheckResult
 	var systemClient *sysC.ThreeScaleClient
 	var proxyConfElement sysC.ProxyConfigElement
 	var backendClient *backendC.ThreeScaleClient
