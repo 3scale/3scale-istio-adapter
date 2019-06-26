@@ -9,10 +9,12 @@ option go_package="config";
 
 // 3scale adapter configuration
 message Params {
-    // Unique identification string for the service/api
+    // Unique identification string for the service/api - optional - can be specified as label in workload
     string service_id = 1;
     // Url to connect to 3scale system
     string system_url = 2;
     // Access token used to authenticate against the 3scale APIs
     string access_token = 3;
+    // Url to connect to 3scale backend - optional - override system config to use internal dns etc..
+    string backend_url = 4;
 }
