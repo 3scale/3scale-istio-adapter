@@ -22,6 +22,9 @@ import (
 
 func TestHandleAuthorization(t *testing.T) {
 	ctx := context.TODO()
+
+	const internalBackendUrl = "some.internal.address.sv.cluster.local:3000"
+
 	inputs := []struct {
 		name         string
 		params       pb.Params
@@ -155,6 +158,25 @@ func TestHandleAuthorization(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Test override with internal DNS",
+			params: pb.Params{
+				ServiceId:   "internal-svc",
+				SystemUrl:   "https://www.fake-system.3scale.net",
+				AccessToken: "happy-path",
+				BackendUrl:  "http://" + internalBackendUrl,
+			},
+			expectStatus: int32(rpc.OK),
+			template: authorization.InstanceMsg{
+				Action: &authorization.ActionMsg{
+					Method: "get",
+					Path:   "/",
+				},
+				Subject: &authorization.SubjectMsg{
+					User: "secret",
+				},
+			},
+		},
 	}
 	for _, input := range inputs {
 		t.Run(input.name, func(t *testing.T) {
@@ -189,6 +211,13 @@ func TestHandleAuthorization(t *testing.T) {
 							StatusCode: 403,
 							Body:       ioutil.NopCloser(bytes.NewBufferString(fake.GenInvalidUserKey("secret"))),
 							Header:     make(http.Header),
+						}
+					}
+
+					// assert override works for internal DNS via config
+					if req.Host == internalBackendUrl {
+						if params["service_id"][0] != "internal-svc" {
+							t.Errorf("expected to be able to override backend url via config")
 						}
 					}
 
