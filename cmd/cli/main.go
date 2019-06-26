@@ -15,6 +15,7 @@ var (
 	accessToken   string
 	svcID         string
 	threescaleURL string
+	backendURL    string
 	name          string
 	outputTo      string
 	authType      int
@@ -27,6 +28,7 @@ const (
 	nameDescription       = "Unique name for this (url,token) pair (required)"
 	tokenDescription      = "3scale access token (required)"
 	threescaleDescription = "The 3scale admin portal URL (required)"
+	backendDescription    = "The 3scale backend url"
 
 	svcIDDescription     = "The ID of the 3scale service. If set the generated configuration will apply to this service only."
 	outputDescription    = "File to output templates. Prints to stdout if none provided"
@@ -48,6 +50,8 @@ func init() {
 
 	flag.StringVar(&threescaleURL, "url", urlDefault, threescaleDescription)
 	flag.StringVar(&threescaleURL, "u", urlDefault, threescaleDescription+" (short)")
+
+	flag.StringVar(&backendURL, "backend-url", urlDefault, backendDescription)
 
 	flag.StringVar(&outputTo, "output", outputDefault, outputDescription)
 	flag.StringVar(&outputTo, "o", outputDefault, outputDescription+" (short)")
@@ -105,6 +109,9 @@ func execute() error {
 	if err != nil {
 		panic("error creating required handler " + err.Error())
 	}
+
+	// set the optional backend url override
+	handler.Params.BackendUrl = backendURL
 
 	var instance *kubernetes.BaseInstance
 	switch authType {

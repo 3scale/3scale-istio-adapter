@@ -17,6 +17,7 @@ The program accepts a number of flags which are documented in the table below:
 |    `-n`,`--namespace`|  Namespace to generate templates for                                            |   No    | istio-system |
 |    `-t`,`--token`    |  3scale access token                                                            |   Yes   |              |
 |    `-u`,`--url`      |  3scale Admin Portal URL                                                        |   Yes   |              |
+|    `--backend-url`   |  3scale Backend URL. If set, overrides the value read from system configuration |   No    |              |
 |    `--service`       |  3scale Service ID. If set, generated config will apply to this service only    |   No    |              |
 |    `--auth`          |  3scale authentication pattern to specify (1=Api Key, 2=App Id/App Key, 3=OIDC) |   No    | Hybrid       |
 |    `-o`,`--output`   |  File to save produced manifests to                                             |   No    | STDOUT       |

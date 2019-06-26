@@ -53,6 +53,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	var systemClient *sysC.ThreeScaleClient
 	var proxyConfElement sysC.ProxyConfigElement
 	var backendClient *backendC.ThreeScaleClient
+	var backendURL string
 	var err error
 
 	log.Debugf("Got instance %+v", r.Instance)
@@ -84,7 +85,12 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		goto out
 	}
 
-	backendClient, err = s.backendClientBuilder(proxyConfElement.ProxyConfig.Content.Proxy.Backend.Endpoint)
+	backendURL = cfg.BackendUrl
+	if backendURL == "" {
+		backendURL = proxyConfElement.ProxyConfig.Content.Proxy.Backend.Endpoint
+	}
+
+	backendClient, err = s.backendClientBuilder(backendURL)
 	if err != nil {
 		result.Status, err = rpcStatusErrorHandler("error creating 3scale backend client", status.WithInvalidArgument, err)
 		goto out
