@@ -46,6 +46,36 @@ unit_coverage: unit ## Runs unit tests and generates a html coverage report
 integration_coverage: integration ## Runs integration tests and generates a html coverage report
 	go tool cover -html="$(PROJECT_PATH)/_output/integration.cov"
 
+## Local cluster utilities
+
+.PHONY: local.cluster.environment
+local.cluster.environment: local.cluster.up local.install-istio local.install-adapter local.install-httpbin ## Starts a k3s cluster with istio installed alongside the adapter and httpbin sample app
+
+.PHONY: local.cluster.up
+local.cluster.up: ## Starts a k3s cluster
+	docker-compose -f $(PROJECT_PATH)/scripts/local-cluster/docker-compose.yaml up -d
+	sleep 5
+	kubectl --kubeconfig $(PROJECT_PATH)/scripts/local-cluster/kubeconfig.yaml wait --for=condition=available --timeout=60s deployment/coredns -n kube-system
+
+.PHONY: local.cluster.clean
+local.cluster.clean: ## Clean up of k3s cluster
+	docker-compose -f $(PROJECT_PATH)/scripts/local-cluster/docker-compose.yaml down -v --remove-orphans
+
+.PHONY: local.install-istio
+local.install-istio: export KUBECONFIG=$(PROJECT_PATH)/scripts/local-cluster/kubeconfig.yaml
+local.install-istio: install-istio
+
+.PHONY: local.install-adapter
+local.install-adapter: export KUBECONFIG=$(PROJECT_PATH)/scripts/local-cluster/kubeconfig.yaml
+local.install-adapter:
+	kubectl apply -n istio-system -f $(PROJECT_PATH)/deploy/
+	kubectl apply -n istio-system -f $(PROJECT_PATH)/istio/authorization-template.yaml -f $(PROJECT_PATH)/istio/threescale-adapter.yaml
+
+.PHONY: local.install-httpbin
+local.install-httpbin: export KUBECONFIG=$(PROJECT_PATH)/scripts/local-cluster/kubeconfig.yaml
+local.install-httpbin:
+	. $(PROJECT_PATH)/scripts/istio-utils.sh; deploy_httpbin
+
 ## Docker targets ##
 
 .PHONY: docker-build
@@ -82,6 +112,14 @@ run-adapter: ## Run the adapter
 .PHONY: run-mixer-server
 run-mixer-server: ## Run the mixer server with test configuration
 	mixs server --configStoreURL=fs://$(PROJECT_PATH)/testdata
+
+.PHONY: get-istio
+get-istio: ## Fetch istio release templates - Specify version as ISTIO_VERSION
+	. $(PROJECT_PATH)/scripts/istio-utils.sh; get_istio
+
+.PHONY: install-istio
+install-istio: get-istio ## Install istio version into kubernetes cluster via helm - set ISTIO_VERSION to specify version directly
+	. $(PROJECT_PATH)/scripts/istio-utils.sh; install_istio
 
 ## Release ##
 
