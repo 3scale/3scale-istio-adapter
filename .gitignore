@@ -13,6 +13,8 @@
 
 _output/
 
+*kubeconfig.yaml
+
 # OS generated files #
 ######################
 .DS_Store
