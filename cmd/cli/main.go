@@ -107,7 +107,7 @@ func execute() error {
 
 	handler, err := kubernetes.NewThreescaleHandlerSpec(accessToken, threescaleURL, svcID)
 	if err != nil {
-		panic("error creating required handler " + err.Error())
+		return fmt.Errorf("error creating required handler " + err.Error())
 	}
 
 	// set the optional backend url override
@@ -134,7 +134,7 @@ func execute() error {
 
 	cg, err := kubernetes.NewConfigGenerator(name, *handler, *instance, rule)
 	if err != nil {
-		panic("error creating config generator " + err.Error())
+		return fmt.Errorf("error creating config generator " + err.Error())
 	}
 
 	cg.SetNamespace(namespace)
