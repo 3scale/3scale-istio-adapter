@@ -20,8 +20,6 @@ An [out of process gRPC Adapter](https://github.com/istio/istio/wiki/Mixer-Out-O
 
 ## Overview
 
-*This project is currently in alpha and is not yet supported. Provided templates and configuration may change*
-
 When running Istio in a Kubernetes or OpenShift cluster, this adapter allows a user to label their service
 running within the mesh, and have that service integrated with the [3scale Api Management solution](https://www.3scale.net/).
 
@@ -78,6 +76,9 @@ spec:
    address: "threescale-istio-adapter:3333"
 ```
 
+Optionally, you can provide a `backedn_url` field within the params section to override the URL provided by 3scale configuration. This may be useful if the adapter runs
+on the same cluster as 3scale platform (on-premise) and you wish to leverage the internal cluster DNS.
+
 Create the required resources in the desired istio namespace. By default, this is `istio-system`, however, in a multi-tenant environment,
 this could be different.
 
@@ -125,7 +126,7 @@ When you have decided what pattern best fits your needs, you can modify the `ins
 You can also decide if authentication credentials should be read from headers or query parameters, or allow both.
 
 It is important to note that when specifying values from headers, Istio expects they key to be lower case.
-So for example if you want to send a header as `X-User-Key`, this must be referenced in the configuration as `request.headers["x-user-key"]`.
+So for example if you want to send a header as `User-Key`, this must be referenced in the configuration as `request.headers["user-key"]`.
 
 
 #### API Key Pattern
@@ -140,14 +141,14 @@ spec:
   template: threescale-authorization
   params:
     subject:
-      user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
+      user: request.query_params["user_key"] | request.headers["user-key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"
       service: destination.labels["service-mesh.3scale.net/service-id"] | ""
 ```
 
-This configuration will examine the `user_key` query parameter, followed by the `x-user-key` header in search of the api key. As mentioned, this can be restricted to one or the other by removing that particular attribute.
+This configuration will examine the `user_key` query parameter, followed by the `user-key` header in search of the api key. As mentioned, this can be restricted to one or the other by removing that particular attribute.
 The order can be changed to determine precedence.
 
 If you would like for the adapter to examine a different, for example query parameter than `user_key`, you would simply change `[user_key]` to `[foo]`. The same pattern applies to the headers.
@@ -167,8 +168,8 @@ spec:
   template: threescale-authorization
   params:
     subject:
-        app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
-        app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
+        app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"
@@ -190,7 +191,7 @@ spec:
   template: threescale-authorization
   params:
     subject:
-        app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
+        app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
         client_id: request.auth.claims["azp"] | ""
     action:
       path: request.url_path
@@ -234,10 +235,10 @@ spec:
   template: threescale-authorization
   params:
     subject:
-      user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
+      user: request.query_params["user_key"] | request.headers["user-key"] | ""
       properties:
-        app_id: request.query_params["app_id"] | request.headers["x-app-id"] | ""
-        app_key: request.query_params["app_key"] | request.headers["x-app-key"] | ""
+        app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"
