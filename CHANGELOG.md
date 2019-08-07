@@ -2,6 +2,18 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 1.0.0 - 2019-08-07
+
+## Added
+
+- A field to the handler params (`backend_url`) to allow overriding the 3scale backend the adapter should reach out to.
+  ([#111](https://github.com/3scale/3scale-istio-adapter/pull/111))
+
+## Fixed
+
+- The CLI tool no longer panics when provided with a name that fails Kubernetes validation.
+  ([#113](https://github.com/3scale/3scale-istio-adapter/pull/113))
+
 ## 0.7.1 - 2019-06-17
 
 ## Added
