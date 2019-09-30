@@ -9,14 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/googleapis/google/rpc"
-
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
 
 	"github.com/3scale/3scale-go-client/fake"
 	pb "github.com/3scale/3scale-istio-adapter/config"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	sysFake "github.com/3scale/3scale-porta-go-client/fake"
+	"github.com/gogo/googleapis/google/rpc"
 	"github.com/gogo/protobuf/types"
+
 	"istio.io/istio/mixer/template/authorization"
 )
 
@@ -233,6 +234,7 @@ func TestHandleAuthorization(t *testing.T) {
 				client: httpClient,
 				conf: &AdapterConfig{
 					metricsReporter: reporter,
+					backend:         backend.DefaultBackend{},
 				},
 			}
 			result, _ := c.HandleAuthorization(ctx, r)
@@ -257,7 +259,7 @@ func TestHandleAuthorization(t *testing.T) {
 
 func Test_NewThreescale(t *testing.T) {
 	addr := "0"
-	threescaleConf := NewAdapterConfig(nil, nil, time.Minute)
+	threescaleConf := NewAdapterConfig(nil, nil, nil, time.Minute)
 	s, err := NewThreescale(addr, http.DefaultClient, threescaleConf)
 	if err != nil {
 		t.Errorf("Error running threescale server %#v", err)

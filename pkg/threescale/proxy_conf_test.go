@@ -11,14 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
-
-	"github.com/gogo/googleapis/google/rpc"
-
 	"github.com/3scale/3scale-go-client/fake"
 	pb "github.com/3scale/3scale-istio-adapter/config"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"github.com/3scale/3scale-porta-go-client/client"
 	sysFake "github.com/3scale/3scale-porta-go-client/fake"
+	"github.com/gogo/googleapis/google/rpc"
 	"github.com/gogo/protobuf/types"
 
 	"istio.io/api/mixer/adapter/model/v1beta1"
@@ -68,7 +67,7 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 	cfg := &pb.Params{ServiceId: "123", SystemUrl: "https://www.fake-system.3scale.net"}
 	cacheKey := pc.getCacheKeyFromCfg(cfg)
 	pc.set(cacheKey, proxyConf, cacheRefreshStore{})
-	conf := &AdapterConfig{systemCache: pc}
+	conf := &AdapterConfig{systemCache: pc, backend: backend.DefaultBackend{}}
 	c := &Threescale{client: httpClient, conf: conf}
 
 	inputs := []testInput{
@@ -210,7 +209,7 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	// Create cache manager
 	pc := NewProxyConfigCache(ttl, ttl-(time.Second*1), DefaultCacheUpdateRetries, 3)
 	proxyConf = unmarshalConfig(t)
-	conf := &AdapterConfig{systemCache: pc}
+	conf := &AdapterConfig{systemCache: pc, backend: backend.DefaultBackend{}}
 	c := &Threescale{client: httpClient, conf: conf}
 
 	//Pre-Populate the cache
@@ -361,7 +360,7 @@ func TestGetFromRemote(t *testing.T) {
 	inputs := []struct {
 		name       string
 		httpClient func() *http.Client
-		metricsFn  reportMetrics
+		metricsFn  metrics.ReportMetricsFn
 	}{
 		{
 			name: "Test metrics are reported success case",
