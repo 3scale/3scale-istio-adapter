@@ -5,8 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/3scale/3scale-go-client/client"
-
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
 	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"google.golang.org/grpc"
 )
@@ -30,17 +29,6 @@ type Threescale struct {
 type AdapterConfig struct {
 	systemCache     *ProxyConfigCache
 	metricsReporter *prometheus.Reporter
+	backend         backend.Backend
 	keepAliveMaxAge time.Duration
-}
-
-// reportMetrics - function that defines requirements for reporting metrics around interactions between 3scale and the adapter
-type reportMetrics func(serviceID string, l prometheus.LatencyReport, s prometheus.StatusReport)
-
-type authRepFn func(auth client.TokenAuth, key string, svcID string, params client.AuthRepParams, ext map[string]string) (client.ApiResponse, error)
-
-type authRepRequest struct {
-	svcID   string
-	authKey string
-	params  client.AuthRepParams
-	auth    client.TokenAuth
 }
