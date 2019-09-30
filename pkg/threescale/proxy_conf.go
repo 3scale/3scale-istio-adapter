@@ -360,7 +360,7 @@ func isExpired(currentTime time.Time, expiryTime time.Time) bool {
 }
 
 // GetFromRemote is used to fetch the proxy config from 3scale using the client
-func GetFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report reportMetrics) (sysC.ProxyConfigElement, error) {
+func GetFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report metrics.ReportMetricsFn) (sysC.ProxyConfigElement, error) {
 	log.Debugf("proxy config for service id %s is being fetching from 3scale", cfg.ServiceId)
 
 	start := time.Now()
