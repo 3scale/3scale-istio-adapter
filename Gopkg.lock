@@ -338,6 +338,13 @@
   version = "v1.0.2"
 
 [[projects]]
+  digest = "1:f1a78353e6ea232ec554ccbd787534f8a451e724cb7ecf57ec241c664d76853e"
+  name = "github.com/orcaman/concurrent-map"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "2693aad1ed7517c2bb5b3a42cb8fde88b941d89d"
+
+[[projects]]
   digest = "1:51ea800cff51752ff68e12e04106f5887b4daec6f9356721238c28019f0b42db"
   name = "github.com/pelletier/go-toml"
   packages = ["."]
@@ -1120,6 +1127,7 @@
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
+    "github.com/orcaman/concurrent-map",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/prometheus/client_golang/prometheus/testutil",
