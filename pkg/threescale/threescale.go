@@ -20,6 +20,7 @@ import (
 
 	backendC "github.com/3scale/3scale-go-client/client"
 	"github.com/3scale/3scale-istio-adapter/config"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
 	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	sysC "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
@@ -151,9 +152,6 @@ func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMs
 
 		// Application Key auth pattern
 		userKey string
-
-		// Function to be called when authn patter has been determined
-		authRep authRepFn
 	)
 
 	if request.Action.Path == "" {
@@ -186,45 +184,31 @@ func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMs
 			request.Action.Method, request.Action.Path))
 	}
 
-	authRepRequest := authRepRequest{
-		svcID: svcID,
-		auth: backendC.TokenAuth{
-			Type:  proxyConf.Content.BackendAuthenticationType,
-			Value: proxyConf.Content.BackendAuthenticationValue,
-		}}
-
-	if userKey != "" {
-		authRepRequest.authKey = userKey
-		authRepRequest.params = backendC.NewAuthRepParamsUserKey("", "", metrics, nil)
-		authRep = client.AuthRepUserKey
-	} else {
-		authRepRequest.authKey = appID
-		authRepRequest.params = backendC.NewAuthRepParamsAppID(appKey, "", "", metrics, nil)
-		authRep = client.AuthRepAppID
+	authRepRequest := backend.AuthRepRequest{
+		ServiceID: svcID,
+		Request: backendC.Request{
+			Application: backendC.Application{
+				AppID: backendC.AppID{
+					ID:     appID,
+					AppKey: appKey,
+				},
+				UserKey: userKey,
+			},
+			Credentials: backendC.TokenAuth{
+				Type:  proxyConf.Content.BackendAuthenticationType,
+				Value: proxyConf.Content.BackendAuthenticationValue,
+			},
+		},
+		Params: backendC.AuthRepParams{
+			AuthorizeParams: backendC.AuthorizeParams{
+				Metrics: metrics,
+			},
+		},
 	}
-	return s.apiRespConverter(s.doAuthRep(authRepRequest, authRep, proxyConf.Content.Proxy.Backend.Endpoint))
+	return s.apiRespConverter(s.conf.backend.AuthRep(authRepRequest, client))
 }
 
-// doAuthRep is responsible for calling 3scale with the provided function and generating required metrics about the request
-func (s *Threescale) doAuthRep(request authRepRequest, callback authRepFn, backendEndpoint string) (backendC.ApiResponse, error) {
-	const endpoint = "AuthRep"
-	const target = prometheus.Backend
-	var (
-		start   time.Time
-		elapsed time.Duration
-	)
-
-	start = time.Now()
-	resp, apiErr := callback(request.auth, request.authKey, request.svcID, request.params, nil)
-	elapsed = time.Since(start)
-
-	go s.reportMetrics(request.svcID, prometheus.NewLatencyReport(endpoint, elapsed, backendEndpoint, target),
-		prometheus.NewStatusReport(endpoint, resp.StatusCode, backendEndpoint, target))
-
-	return resp, apiErr
-}
-
-func (s *Threescale) apiRespConverter(resp backendC.ApiResponse, e error) rpc.Status {
+func (s *Threescale) apiRespConverter(resp backend.Response, e error) rpc.Status {
 	if e != nil {
 		status, _ := rpcStatusErrorHandler("error calling 3scale backend", status.WithUnknown, e)
 		return status
@@ -383,9 +367,19 @@ func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Serve
 }
 
 // NewAdapterConfig - Creates configuration for Threescale adapter
-func NewAdapterConfig(cache *ProxyConfigCache, metrics *prometheus.Reporter, grpcKeepalive time.Duration) *AdapterConfig {
+func NewAdapterConfig(cache *ProxyConfigCache, metrics *prometheus.Reporter, b backend.Backend, grpcKeepalive time.Duration) *AdapterConfig {
 	if cache != nil {
 		cache.metricsReporter = metrics
 	}
-	return &AdapterConfig{cache, metrics, grpcKeepalive}
+
+	var reportFn prometheus.ReportMetricsFn
+	if metrics != nil {
+		reportFn = metrics.ReportMetrics
+	}
+
+	if b == nil {
+		b = backend.DefaultBackend{ReportFn: reportFn}
+	}
+
+	return &AdapterConfig{cache, metrics, b, grpcKeepalive}
 }

@@ -42,6 +42,9 @@ type StatusReport struct {
 // Target is a legitimate target to report 3scale metrics from
 type Target string
 
+// ReportMetricsFn - function that defines requirements for reporting metrics around interactions between 3scale and the adapter
+type ReportMetricsFn func(serviceID string, l LatencyReport, s StatusReport)
+
 // Backend target should be used when reporting latency or status codes from 3scale backend
 const Backend Target = "Backend"
 
