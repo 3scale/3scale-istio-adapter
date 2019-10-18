@@ -48,7 +48,7 @@ func TestCachedBackend_AuthRep(t *testing.T) {
 			name:    "Test unaffected metrics returns success",
 			metrics: client.Metrics{"orphan": 1},
 			cacheInit: func() Cacheable {
-				return NewLocalCache()
+				return NewLocalCache(nil, nil)
 			},
 
 			expectAuthz: true,
@@ -57,11 +57,11 @@ func TestCachedBackend_AuthRep(t *testing.T) {
 			name:    "Test direct hit on metric creates increment",
 			metrics: client.Metrics{"hits": 1},
 			cacheInit: func() Cacheable {
-				return NewLocalCache()
+				return NewLocalCache(nil, nil)
 			},
 			verifyBehaviour: func(cacheable Cacheable) bool {
 				cv, _ := cacheable.Get(cacheKey)
-				return cv["hits"][client.Minute].current == 2
+				return cv.LimitCounter["hits"][client.Minute].current == 2
 			},
 			expectAuthz: true,
 		},
@@ -69,11 +69,11 @@ func TestCachedBackend_AuthRep(t *testing.T) {
 			name:    "Test child metric increments parent metric",
 			metrics: client.Metrics{"example": 1},
 			cacheInit: func() Cacheable {
-				return NewLocalCache()
+				return NewLocalCache(nil, nil)
 			},
 			verifyBehaviour: func(cacheable Cacheable) bool {
 				cv, _ := cacheable.Get(cacheKey)
-				return cv["hits"][client.Minute].current == 2
+				return cv.LimitCounter["hits"][client.Minute].current == 2
 			},
 			expectAuthz: true,
 		},
@@ -81,7 +81,7 @@ func TestCachedBackend_AuthRep(t *testing.T) {
 			name:    "Test direct hit on metric causes unauthorized",
 			metrics: client.Metrics{"hits": 4},
 			cacheInit: func() Cacheable {
-				return NewLocalCache()
+				return NewLocalCache(nil, nil)
 			},
 			expectAuthz: false,
 		},
@@ -89,7 +89,7 @@ func TestCachedBackend_AuthRep(t *testing.T) {
 			name:    "Test hit on child metric causes unauthorized",
 			metrics: client.Metrics{"example": 4},
 			cacheInit: func() Cacheable {
-				return NewLocalCache()
+				return NewLocalCache(nil, nil)
 			},
 			expectAuthz: false,
 		},
@@ -101,7 +101,7 @@ func TestCachedBackend_AuthRep(t *testing.T) {
 			threescaleClient := client.NewThreeScale(be, httpClient)
 
 			cache := input.cacheInit()
-			backend := NewCachedBackend(cache, nil)
+			backend, _ := NewCachedBackend(cache, nil)
 
 			request := mockRequest
 			request.Params.Metrics = input.metrics
