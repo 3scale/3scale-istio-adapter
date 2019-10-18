@@ -7,7 +7,6 @@ import (
 
 	backend "github.com/3scale/3scale-go-client/client"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
-	cmap "github.com/orcaman/concurrent-map"
 )
 
 const (
@@ -19,6 +18,7 @@ const (
 type Cacheable interface {
 	Get(cacheKey string) (CacheValue, bool)
 	Set(cacheKey string, cv CacheValue)
+	Report()
 }
 
 // Limit captures the current state of the rate limit for a particular time period
@@ -30,7 +30,16 @@ type Limit struct {
 }
 
 // CacheValue which should be stored in cache implementation
-type CacheValue map[string]map[backend.LimitPeriod]*Limit
+type CacheValue struct {
+	LastResponse backend.ApiResponse
+	LimitCounter map[string]map[backend.LimitPeriod]*Limit
+	ReportWithValues
+}
+
+// Allows a reporting function to replay a request to report asynchronously
+type ReportWithValues struct {
+	Client *backend.ThreeScaleClient
+}
 
 // CachedBackend provides a pluggable cache enabled 'Backend' implementation
 // Supports reporting metrics for non-cached responses.
@@ -41,10 +50,6 @@ type CachedBackend struct {
 	hierarchyTree hierarchyTree
 }
 
-type LocalCache struct {
-	ds cmap.ConcurrentMap
-}
-
 // map to represent parent --> children metric relationship
 type metricParentToChildren map[string][]string
 
@@ -52,37 +57,17 @@ type metricParentToChildren map[string][]string
 type hierarchyTree map[string]metricParentToChildren
 
 // NewCachedBackend returns a pointer to a CachedBackend with a default LocalCache if no custom implementation has been provided
-func NewCachedBackend(cache Cacheable, rfn metrics.ReportMetricsFn) *CachedBackend {
+// and a channel which can be closed to stop the background process from reporting.
+func NewCachedBackend(cache Cacheable, rfn metrics.ReportMetricsFn) (*CachedBackend, chan struct{}) {
+	stop := make(chan struct{})
 	if cache == nil {
-		cache = NewLocalCache()
+		cache = NewLocalCache(nil, stop)
 	}
 	return &CachedBackend{
 		ReportFn:      rfn,
 		cache:         cache,
 		hierarchyTree: make(hierarchyTree),
-	}
-}
-
-// NewLocalCache returns a pointer to a LocalCache with an initialised empty data structure
-func NewLocalCache() *LocalCache {
-	return &LocalCache{ds: cmap.New()}
-}
-
-// Get entries for LocalCache
-func (l LocalCache) Get(cacheKey string) (CacheValue, bool) {
-	var cv CacheValue
-	v, ok := l.ds.Get(cacheKey)
-	if !ok {
-		return cv, ok
-	}
-
-	cv = v.(CacheValue)
-	return cv, ok
-}
-
-// Set entries for LocalCache
-func (l LocalCache) Set(cacheKey string, cv CacheValue) {
-	l.ds.Set(cacheKey, cv)
+	}, stop
 }
 
 // AuthRep provides a combination of authorizing a request and reporting metrics to 3scale
@@ -113,7 +98,7 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 		// recompute new metrics
 		affectedMetrics, _ = cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
 
-		cv := make(CacheValue)
+		cv := createEmptyCacheValue()
 		ur := resp.GetUsageReports()
 		for metric, report := range ur {
 			l := &Limit{
@@ -121,8 +106,8 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 				max:        report.MaxValue,
 				periodEnds: report.PeriodEnd - report.PeriodStart,
 			}
-			cv[metric] = make(map[backend.LimitPeriod]*Limit)
-			cv[metric][report.Period] = l
+			cv.LimitCounter[metric] = make(map[backend.LimitPeriod]*Limit)
+			cv.LimitCounter[metric][report.Period] = l
 		}
 		// set the cache values for this entry
 		cb.cache.Set(cacheKey, cv)
@@ -138,7 +123,7 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 
 out:
 	for metric, incrementBy := range affectedMetrics {
-		if cachedValue, ok := copyCache[metric]; ok {
+		if cachedValue, ok := copyCache.LimitCounter[metric]; ok {
 			for _, limit := range cachedValue {
 				newValue := limit.current + incrementBy
 				if newValue > limit.max {
@@ -218,6 +203,40 @@ func (cb CachedBackend) setTreeEntry(cacheKey string, tree metricParentToChildre
 	cb.mutex.Unlock()
 }
 
+func (cv CacheValue) setLastResponse(resp backend.ApiResponse) CacheValue {
+	cv.LastResponse = resp
+	return cv
+}
+
+func (cv CacheValue) setReportWith(rw ReportWithValues) CacheValue {
+	cv.ReportWithValues = rw
+	return cv
+}
+
+func createEmptyCacheValue() CacheValue {
+	limitMap := make(map[string]map[backend.LimitPeriod]*Limit)
+	return CacheValue{
+		LimitCounter: limitMap,
+	}
+}
+
+func copyCacheValue(existing CacheValue) CacheValue {
+	copyVal := createEmptyCacheValue().
+		setLastResponse(existing.LastResponse).
+		setReportWith(existing.ReportWithValues)
+
+	for k, v := range existing.LimitCounter {
+		copyNested := make(map[backend.LimitPeriod]*Limit)
+		for nestedK, nestedV := range v {
+			var limit Limit
+			limit = *nestedV
+			copyNested[nestedK] = &limit
+		}
+		copyVal.LimitCounter[k] = copyNested
+	}
+	return copyVal
+}
+
 // utility function which returns true of an element is in a slice
 func contains(key string, in []string) bool {
 	for _, i := range in {
@@ -244,18 +263,4 @@ func generateAppIdentifier(req AuthRepRequest) string {
 // computes a unique key from a given service id and host in the format <hierarchyKey>_<appIdentifier>
 func generateCacheKey(hierarchyKey string, appIdentifier string) string {
 	return fmt.Sprintf(cacheKey, hierarchyKey, appIdentifier)
-}
-
-func copyCacheValue(existing CacheValue) CacheValue {
-	copy := make(CacheValue, len(existing))
-	for k, v := range existing {
-		copyNested := make(map[backend.LimitPeriod]*Limit)
-		for nestedK, nestedV := range v {
-			var limit Limit
-			limit = *nestedV
-			copyNested[nestedK] = &limit
-		}
-		copy[k] = copyNested
-	}
-	return copy
 }
