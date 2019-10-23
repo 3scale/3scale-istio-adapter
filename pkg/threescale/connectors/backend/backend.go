@@ -7,7 +7,7 @@ import (
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 )
 
-// Wrapper for requirements for 3scale AuthRep API
+// Wrapper for requirements for 3scale Auth/AuthRep API
 type AuthRepRequest struct {
 	//required
 	ServiceID string
@@ -51,14 +51,32 @@ func (db DefaultBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient
 		Target:   "Backend",
 	}
 
-	resp, err := callRemote(req, nil, c, mc)
+	resp, err := remoteAuthRep(req, nil, c, mc)
 	if err != nil {
 		return Response{}, err
 	}
 	return convertResponse(resp), nil
 }
 
-func callRemote(req AuthRepRequest, ext map[string]string, c *backend.ThreeScaleClient, mc metricsConfig) (backend.ApiResponse, error) {
+func remoteAuth(req AuthRepRequest, ext map[string]string, c *backend.ThreeScaleClient, mc metricsConfig) (backend.ApiResponse, error) {
+	var (
+		start   time.Time
+		elapsed time.Duration
+	)
+
+	start = time.Now()
+	resp, apiErr := c.Authorize(req.Request, req.ServiceID, req.Params.Metrics, ext)
+	elapsed = time.Since(start)
+
+	if mc.ReportFn != nil {
+		go mc.ReportFn(req.ServiceID, metrics.NewLatencyReport(mc.Endpoint, elapsed, c.GetPeer(), mc.Target),
+			metrics.NewStatusReport(mc.Endpoint, resp.StatusCode, c.GetPeer(), mc.Target))
+	}
+
+	return resp, apiErr
+}
+
+func remoteAuthRep(req AuthRepRequest, ext map[string]string, c *backend.ThreeScaleClient, mc metricsConfig) (backend.ApiResponse, error) {
 	var (
 		start   time.Time
 		elapsed time.Duration

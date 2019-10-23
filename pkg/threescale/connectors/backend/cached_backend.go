@@ -38,7 +38,9 @@ type CacheValue struct {
 
 // Allows a reporting function to replay a request to report asynchronously
 type ReportWithValues struct {
-	Client *backend.ThreeScaleClient
+	Client    *backend.ThreeScaleClient
+	Request   backend.Request
+	ServiceID string
 }
 
 // CachedBackend provides a pluggable cache enabled 'Backend' implementation
@@ -82,12 +84,12 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 	affectedMetrics, ok := cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
 
 	// instrumentation
-	mc := metricsConfig{ReportFn: cb.ReportFn, Endpoint: "AuthRep", Target: "Backend"}
+	mc := metricsConfig{ReportFn: cb.ReportFn, Endpoint: "Auth", Target: "Backend"}
 
 	if !ok {
 		// !! CACHE MISS - we don't know about this service id and host combination!!
 		// we need to build hierarchy map blanket call to authRep with extensions enabled and no usage reported
-		resp, err := callRemote(req, map[string]string{"hierarchy": "1"}, c, mc)
+		resp, err := remoteAuth(req, map[string]string{"hierarchy": "1"}, c, mc)
 		if err != nil {
 			fmt.Println("error calling 3scale with blanket request")
 			// need to do some handling here and potentially mark this hierarchyKey as fatal to avoid calling 3scale with repeated invalid/failing requests
@@ -98,7 +100,10 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 		// recompute new metrics
 		affectedMetrics, _ = cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
 
-		cv := createEmptyCacheValue()
+		cv := createEmptyCacheValue().
+			setReportWith(ReportWithValues{Client: c, Request: req.Request, ServiceID: req.ServiceID}).
+			setLastResponse(resp)
+
 		ur := resp.GetUsageReports()
 		for metric, report := range ur {
 			l := &Limit{
