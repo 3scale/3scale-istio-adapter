@@ -225,8 +225,8 @@ func (cb CachedBackend) getTreeEntry(cacheKey string) metricParentToChildren {
 // safe for concurrent use
 func (cb CachedBackend) setTreeEntry(cacheKey string, tree metricParentToChildren) {
 	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
 	cb.hierarchyTree[cacheKey] = tree
-	cb.mutex.Unlock()
 }
 
 func (cv CacheValue) setLastResponse(resp backend.ApiResponse) CacheValue {
