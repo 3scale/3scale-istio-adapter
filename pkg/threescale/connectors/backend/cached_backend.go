@@ -81,49 +81,77 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 
 	var affectedMetrics backend.Metrics
 	// gather the metrics affected by this request using the hierarchy information we might have gathered
-	affectedMetrics, ok := cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
-
-	// instrumentation
-	mc := metricsConfig{ReportFn: cb.ReportFn, Endpoint: "Auth", Target: "Backend"}
-
-	if !ok {
-		// !! CACHE MISS - we don't know about this service id and host combination!!
-		// we need to build hierarchy map blanket call to authRep with extensions enabled and no usage reported
-		resp, err := remoteAuth(req, map[string]string{"hierarchy": "1"}, c, mc)
-		if err != nil {
-			fmt.Println("error calling 3scale with blanket request")
-			// need to do some handling here and potentially mark this hierarchyKey as fatal to avoid calling 3scale with repeated invalid/failing requests
+	// if bool is false we know this is a new entry and must handle the cache miss here
+	affectedMetrics, metricsOk := cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
+	if !metricsOk {
+		if err := cb.handleCacheMiss(req, hierarchyKey, cacheKey, c); err != nil {
 			return Response{}, err
 		}
-		// populate the hierarchy tree
-		cb.setTreeEntry(hierarchyKey, resp.GetHierarchy())
-		// recompute new metrics
-		affectedMetrics, _ = cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
-
-		cv := createEmptyCacheValue().
-			setReportWith(ReportWithValues{Client: c, Request: req.Request, ServiceID: req.ServiceID}).
-			setLastResponse(resp)
-
-		ur := resp.GetUsageReports()
-		for metric, report := range ur {
-			l := &Limit{
-				current:    report.CurrentValue,
-				max:        report.MaxValue,
-				periodEnds: report.PeriodEnd - report.PeriodStart,
-			}
-			cv.LimitCounter[metric] = make(map[backend.LimitPeriod]*Limit)
-			cv.LimitCounter[metric][report.Period] = l
-		}
-		// set the cache values for this entry
-		cb.cache.Set(cacheKey, cv)
 	}
 
+	//expect items to be in the cache at this point but check for presence anyway
+	affectedMetrics, metricsOk = cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
 	cv, ok := cb.cache.Get(cacheKey)
-	if !ok {
-		return Response{}, fmt.Errorf("error fetching cached value")
+	if !metricsOk || !ok {
+		return cb.getCacheFetchErrorResponse(), fmt.Errorf("error fetching cached value")
 	}
 
-	copyCache := cloneCacheValue(cv)
+	newCacheValue, shouldCommit := cb.handleCachedRead(cv, affectedMetrics)
+	if !shouldCommit {
+		return Response{
+			Reason:     "Limits exceeded",
+			StatusCode: http.StatusTooManyRequests,
+			Success:    false,
+		}, nil
+	}
+
+	cb.cache.Set(cacheKey, newCacheValue)
+	resp := Response{
+		StatusCode: http.StatusOK,
+		Success:    true,
+	}
+
+	return resp, nil
+}
+
+// handleCacheMiss for provided request
+// this function is responsible for doing a remote lookup, computing the value and setting the value in the cache
+// on successful call to remote backend, the value (that was cached) is returned
+// any errors calling backend will result in a non-nil error value
+func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, hierarchyKey string, cacheKey string, c *backend.ThreeScaleClient) error {
+	// instrumentation
+	mc := metricsConfig{ReportFn: cb.ReportFn, Endpoint: "Auth", Target: "Backend"}
+	resp, err := remoteAuth(req, map[string]string{"hierarchy": "1"}, c, mc)
+	if err != nil {
+		fmt.Println("error calling 3scale with blanket request")
+		// need to do some handling here and potentially mark this hierarchyKey as fatal to avoid calling 3scale with repeated invalid/failing requests
+		return err
+	}
+	// populate the hierarchy tree
+	cb.setTreeEntry(hierarchyKey, resp.GetHierarchy())
+	cv := createEmptyCacheValue().
+		setReportWith(ReportWithValues{Client: c, Request: req.Request, ServiceID: req.ServiceID}).
+		setLastResponse(resp)
+
+	ur := resp.GetUsageReports()
+	for metric, report := range ur {
+		l := &Limit{
+			current:    report.CurrentValue,
+			max:        report.MaxValue,
+			periodEnds: report.PeriodEnd - report.PeriodStart,
+		}
+		cv.LimitCounter[metric] = make(map[backend.LimitPeriod]*Limit)
+		cv.LimitCounter[metric][report.Period] = l
+	}
+	// set the cache values for this entry
+	cb.cache.Set(cacheKey, cv)
+	return nil
+}
+
+// handleCachedRead should be called when we are convinced that an entry has been cached
+// an error will be returned in case of cache miss
+func (cb CachedBackend) handleCachedRead(value CacheValue, affectedMetrics backend.Metrics) (CacheValue, bool) {
+	copyCache := cloneCacheValue(value)
 	commitChanges := true
 
 out:
@@ -139,22 +167,15 @@ out:
 			}
 		}
 	}
+	return copyCache, commitChanges
+}
 
-	if !commitChanges {
-		return Response{
-			Reason:     "Limits exceeded",
-			StatusCode: http.StatusTooManyRequests,
-			Success:    false,
-		}, nil
+func (cb CachedBackend) getCacheFetchErrorResponse() Response {
+	return Response{
+		Reason:     "Cache lookup failed",
+		StatusCode: http.StatusInternalServerError,
+		Success:    false,
 	}
-
-	cb.cache.Set(cacheKey, copyCache)
-	resp := Response{
-		StatusCode: http.StatusOK,
-		Success:    true,
-	}
-
-	return resp, nil
 }
 
 // computeAffectedMetrics - accepts a list of metrics and computes any additional metrics that will be affected
