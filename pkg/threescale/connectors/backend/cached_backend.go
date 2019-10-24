@@ -11,7 +11,7 @@ import (
 
 const (
 	cacheKeySeparator = "_"
-	cacheKey          = "%s" + cacheKeySeparator + "%s"
+	cacheKeyFormat    = "%s" + cacheKeySeparator + "%s"
 )
 
 // Cacheable - defines the required behaviour of a Backend cache
@@ -275,7 +275,7 @@ func contains(key string, in []string) bool {
 
 // computes a unique key from a given service id and host in the format <id>_<host>
 func generateHierarchyKey(svcID string, host string) string {
-	return fmt.Sprintf(cacheKey, svcID, host)
+	return fmt.Sprintf(cacheKeyFormat, svcID, host)
 }
 
 // generates an identifier for app id based on the incoming request authn info
@@ -288,5 +288,5 @@ func generateAppIdentifier(req AuthRepRequest) string {
 
 // computes a unique key from a given service id and host in the format <hierarchyKey>_<appIdentifier>
 func generateCacheKey(hierarchyKey string, appIdentifier string) string {
-	return fmt.Sprintf(cacheKey, hierarchyKey, appIdentifier)
+	return fmt.Sprintf(cacheKeyFormat, hierarchyKey, appIdentifier)
 }
