@@ -123,7 +123,7 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 		return Response{}, fmt.Errorf("error fetching cached value")
 	}
 
-	copyCache := copyCacheValue(cv)
+	copyCache := cloneCacheValue(cv)
 	commitChanges := true
 
 out:
@@ -225,19 +225,19 @@ func createEmptyCacheValue() CacheValue {
 	}
 }
 
-func copyCacheValue(existing CacheValue) CacheValue {
+func cloneCacheValue(existing CacheValue) CacheValue {
 	copyVal := createEmptyCacheValue().
 		setLastResponse(existing.LastResponse).
 		setReportWith(existing.ReportWithValues)
 
-	for k, v := range existing.LimitCounter {
+	for metric, periodMap := range existing.LimitCounter {
 		copyNested := make(map[backend.LimitPeriod]*Limit)
-		for nestedK, nestedV := range v {
-			var limit Limit
-			limit = *nestedV
-			copyNested[nestedK] = &limit
+		for period, limit := range periodMap {
+			var limitClone Limit
+			limitClone = *limit
+			copyNested[period] = &limitClone
 		}
-		copyVal.LimitCounter[k] = copyNested
+		copyVal.LimitCounter[metric] = copyNested
 	}
 	return copyVal
 }

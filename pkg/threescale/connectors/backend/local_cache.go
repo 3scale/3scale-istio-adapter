@@ -105,7 +105,7 @@ func (l LocalCache) Report() {
 						//todo - handle failures
 					}
 
-					cacheCopy := copyCacheValue(cachedValue)
+					cacheCopy := cloneCacheValue(cachedValue)
 					// update the latest state after reporting what we have
 					ur := resp.GetUsageReports()
 					for metric, report := range ur {
