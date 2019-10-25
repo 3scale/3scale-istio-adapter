@@ -59,8 +59,7 @@ type metricParentToChildren map[string][]string
 type hierarchyTree map[string]metricParentToChildren
 
 // NewCachedBackend returns a pointer to a CachedBackend with a default LocalCache if no custom implementation has been provided
-// and a channel which can be closed to stop the background process from reporting.
-func NewCachedBackend(cache Cacheable, rfn metrics.ReportMetricsFn) (*CachedBackend, chan struct{}) {
+func NewCachedBackend(cache Cacheable, rfn metrics.ReportMetricsFn) *CachedBackend {
 	stop := make(chan struct{})
 	if cache == nil {
 		cache = NewLocalCache(nil, stop)
@@ -69,7 +68,7 @@ func NewCachedBackend(cache Cacheable, rfn metrics.ReportMetricsFn) (*CachedBack
 		ReportFn:      rfn,
 		cache:         cache,
 		hierarchyTree: make(hierarchyTree),
-	}, stop
+	}
 }
 
 // AuthRep provides a combination of authorizing a request and reporting metrics to 3scale

@@ -130,6 +130,11 @@ func (l LocalCache) Report() {
 	}()
 }
 
+// GetStopChan returns the channel which can be closed to stop the reporting background process
+func (l LocalCache) GetStopChan() chan struct{} {
+	return l.reporter.stop
+}
+
 func isExpired(limit Limit) bool {
 	return now().After(time.Unix(limit.periodEnds, 0))
 }
