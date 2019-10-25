@@ -101,7 +101,7 @@ func TestCachedBackend_AuthRep(t *testing.T) {
 			threescaleClient := client.NewThreeScale(be, httpClient)
 
 			cache := input.cacheInit()
-			backend, _ := NewCachedBackend(cache, nil)
+			backend := NewCachedBackend(cache, nil)
 
 			request := mockRequest
 			request.Params.Metrics = input.metrics
