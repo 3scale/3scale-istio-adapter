@@ -3,7 +3,6 @@ package backend
 import (
 	"fmt"
 	"net/http"
-	"sync"
 
 	backend "github.com/3scale/3scale-go-client/client"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
@@ -46,17 +45,12 @@ type ReportWithValues struct {
 // CachedBackend provides a pluggable cache enabled 'Backend' implementation
 // Supports reporting metrics for non-cached responses.
 type CachedBackend struct {
-	ReportFn      metrics.ReportMetricsFn
-	cache         Cacheable
-	mutex         sync.RWMutex
-	hierarchyTree hierarchyTree
+	ReportFn metrics.ReportMetricsFn
+	cache    Cacheable
 }
 
 // map to represent parent --> children metric relationship
 type metricParentToChildren map[string][]string
-
-// hierarchyTree - represents the relationship between service metrics and their children
-type hierarchyTree map[string]metricParentToChildren
 
 // NewCachedBackend returns a pointer to a CachedBackend with a default LocalCache if no custom implementation has been provided
 func NewCachedBackend(cache Cacheable, rfn metrics.ReportMetricsFn) *CachedBackend {
@@ -65,37 +59,27 @@ func NewCachedBackend(cache Cacheable, rfn metrics.ReportMetricsFn) *CachedBacke
 		cache = NewLocalCache(nil, stop)
 	}
 	return &CachedBackend{
-		ReportFn:      rfn,
-		cache:         cache,
-		hierarchyTree: make(hierarchyTree),
+		ReportFn: rfn,
+		cache:    cache,
 	}
 }
 
 // AuthRep provides a combination of authorizing a request and reporting metrics to 3scale
 func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient) (Response, error) {
 	// compute the cache key for this request
-	hierarchyKey := generateHierarchyKey(req.ServiceID, c.GetPeer())
-	appIdentifier := generateAppIdentifier(req)
-	cacheKey := generateCacheKey(hierarchyKey, appIdentifier)
+	cacheKey := generateCacheKey(req.ServiceID, c.GetPeer())
 
-	var affectedMetrics backend.Metrics
-	// gather the metrics affected by this request using the hierarchy information we might have gathered
-	// if bool is false we know this is a new entry and must handle the cache miss here
-	affectedMetrics, metricsOk := cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
-	if !metricsOk {
-		if err := cb.handleCacheMiss(req, hierarchyKey, cacheKey, c); err != nil {
+	cv, ok := cb.cache.Get(cacheKey)
+	if !ok {
+		newlyCachedValue, err := cb.handleCacheMiss(req, cacheKey, c)
+		if err != nil {
 			return Response{}, err
 		}
+		cv = newlyCachedValue
 	}
 
-	//expect items to be in the cache at this point but check for presence anyway
-	affectedMetrics, metricsOk = cb.computeAffectedMetrics(hierarchyKey, req.Params.Metrics)
-	cv, ok := cb.cache.Get(cacheKey)
-	if !metricsOk || !ok {
-		return cb.getCacheFetchErrorResponse(), fmt.Errorf("error fetching cached value")
-	}
-
-	newCacheValue, shouldCommit := cb.handleCachedRead(cv, affectedMetrics)
+	affectedMetrics := computeAffectedMetrics(cv.LastResponse.GetHierarchy(), req.Params.Metrics)
+	copiedCacheValue, shouldCommit := cb.handleCachedRead(cv, affectedMetrics)
 	if !shouldCommit {
 		return Response{
 			Reason:     "Limits exceeded",
@@ -104,7 +88,7 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 		}, nil
 	}
 
-	cb.cache.Set(cacheKey, newCacheValue)
+	cb.cache.Set(cacheKey, copiedCacheValue)
 	resp := Response{
 		StatusCode: http.StatusOK,
 		Success:    true,
@@ -117,17 +101,15 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 // this function is responsible for doing a remote lookup, computing the value and setting the value in the cache
 // on successful call to remote backend, the value (that was cached) is returned
 // any errors calling backend will result in a non-nil error value
-func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, hierarchyKey string, cacheKey string, c *backend.ThreeScaleClient) error {
+func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, cacheKey string, c *backend.ThreeScaleClient) (CacheValue, error) {
 	// instrumentation
 	mc := metricsConfig{ReportFn: cb.ReportFn, Endpoint: "Auth", Target: "Backend"}
 	resp, err := remoteAuth(req, map[string]string{"hierarchy": "1"}, c, mc)
 	if err != nil {
 		fmt.Println("error calling 3scale with blanket request")
 		// need to do some handling here and potentially mark this hierarchyKey as fatal to avoid calling 3scale with repeated invalid/failing requests
-		return err
+		return CacheValue{}, err
 	}
-	// populate the hierarchy tree
-	cb.setTreeEntry(hierarchyKey, resp.GetHierarchy())
 	cv := createEmptyCacheValue().
 		setReportWith(ReportWithValues{Client: c, Request: req.Request, ServiceID: req.ServiceID}).
 		setLastResponse(resp)
@@ -144,11 +126,11 @@ func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, hierarchyKey string,
 	}
 	// set the cache values for this entry
 	cb.cache.Set(cacheKey, cv)
-	return nil
+	return cv, nil
 }
 
-// handleCachedRead should be called when we are convinced that an entry has been cached
-// an error will be returned in case of cache miss
+// handleCachedRead works on a copy of the passed CacheValue and will inform the caller if limits have
+// been breached in the provided affected metrics
 func (cb CachedBackend) handleCachedRead(value CacheValue, affectedMetrics backend.Metrics) (CacheValue, bool) {
 	copyCache := cloneCacheValue(value)
 	commitChanges := true
@@ -169,25 +151,22 @@ out:
 	return copyCache, commitChanges
 }
 
-func (cb CachedBackend) getCacheFetchErrorResponse() Response {
-	return Response{
-		Reason:     "Cache lookup failed",
-		StatusCode: http.StatusInternalServerError,
-		Success:    false,
-	}
+func (cv CacheValue) setLastResponse(resp backend.ApiResponse) CacheValue {
+	cv.LastResponse = resp
+	return cv
 }
 
-// computeAffectedMetrics - accepts a list of metrics and computes any additional metrics that will be affected
-// If the informer is not aware of this entry, then bool value will be false.
-// Internally this function is responsible for walking the hierarchy tree and incrementing the parent value
-// of any children that are affected by the provided metrics, in turn modifying the provided metrics
-func (cb CachedBackend) computeAffectedMetrics(cacheKey string, m backend.Metrics) (backend.Metrics, bool) {
-	affectedMetrics := cb.getTreeEntry(cacheKey)
-	if affectedMetrics == nil {
-		return m, false
-	}
+func (cv CacheValue) setReportWith(rw ReportWithValues) CacheValue {
+	cv.ReportWithValues = rw
+	return cv
+}
 
-	for parent, children := range affectedMetrics {
+// computeAffectedMetrics accepts a list of metrics and hierarchy structure,
+// computing additional metrics that will be affected.
+// This function is responsible for walking the hierarchy tree and incrementing the parent value
+// of any children that are affected by the provided metrics, in turn modifying the provided metrics
+func computeAffectedMetrics(hierarchy metricParentToChildren, m backend.Metrics) backend.Metrics {
+	for parent, children := range hierarchy {
 		for k, v := range m {
 			if contains(k, children) {
 				if _, known := m[parent]; known {
@@ -198,44 +177,7 @@ func (cb CachedBackend) computeAffectedMetrics(cacheKey string, m backend.Metric
 			}
 		}
 	}
-	return m, true
-}
-
-// returns a copy of the informers hierarchy tree for a particular cache key
-// safe for concurrent use
-// returns nil if no logged entry for provided cache key
-func (cb CachedBackend) getTreeEntry(cacheKey string) metricParentToChildren {
-	var tree metricParentToChildren
-
-	cb.mutex.RLock()
-	defer cb.mutex.RUnlock()
-
-	if len(cb.hierarchyTree[cacheKey]) > 0 {
-		tree = make(metricParentToChildren)
-	}
-	for k, v := range cb.hierarchyTree[cacheKey] {
-		tree[k] = v
-	}
-
-	return tree
-}
-
-// sets an entry in the informers hierarchy tree for a particular cache key
-// safe for concurrent use
-func (cb CachedBackend) setTreeEntry(cacheKey string, tree metricParentToChildren) {
-	cb.mutex.Lock()
-	defer cb.mutex.Unlock()
-	cb.hierarchyTree[cacheKey] = tree
-}
-
-func (cv CacheValue) setLastResponse(resp backend.ApiResponse) CacheValue {
-	cv.LastResponse = resp
-	return cv
-}
-
-func (cv CacheValue) setReportWith(rw ReportWithValues) CacheValue {
-	cv.ReportWithValues = rw
-	return cv
+	return m
 }
 
 func createEmptyCacheValue() CacheValue {
@@ -272,20 +214,7 @@ func contains(key string, in []string) bool {
 	return false
 }
 
-// computes a unique key from a given service id and host in the format <id>_<host>
-func generateHierarchyKey(svcID string, host string) string {
-	return fmt.Sprintf(cacheKeyFormat, svcID, host)
-}
-
-// generates an identifier for app id based on the incoming request authn info
-func generateAppIdentifier(req AuthRepRequest) string {
-	if req.Request.Application.UserKey != "" {
-		return req.Request.Application.UserKey
-	}
-	return req.Request.Application.AppID.ID + req.Request.Application.AppID.AppKey
-}
-
-// computes a unique key from a given service id and host in the format <hierarchyKey>_<appIdentifier>
-func generateCacheKey(hierarchyKey string, appIdentifier string) string {
-	return fmt.Sprintf(cacheKeyFormat, hierarchyKey, appIdentifier)
+// computes a unique key from a given service id and host in the format <hierarchyKey>_<host>
+func generateCacheKey(hierarchyKey string, host string) string {
+	return fmt.Sprintf(cacheKeyFormat, hierarchyKey, host)
 }
