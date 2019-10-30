@@ -113,18 +113,9 @@ func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, cacheKey string, c *
 	}
 	cv := createEmptyCacheValue().
 		setReportWith(ReportWithValues{Client: c, Request: req.Request, ServiceID: req.ServiceID}).
-		setLastResponse(resp)
+		setLastResponse(resp).
+		setLimitsFromUsageReports(resp.GetUsageReports())
 
-	ur := resp.GetUsageReports()
-	for metric, report := range ur {
-		l := &Limit{
-			current:    report.CurrentValue,
-			max:        report.MaxValue,
-			periodEnds: report.PeriodEnd - report.PeriodStart,
-		}
-		cv.LimitCounter[metric] = make(map[backend.LimitPeriod]*Limit)
-		cv.LimitCounter[metric][report.Period] = l
-	}
 	// set the cache values for this entry
 	cb.cache.Set(cacheKey, cv)
 	return cv, nil
@@ -168,6 +159,19 @@ func (cv CacheValue) setLastResponse(resp backend.ApiResponse) CacheValue {
 
 func (cv CacheValue) setReportWith(rw ReportWithValues) CacheValue {
 	cv.ReportWithValues = rw
+	return cv
+}
+
+func (cv CacheValue) setLimitsFromUsageReports(ur backend.UsageReports) CacheValue {
+	for metric, report := range ur {
+		l := &Limit{
+			current:    report.CurrentValue,
+			max:        report.MaxValue,
+			periodEnds: report.PeriodEnd - report.PeriodStart,
+		}
+		cv.LimitCounter[metric] = make(map[backend.LimitPeriod]*Limit)
+		cv.LimitCounter[metric][report.Period] = l
+	}
 	return cv
 }
 
