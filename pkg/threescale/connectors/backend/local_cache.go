@@ -109,10 +109,25 @@ func (l LocalCache) Report() {
 					Metrics: reportMetrics,
 				}
 				// TODO - likely want some retry here in case of network failures/ intermittent error??
-				cachedValueClone.ReportWithValues.Client.Report(cachedValueClone.Request, cachedValueClone.ServiceID, transaction, nil)
+				_, err := cachedValueClone.ReportWithValues.Client.Report(cachedValueClone.Request, cachedValueClone.ServiceID, transaction, nil)
+				if err != nil {
+					//todo logging
+					return
+				}
 
-				//TODO handle cache reset here
-				return
+				resp, err := cachedValueClone.ReportWithValues.Client.Authorize(cachedValueClone.Request, cachedValueClone.ServiceID, nil, map[string]string{"hierarchy": "1"})
+				if err != nil {
+					//todo logging
+					return
+				}
+
+				// reset the state of the cache
+				cv := createEmptyCacheValue().
+					setReportWith(cachedValueClone.ReportWithValues).
+					setLastResponse(resp).
+					setLimitsFromUsageReports(resp.GetUsageReports())
+
+				go l.Set(key, cv)
 
 			})
 		case <-l.reporter.stop:
