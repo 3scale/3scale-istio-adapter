@@ -33,6 +33,7 @@ type CacheValue struct {
 	LastResponse backend.ApiResponse
 	LimitCounter map[string]map[backend.LimitPeriod]*Limit
 	ReportWithValues
+	UnlimitedHits map[string]int
 }
 
 // Allows a reporting function to replay a request to report asynchronously
@@ -137,7 +138,8 @@ func (cb CachedBackend) handleCachedRead(value CacheValue, affectedMetrics backe
 
 out:
 	for metric, incrementBy := range affectedMetrics {
-		if cachedValue, ok := copyCache.LimitCounter[metric]; ok {
+		cachedValue, ok := copyCache.LimitCounter[metric]
+		if ok {
 			for _, limit := range cachedValue {
 				newValue := limit.current + incrementBy
 				if newValue > limit.max {
@@ -146,6 +148,14 @@ out:
 				}
 				limit.current = newValue
 			}
+		} else {
+			// has no limits so just cache the value for reporting purposes
+			current, ok := copyCache.UnlimitedHits[metric]
+			if ok {
+				copyCache.UnlimitedHits[metric] = current + incrementBy
+				break
+			}
+			copyCache.UnlimitedHits[metric] = incrementBy
 		}
 	}
 	return copyCache, commitChanges
@@ -182,8 +192,10 @@ func computeAffectedMetrics(hierarchy metricParentToChildren, m backend.Metrics)
 
 func createEmptyCacheValue() CacheValue {
 	limitMap := make(map[string]map[backend.LimitPeriod]*Limit)
+	unlimitedMap := make(map[string]int)
 	return CacheValue{
-		LimitCounter: limitMap,
+		LimitCounter:  limitMap,
+		UnlimitedHits: unlimitedMap,
 	}
 }
 
@@ -201,6 +213,11 @@ func cloneCacheValue(existing CacheValue) CacheValue {
 		}
 		copyVal.LimitCounter[metric] = copyNested
 	}
+
+	for metric, current := range existing.UnlimitedHits {
+		copyVal.UnlimitedHits[metric] = current
+	}
+
 	return copyVal
 }
 
