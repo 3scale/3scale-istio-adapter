@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/3scale/3scale-go-client/client"
-	cmap "github.com/orcaman/concurrent-map"
+	"github.com/orcaman/concurrent-map"
 )
 
 var now = time.Now
@@ -62,79 +62,67 @@ func (l LocalCache) Set(cacheKey string, cv CacheValue) {
 // Report cached entries to 3scale backend
 func (l LocalCache) Report() {
 	ticker := time.NewTicker(l.reporter.interval)
-	// note - it would be nice if these were exposed as iota's to avoid doing this
-	ascendingPeriodSequence := []client.LimitPeriod{client.Minute, client.Hour, client.Day, client.Month, client.Eternity}
+	ascendingPeriodSequence := []client.LimitPeriod{client.Minute, client.Hour, client.Day, client.Week, client.Month, client.Eternity}
+	reportMetrics := client.Metrics{}
+	for {
+		select {
+		case <-ticker.C:
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				l.reporter.cache.IterCb(func(key string, v interface{}) {
-					reportMetrics := client.Metrics{}
-					cachedValue := v.(CacheValue)
+			l.reporter.cache.IterCb(func(key string, v interface{}) {
+				cachedValueClone := cloneCacheValue(v.(CacheValue))
 
-					for reportableMetric, _ := range cachedValue.LastResponse.GetUsageReports() {
-						for localMetric, limitMap := range cachedValue.LimitCounter {
-							if reportableMetric != localMetric {
-								// we dont need to deal with this particular metric since it was learned and incremented as part of the hierarchy tree
-								continue
+				// report unlimited metrics without checking hierarchy
+				for unlimitedMetric, reportWithValue := range cachedValueClone.UnlimitedHits {
+					reportMetrics[unlimitedMetric] = reportWithValue
+				}
+
+				// walk over our metrics with limits attached and reduce the reporting value by our last previous saved state
+				lastReports := cachedValueClone.LastResponse.GetUsageReports()
+				for limitedMetric, limitMap := range cachedValueClone.LimitCounter {
+					for _, ascendingPeriod := range ascendingPeriodSequence {
+						if lowestPeriod, ok := limitMap[ascendingPeriod]; ok {
+							reportMetrics[limitedMetric] = lowestPeriod.current - lastReports[limitedMetric].CurrentValue
+							break
+						}
+					}
+				}
+
+				// now we have almost correct state but to avoid over reporting, we need to take the hierarchy into account
+				parentsChildren := cachedValueClone.LastResponse.GetHierarchy()
+				for metric, _ := range reportMetrics {
+					// check if each metric is a parent
+					if children, hasChildren := parentsChildren[metric]; hasChildren {
+						// if its a parent pull out its children's values, if any
+						for _, child := range children {
+							if childValue, reportExists := reportMetrics[child]; reportExists {
+								// negate the child value from parent
+								reportMetrics[metric] -= childValue
 							}
-							for _, ascendingPeriod := range ascendingPeriodSequence {
-								if lowestPeriod, ok := limitMap[ascendingPeriod]; ok {
-									reportMetrics.Add(reportableMetric, lowestPeriod.current)
-									break
-								}
-							}
 						}
 					}
+				}
 
-					transaction := client.ReportTransactions{
-						AppID:   cachedValue.Request.Application.AppID.ID,
-						AppKey:  cachedValue.Request.Application.AppID.AppKey,
-						UserKey: cachedValue.Request.Application.UserKey,
-						Metrics: reportMetrics,
-					}
-					// TODO - likely want some retry here in case of network failures/ intermittent error??
+				transaction := client.ReportTransactions{
+					AppID:   cachedValueClone.Request.Application.AppID.ID,
+					AppKey:  cachedValueClone.Request.Application.AppID.AppKey,
+					UserKey: cachedValueClone.Request.Application.UserKey,
+					Metrics: reportMetrics,
+				}
+				// TODO - likely want some retry here in case of network failures/ intermittent error??
+				cachedValueClone.ReportWithValues.Client.Report(cachedValueClone.Request, cachedValueClone.ServiceID, transaction, nil)
 
-					cachedValue.ReportWithValues.Client.Report(cachedValue.Request, cachedValue.ServiceID, transaction, nil)
-
-					// todo - note we are now ignoring the hierarchy from the latest request, potentially missing out on config changes - need to figure this part out
-					// but the idea is to have the reporting function pluggable so would like to avoid directly injecting the hierarchy here
-					resp, err := cachedValue.ReportWithValues.Client.Authorize(cachedValue.Request, cachedValue.ServiceID, nil, map[string]string{"hierarchy": "1"})
-					if err != nil {
-						//todo - handle failures
-					}
-
-					cacheCopy := cloneCacheValue(cachedValue)
-					// update the latest state after reporting what we have
-					ur := resp.GetUsageReports()
-					for metric, report := range ur {
-						l := &Limit{
-							current:    report.CurrentValue,
-							max:        report.MaxValue,
-							periodEnds: report.PeriodEnd - report.PeriodStart,
-						}
-						if _, ok := cacheCopy.LimitCounter[metric]; !ok {
-							cacheCopy.LimitCounter[metric] = make(map[client.LimitPeriod]*Limit)
-						}
-						cacheCopy.LimitCounter[metric][report.Period] = l
-					}
-					cacheCopy.setLastResponse(resp).setReportWith(cachedValue.ReportWithValues)
-					l.Set(key, cacheCopy)
-				})
-			case <-l.reporter.stop:
-				ticker.Stop()
+				//TODO handle cache reset here
 				return
-			}
+
+			})
+		case <-l.reporter.stop:
+			ticker.Stop()
+			return
 		}
-	}()
+	}
 }
 
 // GetStopChan returns the channel which can be closed to stop the reporting background process
 func (l LocalCache) GetStopChan() chan struct{} {
 	return l.reporter.stop
-}
-
-func isExpired(limit Limit) bool {
-	return now().After(time.Unix(limit.periodEnds, 0))
 }
