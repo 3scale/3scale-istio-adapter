@@ -79,29 +79,11 @@ func (l LocalCache) Report() {
 
 					// walk over our metrics with limits attached and reduce the reporting value by our last previous saved state
 					lastReports := application.LastResponse.GetUsageReports()
-					for limitedMetric, limitMap := range application.LimitCounter {
-						for _, ascendingPeriod := range ascendingPeriodSequence {
-							if lowestPeriod, ok := limitMap[ascendingPeriod]; ok {
-								reportMetrics[limitedMetric] = lowestPeriod.current - lastReports[limitedMetric].CurrentValue
-								break
-							}
-						}
-					}
+					reportMetrics = l.subtractUsageReportFromState(application, ascendingPeriodSequence, reportMetrics, lastReports)
 
 					// now we have almost correct state but to avoid over reporting, we need to take the hierarchy into account
 					parentsChildren := application.LastResponse.GetHierarchy()
-					for metric, _ := range reportMetrics {
-						// check if each metric is a parent
-						if children, hasChildren := parentsChildren[metric]; hasChildren {
-							// if its a parent pull out its children's values, if any
-							for _, child := range children {
-								if childValue, reportExists := reportMetrics[child]; reportExists {
-									// negate the child value from parent
-									reportMetrics[metric] -= childValue
-								}
-							}
-						}
-					}
+					reportMetrics = l.subtractChildHitsFromParent(reportMetrics, parentsChildren)
 
 					transaction := client.ReportTransactions{
 						AppID:   application.Request.Application.AppID.ID,
@@ -143,4 +125,36 @@ func (l LocalCache) Report() {
 // GetStopChan returns the channel which can be closed to stop the reporting background process
 func (l LocalCache) GetStopChan() chan struct{} {
 	return l.reporter.stop
+}
+
+// subtractUsageReportFromState of a preexisting application taking into account a given sequence which should be prioritised
+// walks over our metrics with limits attached and reduce the reporting value by our last previous saved state
+func (l LocalCache) subtractUsageReportFromState(application *Application, sequence []client.LimitPeriod, metrics client.Metrics, reports client.UsageReports) client.Metrics {
+	for limitedMetric, limitMap := range application.LimitCounter {
+		for _, ascendingPeriod := range sequence {
+			if lowestPeriod, ok := limitMap[ascendingPeriod]; ok {
+				metrics[limitedMetric] = lowestPeriod.current - reports[limitedMetric].CurrentValue
+				break
+			}
+		}
+	}
+	return metrics
+}
+
+// subtractUsageReportFromState of a preexisting application taking into account a given sequence which should be prioritised
+// walks over our metrics with limits attached and reduce the reporting value by our last previous saved state
+func (l LocalCache) subtractChildHitsFromParent(metrics client.Metrics, hierarchy metricParentToChildren) client.Metrics {
+	for metric, _ := range metrics {
+		// check if each metric is a parent
+		if children, hasChildren := hierarchy[metric]; hasChildren {
+			// if its a parent pull out its children's values, if any
+			for _, child := range children {
+				if childValue, reportExists := metrics[child]; reportExists {
+					// negate the child value from parent
+					metrics[metric] -= childValue
+				}
+			}
+		}
+	}
+	return metrics
 }
