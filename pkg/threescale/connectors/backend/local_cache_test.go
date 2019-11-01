@@ -19,6 +19,7 @@ import (
 func TestLocalCache_E2E(t *testing.T) {
 	var called bool
 	const cacheKey = "12345_su1.3scale.net:443"
+	const appID = "any"
 	doneReporting := make(chan client.Metrics)
 
 	stop := make(chan struct{})
@@ -55,20 +56,22 @@ func TestLocalCache_E2E(t *testing.T) {
 
 	testingClient := client.NewThreeScale(nil, httpClient)
 
-	initRequest := AuthRepRequest{
-		ServiceID: "12345",
-		Request: client.Request{
-			Application: client.Application{
-				AppID: client.AppID{
-					ID: "any",
-				},
-			},
-			Credentials: client.TokenAuth{
-				Type:  "service_token",
-				Value: "any",
+	req := client.Request{
+		Application: client.Application{
+			AppID: client.AppID{
+				ID: appID,
 			},
 		},
-		Params: client.AuthRepParams{},
+		Credentials: client.TokenAuth{
+			Type:  "service_token",
+			Value: "any",
+		},
+	}
+
+	initRequest := AuthRepRequest{
+		ServiceID: "12345",
+		Request:   req,
+		Params:    client.AuthRepParams{},
 	}
 	_, err := cachedBackend.AuthRep(initRequest, testingClient)
 	if err != nil {
@@ -77,6 +80,7 @@ func TestLocalCache_E2E(t *testing.T) {
 
 	// expecting this to hit the cache
 	_, err = cachedBackend.AuthRep(AuthRepRequest{
+		Request:   req,
 		ServiceID: "12345",
 		Params: client.AuthRepParams{
 			AuthorizeParams: client.AuthorizeParams{
@@ -98,7 +102,7 @@ func TestLocalCache_E2E(t *testing.T) {
 		t.Errorf("missing cache key")
 	}
 
-	expect, isSet := cv.UnlimitedHits["bananas"]
+	expect, isSet := cv[appID].UnlimitedHits["bananas"]
 	if !isSet {
 		t.Errorf("expected unlimited metric to be stored in cache")
 	}
@@ -106,7 +110,7 @@ func TestLocalCache_E2E(t *testing.T) {
 		t.Errorf("unexpected result fro unlimited metric")
 	}
 
-	expectHits, isSet := cv.LimitCounter["hits"][client.Hour]
+	expectHits, isSet := cv[appID].LimitCounter["hits"][client.Hour]
 	if !isSet {
 		t.Errorf("expected hits metric to be stored in cache")
 	}
@@ -115,7 +119,7 @@ func TestLocalCache_E2E(t *testing.T) {
 		t.Errorf("unexpceted result for hits metric which is a parent")
 	}
 
-	expectM, isSet := cv.LimitCounter["m"][client.Minute]
+	expectM, isSet := cv[appID].LimitCounter["m"][client.Minute]
 	if !isSet {
 		t.Errorf("expected m metric to be stored in cache")
 	}
@@ -124,7 +128,7 @@ func TestLocalCache_E2E(t *testing.T) {
 		t.Errorf("unexpceted result for m metric which is a child")
 	}
 
-	expectN, isSet := cv.LimitCounter["n"][client.Week]
+	expectN, isSet := cv[appID].LimitCounter["n"][client.Week]
 	if !isSet {
 		t.Errorf("expected n metric to be stored in cache")
 	}

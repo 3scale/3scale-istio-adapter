@@ -71,63 +71,66 @@ func (l LocalCache) Report() {
 			l.reporter.cache.IterCb(func(key string, v interface{}) {
 				cachedValueClone := cloneCacheValue(v.(CacheValue))
 
-				// report unlimited metrics without checking hierarchy
-				for unlimitedMetric, reportWithValue := range cachedValueClone.UnlimitedHits {
-					reportMetrics[unlimitedMetric] = reportWithValue
-				}
-
-				// walk over our metrics with limits attached and reduce the reporting value by our last previous saved state
-				lastReports := cachedValueClone.LastResponse.GetUsageReports()
-				for limitedMetric, limitMap := range cachedValueClone.LimitCounter {
-					for _, ascendingPeriod := range ascendingPeriodSequence {
-						if lowestPeriod, ok := limitMap[ascendingPeriod]; ok {
-							reportMetrics[limitedMetric] = lowestPeriod.current - lastReports[limitedMetric].CurrentValue
-							break
-						}
+				for appID, application := range cachedValueClone {
+					// report unlimited metrics without checking hierarchy
+					for unlimitedMetric, reportWithValue := range application.UnlimitedHits {
+						reportMetrics[unlimitedMetric] = reportWithValue
 					}
-				}
 
-				// now we have almost correct state but to avoid over reporting, we need to take the hierarchy into account
-				parentsChildren := cachedValueClone.LastResponse.GetHierarchy()
-				for metric, _ := range reportMetrics {
-					// check if each metric is a parent
-					if children, hasChildren := parentsChildren[metric]; hasChildren {
-						// if its a parent pull out its children's values, if any
-						for _, child := range children {
-							if childValue, reportExists := reportMetrics[child]; reportExists {
-								// negate the child value from parent
-								reportMetrics[metric] -= childValue
+					// walk over our metrics with limits attached and reduce the reporting value by our last previous saved state
+					lastReports := application.LastResponse.GetUsageReports()
+					for limitedMetric, limitMap := range application.LimitCounter {
+						for _, ascendingPeriod := range ascendingPeriodSequence {
+							if lowestPeriod, ok := limitMap[ascendingPeriod]; ok {
+								reportMetrics[limitedMetric] = lowestPeriod.current - lastReports[limitedMetric].CurrentValue
+								break
 							}
 						}
 					}
-				}
 
-				transaction := client.ReportTransactions{
-					AppID:   cachedValueClone.Request.Application.AppID.ID,
-					AppKey:  cachedValueClone.Request.Application.AppID.AppKey,
-					UserKey: cachedValueClone.Request.Application.UserKey,
-					Metrics: reportMetrics,
-				}
-				// TODO - likely want some retry here in case of network failures/ intermittent error??
-				_, err := cachedValueClone.ReportWithValues.Client.Report(cachedValueClone.Request, cachedValueClone.ServiceID, transaction, nil)
-				if err != nil {
-					//todo logging
-					return
-				}
+					// now we have almost correct state but to avoid over reporting, we need to take the hierarchy into account
+					parentsChildren := application.LastResponse.GetHierarchy()
+					for metric, _ := range reportMetrics {
+						// check if each metric is a parent
+						if children, hasChildren := parentsChildren[metric]; hasChildren {
+							// if its a parent pull out its children's values, if any
+							for _, child := range children {
+								if childValue, reportExists := reportMetrics[child]; reportExists {
+									// negate the child value from parent
+									reportMetrics[metric] -= childValue
+								}
+							}
+						}
+					}
 
-				resp, err := cachedValueClone.ReportWithValues.Client.Authorize(cachedValueClone.Request, cachedValueClone.ServiceID, nil, map[string]string{"hierarchy": "1"})
-				if err != nil {
-					//todo logging
-					return
+					transaction := client.ReportTransactions{
+						AppID:   application.Request.Application.AppID.ID,
+						AppKey:  application.Request.Application.AppID.AppKey,
+						UserKey: application.Request.Application.UserKey,
+						Metrics: reportMetrics,
+					}
+					// TODO - likely want some retry here in case of network failures/ intermittent error??
+					_, err := application.ReportWithValues.Client.Report(application.Request, application.ServiceID, transaction, nil)
+					if err != nil {
+						//todo logging
+						return
+					}
+
+					resp, err := application.ReportWithValues.Client.Authorize(application.Request, application.ServiceID, nil, map[string]string{"hierarchy": "1"})
+					if err != nil {
+						//todo logging
+						return
+					}
+
+					// reset the state of the cache
+					cv := createEmptyCacheValue().
+						setApplication(appID, application).
+						setReportWith(appID, application.ReportWithValues).
+						setLastResponse(appID, resp).
+						setLimitsFromUsageReports(appID, resp.GetUsageReports())
+
+					go l.Set(key, cv)
 				}
-
-				// reset the state of the cache
-				cv := createEmptyCacheValue().
-					setReportWith(cachedValueClone.ReportWithValues).
-					setLastResponse(resp).
-					setLimitsFromUsageReports(resp.GetUsageReports())
-
-				go l.Set(key, cv)
 
 			})
 		case <-l.reporter.stop:
