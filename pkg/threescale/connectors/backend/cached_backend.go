@@ -28,8 +28,12 @@ type Limit struct {
 	periodEnds int64
 }
 
-// CacheValue which should be stored in cache implementation
-type CacheValue struct {
+// CacheValue which should be stored in cache implementation maps an
+// application identifier to an Application which houses information  required for caching purpose
+type CacheValue map[string]*Application
+
+// Application defined under a 3scale service
+type Application struct {
 	LastResponse backend.ApiResponse
 	LimitCounter map[string]map[backend.LimitPeriod]*Limit
 	ReportWithValues
@@ -69,18 +73,21 @@ func NewCachedBackend(cache Cacheable, rfn metrics.ReportMetricsFn) *CachedBacke
 func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient) (Response, error) {
 	// compute the cache key for this request
 	cacheKey := generateCacheKey(req.ServiceID, c.GetPeer())
+	appID := cb.getAppIdFromRequest(req)
 
 	cv, ok := cb.cache.Get(cacheKey)
-	if !ok {
-		newlyCachedValue, err := cb.handleCacheMiss(req, cacheKey, c)
+	if !ok || cv[appID] == nil {
+		// we consider it a cache miss in two situations, either we know nothing about this host and service id
+		// or we have seen this but have no information for this particular application
+		newlyCachedValue, err := cb.handleCacheMiss(req, cacheKey, appID, c)
 		if err != nil {
 			return Response{}, err
 		}
 		cv = newlyCachedValue
 	}
 
-	affectedMetrics := computeAffectedMetrics(cv.LastResponse.GetHierarchy(), req.Params.Metrics)
-	copiedCacheValue, shouldCommit := cb.handleCachedRead(cv, affectedMetrics)
+	affectedMetrics := computeAffectedMetrics(cv[appID].LastResponse.GetHierarchy(), req.Params.Metrics)
+	copiedCacheValue, shouldCommit := cb.handleCachedRead(cv, appID, affectedMetrics)
 	if !shouldCommit {
 		return Response{
 			Reason:     "Limits exceeded",
@@ -102,7 +109,7 @@ func (cb CachedBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient)
 // this function is responsible for doing a remote lookup, computing the value and setting the value in the cache
 // on successful call to remote backend, the value (that was cached) is returned
 // any errors calling backend will result in a non-nil error value
-func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, cacheKey string, c *backend.ThreeScaleClient) (CacheValue, error) {
+func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, cacheKey string, appID string, c *backend.ThreeScaleClient) (CacheValue, error) {
 	// instrumentation
 	mc := metricsConfig{ReportFn: cb.ReportFn, Endpoint: "Auth", Target: "Backend"}
 	resp, err := remoteAuth(req, map[string]string{"hierarchy": "1"}, c, mc)
@@ -112,9 +119,10 @@ func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, cacheKey string, c *
 		return CacheValue{}, err
 	}
 	cv := createEmptyCacheValue().
-		setReportWith(ReportWithValues{Client: c, Request: req.Request, ServiceID: req.ServiceID}).
-		setLastResponse(resp).
-		setLimitsFromUsageReports(resp.GetUsageReports())
+		setApplication(appID, nil).
+		setReportWith(appID, ReportWithValues{Client: c, Request: req.Request, ServiceID: req.ServiceID}).
+		setLastResponse(appID, resp).
+		setLimitsFromUsageReports(appID, resp.GetUsageReports())
 
 	// set the cache values for this entry
 	cb.cache.Set(cacheKey, cv)
@@ -123,13 +131,13 @@ func (cb CachedBackend) handleCacheMiss(req AuthRepRequest, cacheKey string, c *
 
 // handleCachedRead works on a copy of the passed CacheValue and will inform the caller if limits have
 // been breached in the provided affected metrics
-func (cb CachedBackend) handleCachedRead(value CacheValue, affectedMetrics backend.Metrics) (CacheValue, bool) {
+func (cb CachedBackend) handleCachedRead(value CacheValue, appID string, affectedMetrics backend.Metrics) (CacheValue, bool) {
 	copyCache := cloneCacheValue(value)
 	commitChanges := true
 
 out:
 	for metric, incrementBy := range affectedMetrics {
-		cachedValue, ok := copyCache.LimitCounter[metric]
+		cachedValue, ok := copyCache[appID].LimitCounter[metric]
 		if ok {
 			for _, limit := range cachedValue {
 				newValue := limit.current + incrementBy
@@ -141,36 +149,58 @@ out:
 			}
 		} else {
 			// has no limits so just cache the value for reporting purposes
-			current, ok := copyCache.UnlimitedHits[metric]
+			current, ok := copyCache[appID].UnlimitedHits[metric]
 			if ok {
-				copyCache.UnlimitedHits[metric] = current + incrementBy
+				copyCache[appID].UnlimitedHits[metric] = current + incrementBy
 				break
 			}
-			copyCache.UnlimitedHits[metric] = incrementBy
+			copyCache[appID].UnlimitedHits[metric] = incrementBy
 		}
 	}
 	return copyCache, commitChanges
 }
 
-func (cv CacheValue) setLastResponse(resp backend.ApiResponse) CacheValue {
-	cv.LastResponse = resp
+// getAppIdFromRequest prioritizes and returns a user key if present, defaulting to app id otherwise
+func (cb CachedBackend) getAppIdFromRequest(req AuthRepRequest) string {
+	if appID := req.Request.Application.UserKey; appID != "" {
+		return appID
+	}
+
+	return req.Request.Application.AppID.ID
+}
+
+// setApplication for a particular appID
+// if applications value is nil, a new application will be instantiated
+func (cv CacheValue) setApplication(appID string, application *Application) CacheValue {
+	if application == nil {
+		application = &Application{
+			LimitCounter:  make(map[string]map[backend.LimitPeriod]*Limit),
+			UnlimitedHits: make(map[string]int),
+		}
+	}
+	cv[appID] = application
 	return cv
 }
 
-func (cv CacheValue) setReportWith(rw ReportWithValues) CacheValue {
-	cv.ReportWithValues = rw
+func (cv CacheValue) setLastResponse(appID string, resp backend.ApiResponse) CacheValue {
+	cv[appID].LastResponse = resp
 	return cv
 }
 
-func (cv CacheValue) setLimitsFromUsageReports(ur backend.UsageReports) CacheValue {
+func (cv CacheValue) setReportWith(appID string, rw ReportWithValues) CacheValue {
+	cv[appID].ReportWithValues = rw
+	return cv
+}
+
+func (cv CacheValue) setLimitsFromUsageReports(appID string, ur backend.UsageReports) CacheValue {
 	for metric, report := range ur {
 		l := &Limit{
 			current:    report.CurrentValue,
 			max:        report.MaxValue,
 			periodEnds: report.PeriodEnd - report.PeriodStart,
 		}
-		cv.LimitCounter[metric] = make(map[backend.LimitPeriod]*Limit)
-		cv.LimitCounter[metric][report.Period] = l
+		cv[appID].LimitCounter[metric] = make(map[backend.LimitPeriod]*Limit)
+		cv[appID].LimitCounter[metric][report.Period] = l
 	}
 	return cv
 }
@@ -195,33 +225,29 @@ func computeAffectedMetrics(hierarchy metricParentToChildren, m backend.Metrics)
 }
 
 func createEmptyCacheValue() CacheValue {
-	limitMap := make(map[string]map[backend.LimitPeriod]*Limit)
-	unlimitedMap := make(map[string]int)
-	return CacheValue{
-		LimitCounter:  limitMap,
-		UnlimitedHits: unlimitedMap,
-	}
+	return make(map[string]*Application)
 }
 
 func cloneCacheValue(existing CacheValue) CacheValue {
-	copyVal := createEmptyCacheValue().
-		setLastResponse(existing.LastResponse).
-		setReportWith(existing.ReportWithValues)
+	copyVal := createEmptyCacheValue()
+	for appIdentifier, app := range existing {
+		copyVal.setApplication(appIdentifier, app)
+		copyVal.setLastResponse(appIdentifier, app.LastResponse).setReportWith(appIdentifier, app.ReportWithValues)
 
-	for metric, periodMap := range existing.LimitCounter {
-		copyNested := make(map[backend.LimitPeriod]*Limit)
-		for period, limit := range periodMap {
-			var limitClone Limit
-			limitClone = *limit
-			copyNested[period] = &limitClone
+		for metric, periodMap := range app.LimitCounter {
+			copyNested := make(map[backend.LimitPeriod]*Limit)
+			for period, limit := range periodMap {
+				var limitClone Limit
+				limitClone = *limit
+				copyNested[period] = &limitClone
+			}
+			copyVal[appIdentifier].LimitCounter[metric] = copyNested
 		}
-		copyVal.LimitCounter[metric] = copyNested
-	}
 
-	for metric, current := range existing.UnlimitedHits {
-		copyVal.UnlimitedHits[metric] = current
+		for metric, current := range app.UnlimitedHits {
+			copyVal[appIdentifier].UnlimitedHits[metric] = current
+		}
 	}
-
 	return copyVal
 }
 
