@@ -131,8 +131,8 @@ func (l LocalCache) GetStopChan() chan struct{} {
 // walks over our metrics with limits attached and reduce the reporting value by our last previous saved state
 func (l LocalCache) subtractUsageReportFromState(application *Application, sequence []client.LimitPeriod, metrics client.Metrics, reports client.UsageReports) client.Metrics {
 	for limitedMetric, limitMap := range application.LimitCounter {
-		for _, ascendingPeriod := range sequence {
-			if lowestPeriod, ok := limitMap[ascendingPeriod]; ok {
+		for _, nextPeriod := range sequence {
+			if lowestPeriod, ok := limitMap[nextPeriod]; ok {
 				metrics[limitedMetric] = lowestPeriod.current - reports[limitedMetric].CurrentValue
 				break
 			}
