@@ -17,6 +17,10 @@
   version = "=1.1.8"
 
 [[constraint]]
+  name = "istio.io/pkg"
+  version = "=1.4.0"
+
+[[constraint]]
   name = "github.com/3scale/3scale-go-client"
   revision = "e366adc214e96578b5e53fd5b0250c5cfaec414c"
 
