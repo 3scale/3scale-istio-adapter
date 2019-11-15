@@ -10,14 +10,15 @@
   version = "v0.33.0"
 
 [[projects]]
-  digest = "1:e973a630b7d0ab7466215fcae007779c1760ae4af7fc4dba011ad9fc101a8f98"
+  digest = "1:9a69512a7c636e434769231de7d47002f9d0e9a6d0a9b40b0a441288a8b1d510"
   name = "github.com/3scale/3scale-go-client"
   packages = [
-    "client",
     "fake",
+    "threescale",
   ]
   pruneopts = "NUT"
-  revision = "e366adc214e96578b5e53fd5b0250c5cfaec414c"
+  revision = "9dd2d11cc0fdaa85b154a140aa2dd4575d4c437c"
+  version = "v0.0.2"
 
 [[projects]]
   digest = "1:91981d63946f5d802a03ab508e7d5a701f6c3f85100949719a467dd81033a9eb"
@@ -1111,8 +1112,8 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/3scale/3scale-go-client/client",
     "github.com/3scale/3scale-go-client/fake",
+    "github.com/3scale/3scale-go-client/threescale",
     "github.com/3scale/3scale-porta-go-client/client",
     "github.com/3scale/3scale-porta-go-client/fake",
     "github.com/ghodss/yaml",
