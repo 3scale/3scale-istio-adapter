@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	backendC "github.com/3scale/3scale-go-client/client"
+	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-istio-adapter/config"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
 	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
@@ -53,7 +53,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	var result v1beta1.CheckResult
 	var systemClient *sysC.ThreeScaleClient
 	var proxyConfElement sysC.ProxyConfigElement
-	var backendClient *backendC.ThreeScaleClient
+	var backendClient *threescale.Client
 	var backendURL string
 	var err error
 
@@ -145,7 +145,7 @@ func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClie
 // isAuthorized - is responsible for parsing the incoming request and determining if it is valid, building out the request to be sent
 // to 3scale and parsing the response. Returns code 0 if authorization is successful based on
 // grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
-func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMsg, proxyConf sysC.ProxyConfig, client *backendC.ThreeScaleClient) rpc.Status {
+func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMsg, proxyConf sysC.ProxyConfig, client *threescale.Client) rpc.Status {
 	var (
 		// Application ID/OpenID Connect authentication pattern - App Key is optional when using this authn
 		appID, appKey string
@@ -184,27 +184,22 @@ func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMs
 			request.Action.Method, request.Action.Path))
 	}
 
-	authRepRequest := backend.AuthRepRequest{
-		ServiceID: svcID,
-		Request: backendC.Request{
-			Application: backendC.Application{
-				AppID: backendC.AppID{
-					ID:     appID,
-					AppKey: appKey,
-				},
-				UserKey: userKey,
-			},
-			Credentials: backendC.TokenAuth{
-				Type:  proxyConf.Content.BackendAuthenticationType,
-				Value: proxyConf.Content.BackendAuthenticationValue,
-			},
+	authRepRequest := backend.Request{
+		Auth: threescale.ClientAuth{
+			Type:  threescale.AuthType(proxyConf.Content.BackendAuthenticationType),
+			Value: proxyConf.Content.BackendAuthenticationValue,
 		},
-		Params: backendC.AuthRepParams{
-			AuthorizeParams: backendC.AuthorizeParams{
-				Metrics: metrics,
+		ServiceID: svcID,
+		Transaction: threescale.Transaction{
+			Metrics: metrics,
+			Params: threescale.Params{
+				AppID:   appID,
+				AppKey:  appKey,
+				UserKey: userKey,
 			},
 		},
 	}
+
 	return s.apiRespConverter(s.conf.backend.AuthRep(authRepRequest, client))
 }
 
@@ -229,17 +224,13 @@ func (s *Threescale) reportMetrics(svcID string, l prometheus.LatencyReport, sr 
 	}
 }
 
-func generateMetrics(path string, method string, conf sysC.ProxyConfig) backendC.Metrics {
-	metrics := make(backendC.Metrics)
+func generateMetrics(path string, method string, conf sysC.ProxyConfig) threescale.Metrics {
+	metrics := make(threescale.Metrics)
 
 	for _, pr := range conf.Content.Proxy.ProxyRules {
 		if match, err := regexp.MatchString(pr.Pattern, path); err == nil {
 			if match && strings.ToUpper(pr.HTTPMethod) == strings.ToUpper(method) {
-				baseDelta := 0
-				if val, ok := metrics[pr.MetricSystemName]; ok {
-					baseDelta = val
-				}
-				metrics.Add(pr.MetricSystemName, baseDelta+int(pr.Delta))
+				metrics.Add(pr.MetricSystemName, int(pr.Delta))
 			}
 		}
 	}
@@ -261,19 +252,8 @@ func (s *Threescale) systemClientBuilder(systemURL string) (*sysC.ThreeScaleClie
 	return sysC.NewThreeScale(ap, s.client), nil
 }
 
-func (s *Threescale) backendClientBuilder(backendURL string) (*backendC.ThreeScaleClient, error) {
-	parsedUrl, err := url.ParseRequestURI(backendURL)
-	if err != nil {
-		return nil, err
-	}
-
-	scheme, host, port := parseURL(parsedUrl)
-	be, err := backendC.NewBackend(scheme, host, port)
-	if err != nil {
-		return nil, err
-	}
-
-	return backendC.NewThreeScale(be, s.client), nil
+func (s *Threescale) backendClientBuilder(backendURL string) (*threescale.Client, error) {
+	return threescale.NewClient(backendURL, s.client)
 }
 
 func parseURL(url *url.URL) (string, string, int) {

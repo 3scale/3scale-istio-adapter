@@ -7,20 +7,18 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/3scale/3scale-go-client/client"
 	"github.com/3scale/3scale-go-client/fake"
+	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 )
 
 func TestDefaultBackend(t *testing.T) {
 	var reported = false
 	var wg = sync.WaitGroup{}
-	mockRequest := AuthRepRequest{
-		Request: client.Request{
-			Credentials: client.TokenAuth{
-				Type:  "provider_key",
-				Value: "any",
-			},
+	mockRequest := Request{
+		Auth: threescale.ClientAuth{
+			Type:  threescale.ProviderKey,
+			Value: "any",
 		},
 	}
 
@@ -73,7 +71,7 @@ func TestDefaultBackend(t *testing.T) {
 				wg.Add(1)
 			}
 
-			threescaleClient := client.NewThreeScale(nil, httpClient)
+			threescaleClient, _ := threescale.NewClient("http://any.com", httpClient)
 			b := DefaultBackend{ReportFn: input.reportWith}
 			resp, err := b.AuthRep(mockRequest, threescaleClient)
 
