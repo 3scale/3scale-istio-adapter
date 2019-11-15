@@ -3,24 +3,21 @@ package backend
 import (
 	"time"
 
-	backend "github.com/3scale/3scale-go-client/client"
+	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 )
 
 // Wrapper for requirements for 3scale AuthRep API
-type AuthRepRequest struct {
-	//required
-	ServiceID string
-	//required
-	Request backend.Request
-	//optional
-	Params backend.AuthRepParams
+type Request struct {
+	Auth        threescale.ClientAuth
+	ServiceID   string
+	Transaction threescale.Transaction
 }
 
 // Backend for 3scale API management
 // Operations supported by this interface require a client as we need to be able to call against multiple remote backends
 type Backend interface {
-	AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient) (Response, error)
+	AuthRep(req Request, c *threescale.Client) (Response, error)
 }
 
 // Response is the result from calling the remote 3scale API
@@ -44,7 +41,7 @@ type metricsConfig struct {
 }
 
 // AuthRep provides a combination of authorizing a request and reporting metrics to 3scale
-func (db DefaultBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient) (Response, error) {
+func (db DefaultBackend) AuthRep(req Request, c *threescale.Client) (Response, error) {
 	mc := metricsConfig{
 		ReportFn: db.ReportFn,
 		Endpoint: "AuthRep",
@@ -58,14 +55,20 @@ func (db DefaultBackend) AuthRep(req AuthRepRequest, c *backend.ThreeScaleClient
 	return convertResponse(resp), nil
 }
 
-func callRemote(req AuthRepRequest, ext map[string]string, c *backend.ThreeScaleClient, mc metricsConfig) (backend.ApiResponse, error) {
+func callRemote(req Request, ext map[string]string, c *threescale.Client, mc metricsConfig) (*threescale.AuthorizeResponse, error) {
 	var (
 		start   time.Time
 		elapsed time.Duration
 	)
 
+	var options []threescale.Option
+
+	if ext != nil {
+		options = append(options, threescale.WithExtensions(ext))
+	}
+
 	start = time.Now()
-	resp, apiErr := c.AuthRep(req.Request, req.ServiceID, req.Params, ext)
+	resp, apiErr := c.AuthRep(req.ServiceID, req.Auth, req.Transaction, options...)
 	elapsed = time.Since(start)
 
 	if mc.ReportFn != nil {
@@ -76,7 +79,7 @@ func callRemote(req AuthRepRequest, ext map[string]string, c *backend.ThreeScale
 	return resp, apiErr
 }
 
-func convertResponse(original backend.ApiResponse) Response {
+func convertResponse(original *threescale.AuthorizeResponse) Response {
 	return Response{
 		Reason:     original.Reason,
 		StatusCode: original.StatusCode,
