@@ -29,7 +29,7 @@ import (
 	"istio.io/api/mixer/adapter/model/v1beta1"
 	"istio.io/istio/mixer/pkg/status"
 	"istio.io/istio/mixer/template/authorization"
-	"istio.io/istio/pkg/log"
+	"istio.io/pkg/log"
 )
 
 // Implement required interface

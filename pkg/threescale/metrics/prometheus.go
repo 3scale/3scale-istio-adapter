@@ -10,7 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"istio.io/istio/pkg/log"
+	"istio.io/pkg/log"
 )
 
 // Reporter holds configuration for the Prometheus metrics implementation

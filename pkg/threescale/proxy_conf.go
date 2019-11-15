@@ -13,7 +13,7 @@ import (
 	"github.com/3scale/3scale-istio-adapter/config"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	sysC "github.com/3scale/3scale-porta-go-client/client"
-	"istio.io/istio/pkg/log"
+	"istio.io/pkg/log"
 )
 
 const (

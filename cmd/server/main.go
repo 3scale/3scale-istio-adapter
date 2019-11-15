@@ -17,7 +17,7 @@ import (
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/grpclog"
-	istiolog "istio.io/istio/pkg/log"
+	istiolog "istio.io/pkg/log"
 )
 
 var version string
