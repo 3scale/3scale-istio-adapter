@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 	"time"
 
 	"github.com/3scale/3scale-go-client/threescale"
+	"github.com/3scale/3scale-go-client/threescale/api"
 	"github.com/3scale/3scale-istio-adapter/config"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
 	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
@@ -51,9 +51,9 @@ const (
 // HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
-	var systemClient *sysC.ThreeScaleClient
+	var systemClient sysC.ThreeScaleClient
 	var proxyConfElement sysC.ProxyConfigElement
-	var backendClient *threescale.Client
+	var backendClient threescale.Client
 	var backendURL string
 	var err error
 
@@ -74,13 +74,13 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		cfg.ServiceId = r.Instance.Action.Service
 	}
 
-	systemClient, err = s.systemClientBuilder(cfg.SystemUrl)
+	systemClient, err = s.conf.clientBuilder.BuildSystemClient(cfg.SystemUrl)
 	if err != nil {
 		result.Status, err = rpcStatusErrorHandler("error building HTTP client for 3scale system", status.WithInvalidArgument, err)
 		goto out
 	}
 
-	proxyConfElement, err = s.extractProxyConf(cfg, systemClient)
+	proxyConfElement, err = s.extractProxyConf(cfg, &systemClient)
 	if err != nil {
 		result.Status, err = rpcStatusErrorHandler("currently unable to fetch required data from 3scale system", status.WithUnavailable, err)
 		goto out
@@ -91,7 +91,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		backendURL = proxyConfElement.ProxyConfig.Content.Proxy.Backend.Endpoint
 	}
 
-	backendClient, err = s.backendClientBuilder(backendURL)
+	backendClient, err = s.conf.clientBuilder.BuildBackendClient(backendURL)
 	if err != nil {
 		result.Status, err = rpcStatusErrorHandler("error creating 3scale backend client", status.WithInvalidArgument, err)
 		goto out
@@ -145,7 +145,7 @@ func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClie
 // isAuthorized - is responsible for parsing the incoming request and determining if it is valid, building out the request to be sent
 // to 3scale and parsing the response. Returns code 0 if authorization is successful based on
 // grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
-func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMsg, proxyConf sysC.ProxyConfig, client *threescale.Client) rpc.Status {
+func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMsg, proxyConf sysC.ProxyConfig, client threescale.Client) rpc.Status {
 	var (
 		// Application ID/OpenID Connect authentication pattern - App Key is optional when using this authn
 		appID, appKey string
@@ -185,14 +185,14 @@ func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMs
 	}
 
 	authRepRequest := backend.Request{
-		Auth: threescale.ClientAuth{
-			Type:  threescale.AuthType(proxyConf.Content.BackendAuthenticationType),
+		Auth: api.ClientAuth{
+			Type:  api.AuthType(proxyConf.Content.BackendAuthenticationType),
 			Value: proxyConf.Content.BackendAuthenticationValue,
 		},
 		ServiceID: svcID,
-		Transaction: threescale.Transaction{
+		Transaction: api.Transaction{
 			Metrics: metrics,
-			Params: threescale.Params{
+			Params: api.Params{
 				AppID:   appID,
 				AppKey:  appKey,
 				UserKey: userKey,
@@ -224,8 +224,8 @@ func (s *Threescale) reportMetrics(svcID string, l prometheus.LatencyReport, sr 
 	}
 }
 
-func generateMetrics(path string, method string, conf sysC.ProxyConfig) threescale.Metrics {
-	metrics := make(threescale.Metrics)
+func generateMetrics(path string, method string, conf sysC.ProxyConfig) api.Metrics {
+	metrics := make(api.Metrics)
 
 	for _, pr := range conf.Content.Proxy.ProxyRules {
 		if match, err := regexp.MatchString(pr.Pattern, path); err == nil {
@@ -235,25 +235,6 @@ func generateMetrics(path string, method string, conf sysC.ProxyConfig) threesca
 		}
 	}
 	return metrics
-}
-
-func (s *Threescale) systemClientBuilder(systemURL string) (*sysC.ThreeScaleClient, error) {
-	sysURL, err := url.ParseRequestURI(systemURL)
-	if err != nil {
-		return nil, err
-	}
-
-	scheme, host, port := parseURL(sysURL)
-	ap, err := sysC.NewAdminPortal(scheme, host, port)
-	if err != nil {
-		return nil, err
-	}
-
-	return sysC.NewThreeScale(ap, s.client), nil
-}
-
-func (s *Threescale) backendClientBuilder(backendURL string) (*threescale.Client, error) {
-	return threescale.NewClient(backendURL, s.client)
 }
 
 func parseURL(url *url.URL) (string, string, int) {
@@ -318,7 +299,7 @@ func (s *Threescale) Close() error {
 }
 
 // NewThreescale returns a Server interface
-func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Server, error) {
+func NewThreescale(addr string, conf *AdapterConfig) (Server, error) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
 	if err != nil {
@@ -327,7 +308,6 @@ func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Serve
 
 	s := &Threescale{
 		listener: listener,
-		client:   client,
 		conf:     conf,
 	}
 
@@ -347,7 +327,7 @@ func NewThreescale(addr string, client *http.Client, conf *AdapterConfig) (Serve
 }
 
 // NewAdapterConfig - Creates configuration for Threescale adapter
-func NewAdapterConfig(cache *ProxyConfigCache, metrics *prometheus.Reporter, b backend.Backend, grpcKeepalive time.Duration) *AdapterConfig {
+func NewAdapterConfig(builder Builder, cache *ProxyConfigCache, metrics *prometheus.Reporter, b backend.Backend, grpcKeepalive time.Duration) *AdapterConfig {
 	if cache != nil {
 		cache.metricsReporter = metrics
 	}
@@ -361,5 +341,5 @@ func NewAdapterConfig(cache *ProxyConfigCache, metrics *prometheus.Reporter, b b
 		b = backend.DefaultBackend{ReportFn: reportFn}
 	}
 
-	return &AdapterConfig{cache, metrics, b, grpcKeepalive}
+	return &AdapterConfig{builder, cache, metrics, b, grpcKeepalive}
 }

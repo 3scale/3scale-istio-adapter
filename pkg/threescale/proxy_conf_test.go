@@ -67,8 +67,9 @@ func TestProxyConfigCacheFlushing(t *testing.T) {
 	cfg := &pb.Params{ServiceId: "123", SystemUrl: "https://www.fake-system.3scale.net"}
 	cacheKey := pc.getCacheKeyFromCfg(cfg)
 	pc.set(cacheKey, proxyConf, cacheRefreshStore{})
-	conf := &AdapterConfig{systemCache: pc, backend: backend.DefaultBackend{}}
-	c := &Threescale{client: httpClient, conf: conf}
+	builder := NewClientBuilder(httpClient)
+	conf := &AdapterConfig{clientBuilder: builder, systemCache: pc, backend: backend.DefaultBackend{}}
+	c := &Threescale{conf: conf}
 
 	inputs := []testInput{
 		{
@@ -209,18 +210,21 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	// Create cache manager
 	pc := NewProxyConfigCache(ttl, ttl-(time.Second*1), DefaultCacheUpdateRetries, 3)
 	proxyConf = unmarshalConfig(t)
-	conf := &AdapterConfig{systemCache: pc, backend: backend.DefaultBackend{}}
-	c := &Threescale{client: httpClient, conf: conf}
+	builder := NewClientBuilder(httpClient)
+	conf := &AdapterConfig{clientBuilder: builder, systemCache: pc, backend: backend.DefaultBackend{}}
+	c := &Threescale{conf: conf}
 
 	//Pre-Populate the cache
 	cfg := &pb.Params{ServiceId: "123", SystemUrl: defaultSystemUrl}
 	cacheKey := pc.getCacheKeyFromCfg(cfg)
 	// With valid entry
-	pc.set(cacheKey, proxyConf, cacheRefreshStore{cfg: cfg, client: getSysClient(t, c, defaultSystemUrl)})
+	client := getSysClient(t, c, defaultSystemUrl)
+	pc.set(cacheKey, proxyConf, cacheRefreshStore{cfg: cfg, client: &client})
 	// With misbehaving host
 	cfgBadHost := &pb.Params{ServiceId: "12345", SystemUrl: "https://misbehaving-host-1.net"}
 	cacheKeyBadHost := pc.getCacheKeyFromCfg(cfg)
-	pc.set(cacheKeyBadHost, proxyConf, cacheRefreshStore{cfg: cfgBadHost, client: getSysClient(t, c, "https://misbehaving-host-1.net")})
+	clientTwo := getSysClient(t, c, "https://misbehaving-host-1.net")
+	pc.set(cacheKeyBadHost, proxyConf, cacheRefreshStore{cfg: cfgBadHost, client: &clientTwo})
 	pc.addMisbehavingHost("misbehaving-host-1.net", fakeNetError{})
 
 	inputs := []testInput{
@@ -403,9 +407,9 @@ func unmarshalConfig(t *testing.T) client.ProxyConfigElement {
 	return proxyConf
 }
 
-func getSysClient(t *testing.T, c *Threescale, sysURL string) *client.ThreeScaleClient {
+func getSysClient(t *testing.T, c *Threescale, sysURL string) client.ThreeScaleClient {
 	t.Helper()
-	sysClient, err := c.systemClientBuilder(sysURL)
+	sysClient, err := c.conf.clientBuilder.BuildSystemClient(sysURL)
 	if err != nil {
 		t.Fatalf("unexpected error building system client")
 	}

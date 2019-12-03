@@ -2,7 +2,6 @@ package threescale
 
 import (
 	"net"
-	"net/http"
 	"time"
 
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
@@ -21,12 +20,12 @@ type Server interface {
 type Threescale struct {
 	listener net.Listener
 	server   *grpc.Server
-	client   *http.Client
 	conf     *AdapterConfig
 }
 
 // AdapterConfig wraps optional configuration for the 3scale adapter
 type AdapterConfig struct {
+	clientBuilder   Builder
 	systemCache     *ProxyConfigCache
 	metricsReporter *prometheus.Reporter
 	backend         backend.Backend

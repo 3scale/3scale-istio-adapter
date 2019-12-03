@@ -231,8 +231,8 @@ func TestHandleAuthorization(t *testing.T) {
 			})
 			reporter := metrics.NewMetricsReporter(true, 8080)
 			c := &Threescale{
-				client: httpClient,
 				conf: &AdapterConfig{
+					clientBuilder:   NewClientBuilder(httpClient),
 					metricsReporter: reporter,
 					backend:         backend.DefaultBackend{},
 				},
@@ -259,8 +259,8 @@ func TestHandleAuthorization(t *testing.T) {
 
 func Test_NewThreescale(t *testing.T) {
 	addr := "0"
-	threescaleConf := NewAdapterConfig(nil, nil, nil, time.Minute)
-	s, err := NewThreescale(addr, http.DefaultClient, threescaleConf)
+	threescaleConf := NewAdapterConfig(nil, nil, nil, nil, time.Minute)
+	s, err := NewThreescale(addr, threescaleConf)
 	if err != nil {
 		t.Errorf("Error running threescale server %#v", err)
 	}
