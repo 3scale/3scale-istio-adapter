@@ -160,9 +160,10 @@ func main() {
 	if viper.IsSet("grpc_conn_max_seconds") {
 		grpcKeepAliveFor = time.Second * time.Duration(viper.GetInt("grpc_conn_max_seconds"))
 	}
-	adapterConfig := threescale.NewAdapterConfig(proxyCache, parseMetricsConfig(), nil, grpcKeepAliveFor)
+	clientBuilder := threescale.NewClientBuilder(parseClientConfig())
+	adapterConfig := threescale.NewAdapterConfig(clientBuilder, proxyCache, parseMetricsConfig(), nil, grpcKeepAliveFor)
 
-	s, err := threescale.NewThreescale(addr, parseClientConfig(), adapterConfig)
+	s, err := threescale.NewThreescale(addr, adapterConfig)
 
 	if err != nil {
 		istiolog.Errorf("Unable to start sever: %v", err)
