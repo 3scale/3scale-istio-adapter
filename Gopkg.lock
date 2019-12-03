@@ -10,15 +10,18 @@
   version = "v0.33.0"
 
 [[projects]]
-  digest = "1:9a69512a7c636e434769231de7d47002f9d0e9a6d0a9b40b0a441288a8b1d510"
+  digest = "1:dc70beaa94140a1055544d60b8678ec13ea7e9cdeca6622ed7aeabb631105310"
   name = "github.com/3scale/3scale-go-client"
   packages = [
     "fake",
     "threescale",
+    "threescale/api",
+    "threescale/http",
+    "threescale/internal",
   ]
   pruneopts = "NUT"
-  revision = "9dd2d11cc0fdaa85b154a140aa2dd4575d4c437c"
-  version = "v0.0.2"
+  revision = "4dc2b2829af9295cd84f667e7e41e7c2f3d5c520"
+  version = "v0.0.3"
 
 [[projects]]
   digest = "1:91981d63946f5d802a03ab508e7d5a701f6c3f85100949719a467dd81033a9eb"
@@ -1114,6 +1117,8 @@
   input-imports = [
     "github.com/3scale/3scale-go-client/fake",
     "github.com/3scale/3scale-go-client/threescale",
+    "github.com/3scale/3scale-go-client/threescale/api",
+    "github.com/3scale/3scale-go-client/threescale/http",
     "github.com/3scale/3scale-porta-go-client/client",
     "github.com/3scale/3scale-porta-go-client/fake",
     "github.com/ghodss/yaml",

@@ -14,12 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
-
-	"github.com/gogo/googleapis/google/rpc"
-
 	"github.com/3scale/3scale-go-client/fake"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
 	sysFake "github.com/3scale/3scale-porta-go-client/fake"
+	"github.com/gogo/googleapis/google/rpc"
 	integration "istio.io/istio/mixer/pkg/adapter/test"
 )
 
@@ -211,7 +209,7 @@ func TestAuthorizationCheck(t *testing.T) {
 
 		s := integration.Scenario{
 			Setup: func() (ctx interface{}, err error) {
-				pServer, err := NewThreescale("3333", http.DefaultClient, &AdapterConfig{backend: backend.DefaultBackend{}})
+				pServer, err := NewThreescale("3333", &AdapterConfig{clientBuilder: NewClientBuilder(http.DefaultClient), backend: backend.DefaultBackend{}})
 				if err != nil {
 					return nil, err
 				}

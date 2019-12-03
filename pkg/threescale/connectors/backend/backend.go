@@ -4,20 +4,22 @@ import (
 	"time"
 
 	"github.com/3scale/3scale-go-client/threescale"
+	"github.com/3scale/3scale-go-client/threescale/api"
+	apisonator "github.com/3scale/3scale-go-client/threescale/http"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 )
 
 // Wrapper for requirements for 3scale AuthRep API
 type Request struct {
-	Auth        threescale.ClientAuth
+	Auth        api.ClientAuth
 	ServiceID   string
-	Transaction threescale.Transaction
+	Transaction api.Transaction
 }
 
 // Backend for 3scale API management
 // Operations supported by this interface require a client as we need to be able to call against multiple remote backends
 type Backend interface {
-	AuthRep(req Request, c *threescale.Client) (Response, error)
+	AuthRep(req Request, c threescale.Client) (Response, error)
 }
 
 // Response is the result from calling the remote 3scale API
@@ -41,48 +43,61 @@ type metricsConfig struct {
 }
 
 // AuthRep provides a combination of authorizing a request and reporting metrics to 3scale
-func (db DefaultBackend) AuthRep(req Request, c *threescale.Client) (Response, error) {
+func (db DefaultBackend) AuthRep(req Request, c threescale.Client) (Response, error) {
 	mc := metricsConfig{
 		ReportFn: db.ReportFn,
 		Endpoint: "AuthRep",
 		Target:   "Backend",
 	}
 
-	resp, err := callRemote(req, nil, c, mc)
-	if err != nil {
-		return Response{}, err
-	}
-	return convertResponse(resp), nil
+	return callRemote(req, nil, c, mc)
 }
 
-func callRemote(req Request, ext map[string]string, c *threescale.Client, mc metricsConfig) (*threescale.AuthorizeResponse, error) {
+func callRemote(req Request, ext map[string]string, c threescale.Client, mc metricsConfig) (Response, error) {
 	var (
 		start   time.Time
 		elapsed time.Duration
 	)
 
-	var options []threescale.Option
-
-	if ext != nil {
-		options = append(options, threescale.WithExtensions(ext))
+	apiCall := threescale.Request{
+		Auth:         req.Auth,
+		Extensions:   nil,
+		Service:      api.Service(req.ServiceID),
+		Transactions: []api.Transaction{req.Transaction},
 	}
 
 	start = time.Now()
-	resp, apiErr := c.AuthRep(req.ServiceID, req.Auth, req.Transaction, options...)
+	resp, apiErr := c.AuthRep(apiCall)
 	elapsed = time.Since(start)
 
-	if mc.ReportFn != nil {
-		go mc.ReportFn(req.ServiceID, metrics.NewLatencyReport(mc.Endpoint, elapsed, c.GetPeer(), mc.Target),
-			metrics.NewStatusReport(mc.Endpoint, resp.StatusCode, c.GetPeer(), mc.Target))
+	var response Response
+	if apiErr == nil {
+		response = convertResponse(resp)
+		if mc.ReportFn != nil {
+			go mc.ReportFn(req.ServiceID, metrics.NewLatencyReport(mc.Endpoint, elapsed, c.GetPeer(), mc.Target),
+				metrics.NewStatusReport(mc.Endpoint, response.StatusCode, c.GetPeer(), mc.Target))
+		}
 	}
 
-	return resp, apiErr
+	return response, apiErr
 }
 
-func convertResponse(original *threescale.AuthorizeResponse) Response {
+func convertResponse(original threescale.AuthorizeResult) Response {
+	var success bool
+	if original != nil {
+		success = original.Success()
+	}
+
+	detailedResp, isHTTPClient := original.(*apisonator.AuthorizeResponse)
+	if isHTTPClient {
+		return Response{
+			Reason:     detailedResp.Reason,
+			StatusCode: detailedResp.StatusCode,
+			Success:    success,
+		}
+	}
+
 	return Response{
-		Reason:     original.Reason,
-		StatusCode: original.StatusCode,
-		Success:    original.Success,
+		Success: success,
 	}
 }
