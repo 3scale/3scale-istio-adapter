@@ -43,7 +43,7 @@ type proxyStore struct {
 
 type cacheRefreshStore struct {
 	cfg    *config.Params
-	client *sysC.ThreeScaleClient
+	client SystemClient
 }
 
 // ProxyConfigCache provides a mechanism to enable caching of calls to 3scale system
@@ -135,7 +135,7 @@ func (pc *ProxyConfigCache) StopRefreshWorker() error {
 }
 
 // Get returns a proxyConfig for a given ThreescaleClient, either from the local Cache or fetching it remotely
-func (pc *ProxyConfigCache) Get(cfg *config.Params, c *sysC.ThreeScaleClient) (sysC.ProxyConfigElement, error) {
+func (pc *ProxyConfigCache) Get(cfg *config.Params, c SystemClient) (sysC.ProxyConfigElement, error) {
 	var conf sysC.ProxyConfigElement
 	var err error
 
@@ -360,7 +360,7 @@ func isExpired(currentTime time.Time, expiryTime time.Time) bool {
 }
 
 // GetFromRemote is used to fetch the proxy config from 3scale using the client
-func GetFromRemote(cfg *config.Params, c *sysC.ThreeScaleClient, report metrics.ReportMetricsFn) (sysC.ProxyConfigElement, error) {
+func GetFromRemote(cfg *config.Params, c SystemClient, report metrics.ReportMetricsFn) (sysC.ProxyConfigElement, error) {
 	log.Debugf("proxy config for service id %s is being fetching from 3scale", cfg.ServiceId)
 
 	start := time.Now()
