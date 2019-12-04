@@ -219,12 +219,12 @@ func TestProxyConfigCacheRefreshing(t *testing.T) {
 	cacheKey := pc.getCacheKeyFromCfg(cfg)
 	// With valid entry
 	client := getSysClient(t, c, defaultSystemUrl)
-	pc.set(cacheKey, proxyConf, cacheRefreshStore{cfg: cfg, client: &client})
+	pc.set(cacheKey, proxyConf, cacheRefreshStore{cfg: cfg, client: client})
 	// With misbehaving host
 	cfgBadHost := &pb.Params{ServiceId: "12345", SystemUrl: "https://misbehaving-host-1.net"}
 	cacheKeyBadHost := pc.getCacheKeyFromCfg(cfg)
 	clientTwo := getSysClient(t, c, "https://misbehaving-host-1.net")
-	pc.set(cacheKeyBadHost, proxyConf, cacheRefreshStore{cfg: cfgBadHost, client: &clientTwo})
+	pc.set(cacheKeyBadHost, proxyConf, cacheRefreshStore{cfg: cfgBadHost, client: clientTwo})
 	pc.addMisbehavingHost("misbehaving-host-1.net", fakeNetError{})
 
 	inputs := []testInput{
@@ -407,7 +407,7 @@ func unmarshalConfig(t *testing.T) client.ProxyConfigElement {
 	return proxyConf
 }
 
-func getSysClient(t *testing.T, c *Threescale, sysURL string) client.ThreeScaleClient {
+func getSysClient(t *testing.T, c *Threescale, sysURL string) SystemClient {
 	t.Helper()
 	sysClient, err := c.conf.clientBuilder.BuildSystemClient(sysURL)
 	if err != nil {

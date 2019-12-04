@@ -51,7 +51,7 @@ const (
 // HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
 	var result v1beta1.CheckResult
-	var systemClient sysC.ThreeScaleClient
+	var systemClient SystemClient
 	var proxyConfElement sysC.ProxyConfigElement
 	var backendClient threescale.Client
 	var backendURL string
@@ -80,7 +80,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		goto out
 	}
 
-	proxyConfElement, err = s.extractProxyConf(cfg, &systemClient)
+	proxyConfElement, err = s.extractProxyConf(cfg, systemClient)
 	if err != nil {
 		result.Status, err = rpcStatusErrorHandler("currently unable to fetch required data from 3scale system", status.WithUnavailable, err)
 		goto out
@@ -130,7 +130,7 @@ func (s *Threescale) parseConfigParams(r *authorization.HandleAuthorizationReque
 
 // extractProxyConf - fetches the latest system proxy configuration or returns an error if unavailable
 // If system cache is enabled, config will be fetched from the cache
-func (s *Threescale) extractProxyConf(cfg *config.Params, c *sysC.ThreeScaleClient) (sysC.ProxyConfigElement, error) {
+func (s *Threescale) extractProxyConf(cfg *config.Params, c SystemClient) (sysC.ProxyConfigElement, error) {
 	var pce sysC.ProxyConfigElement
 	var proxyConfErr error
 
