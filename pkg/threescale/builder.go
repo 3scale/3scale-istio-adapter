@@ -11,8 +11,13 @@ import (
 
 // Builder provides an interface required by the adapter to complete authorization
 type Builder interface {
-	BuildSystemClient(string) (system.ThreeScaleClient, error)
+	BuildSystemClient(string) (SystemClient, error)
 	BuildBackendClient(string) (threescale.Client, error)
+}
+
+// SystemClient provides a minimalist interface for the adapters requirements from 3scale system
+type SystemClient interface {
+	GetLatestProxyConfig(accessToken, serviceID, environment string) (system.ProxyConfigElement, error)
 }
 
 // ClientBuilder builds the 3scale clients, injecting the underlying HTTP client
@@ -26,8 +31,9 @@ func NewClientBuilder(httpClient *http.Client) *ClientBuilder {
 }
 
 // BuildSystemClient builds a 3scale porta client from the provided URL(raw string)
-func (cb ClientBuilder) BuildSystemClient(systemURL string) (system.ThreeScaleClient, error) {
-	var client system.ThreeScaleClient
+// The provided 'systemURL' must be prepended with a valid scheme
+func (cb ClientBuilder) BuildSystemClient(systemURL string) (SystemClient, error) {
+	var client SystemClient
 	sysURL, err := url.ParseRequestURI(systemURL)
 	if err != nil {
 		return client, err
@@ -39,10 +45,11 @@ func (cb ClientBuilder) BuildSystemClient(systemURL string) (system.ThreeScaleCl
 		return client, err
 	}
 
-	return *system.NewThreeScale(ap, cb.httpClient), nil
+	return system.NewThreeScale(ap, cb.httpClient), nil
 }
 
 // BuildBackendClient builds a 3scale apisonator http client
+// The provided 'backendURL' must be prepended with a valid scheme
 func (cb ClientBuilder) BuildBackendClient(backendURL string) (threescale.Client, error) {
 	return apisonator.NewClient(backendURL, cb.httpClient)
 }
