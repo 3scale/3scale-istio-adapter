@@ -22,7 +22,11 @@
 
 [[constraint]]
   name = "github.com/3scale/3scale-porta-go-client"
-  version = "v0.0.2"
+  revision = "f6fbb21026d4577eb42c1186be300f01c859b686"
+
+[[constraint]]
+  name = "github.com/3scale/3scale-authorizer"
+  revision = "8b3f1e0858ea5890389def65da3dcb063e606332"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"

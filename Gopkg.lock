@@ -10,6 +10,13 @@
   version = "v0.33.0"
 
 [[projects]]
+  digest = "1:55ad135bf39d7da1aa9ef59772b3effed869ea04c490ae934015801247fd5b4b"
+  name = "github.com/3scale/3scale-authorizer"
+  packages = ["pkg/system/v1/cache"]
+  pruneopts = "NUT"
+  revision = "8b3f1e0858ea5890389def65da3dcb063e606332"
+
+[[projects]]
   digest = "1:dc70beaa94140a1055544d60b8678ec13ea7e9cdeca6622ed7aeabb631105310"
   name = "github.com/3scale/3scale-go-client"
   packages = [
@@ -24,15 +31,14 @@
   version = "v0.0.3"
 
 [[projects]]
-  digest = "1:91981d63946f5d802a03ab508e7d5a701f6c3f85100949719a467dd81033a9eb"
+  digest = "1:95de505d36161043ba005ec9409ed185d731186adbf012b12aeafaf16af9e0c5"
   name = "github.com/3scale/3scale-porta-go-client"
   packages = [
     "client",
     "fake",
   ]
   pruneopts = "NUT"
-  revision = "91f46f5fe308b7ad92068b92bdece0721be09ca1"
-  version = "v0.0.2"
+  revision = "f6fbb21026d4577eb42c1186be300f01c859b686"
 
 [[projects]]
   branch = "master"
@@ -340,6 +346,14 @@
   pruneopts = "NUT"
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
   version = "v1.0.2"
+
+[[projects]]
+  branch = "master"
+  digest = "1:f1a78353e6ea232ec554ccbd787534f8a451e724cb7ecf57ec241c664d76853e"
+  name = "github.com/orcaman/concurrent-map"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "8c72a8bb44f6cfcff2abae8ebcbaaaf883331363"
 
 [[projects]]
   digest = "1:51ea800cff51752ff68e12e04106f5887b4daec6f9356721238c28019f0b42db"
@@ -1115,6 +1129,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/3scale/3scale-authorizer/pkg/system/v1/cache",
     "github.com/3scale/3scale-go-client/fake",
     "github.com/3scale/3scale-go-client/threescale",
     "github.com/3scale/3scale-go-client/threescale/api",
