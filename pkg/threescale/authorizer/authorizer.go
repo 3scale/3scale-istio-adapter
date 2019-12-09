@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/3scale/3scale-authorizer/pkg/system/v1/cache"
+	"github.com/3scale/3scale-go-client/threescale"
+	"github.com/3scale/3scale-go-client/threescale/api"
 	"github.com/3scale/3scale-porta-go-client/client"
 )
 
@@ -36,6 +38,40 @@ type SystemRequest struct {
 	Environment string
 }
 
+// BackendAuth contains client authorization credentials for apisonator
+type BackendAuth struct {
+	Type  string
+	Value string
+}
+
+// BackendRequest contains the data required to make an Auth/AuthRep request to apisonator
+type BackendRequest struct {
+	Auth         BackendAuth
+	Service      string
+	Transactions []BackendTransaction
+}
+
+// BackendResponse contains the result of an Auth/AuthRep request
+type BackendResponse struct {
+	Authorized bool
+	// RejectedReason should* be set in cases where Authorized is false
+	RejectedReason string
+}
+
+// BackendTransaction contains the metrics and end user auth required to make an Auth/AuthRep request to apisonator
+type BackendTransaction struct {
+	Metrics map[string]int
+	Params  BackendParams
+}
+
+// BackendParams contains the ebd user auth for the various supported authentication patterns
+type BackendParams struct {
+	AppID   string
+	AppKey  string
+	UserID  string
+	UserKey string
+}
+
 // GetSystemConfiguration returns the configuration from 3scale system which can be used to fulfill and Auth request
 func (m Manager) GetSystemConfiguration(systemURL string, request SystemRequest) (client.ProxyConfig, error) {
 	var config client.ProxyConfig
@@ -57,6 +93,26 @@ func (m Manager) GetSystemConfiguration(systemURL string, request SystemRequest)
 	}
 
 	return config, nil
+}
+
+// AuthRep does a Authorize and Report request into 3scale apisonator
+func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendResponse, error) {
+	client, err := m.clientBuilder.BuildBackendClient(backendURL)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build required client for 3scale backend - %s", err.Error())
+	}
+
+	req, err := request.ToAPIRequest()
+	if err != nil {
+		return nil, fmt.Errorf("unable to build request to 3scale - %s", err)
+	}
+
+	res, err := client.AuthRep(*req)
+	if err != nil {
+		return nil, fmt.Errorf("error calling AuthRep - %s", err)
+	}
+
+	return &BackendResponse{Authorized: res.Success()}, nil
 }
 
 // validateSystemRequest to avoid wasting compute time on invalid request
@@ -127,4 +183,31 @@ func (m Manager) setValueFromConfig(systemURL string, request SystemRequest, val
 	value.SetRefreshCallback(m.refreshCallback(systemURL, request, m.systemCache.config.numRetryFailedRefresh))
 	value.SetExpiry(time.Now().Add(time.Second * m.systemCache.config.ttlSeconds))
 	return value
+}
+
+// ToAPIRequest transforms the BackendRequest into a request that is acceptable for the 3scale Client interface
+func (request BackendRequest) ToAPIRequest() (*threescale.Request, error) {
+	if request.Transactions == nil || len(request.Transactions) < 1 {
+		return nil, fmt.Errorf("cannot process emtpy transaction")
+	}
+
+	return &threescale.Request{
+		Auth: api.ClientAuth{
+			Type:  api.AuthType(request.Auth.Type),
+			Value: request.Auth.Value,
+		},
+		Extensions: nil,
+		Service:    api.Service(request.Service),
+		Transactions: []api.Transaction{
+			{
+				Metrics: request.Transactions[0].Metrics,
+				Params: api.Params{
+					AppID:   request.Transactions[0].Params.AppID,
+					AppKey:  request.Transactions[0].Params.AppKey,
+					UserID:  request.Transactions[0].Params.UserID,
+					UserKey: request.Transactions[0].Params.UserKey,
+				},
+			},
+		},
+	}, nil
 }
