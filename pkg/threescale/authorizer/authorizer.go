@@ -10,6 +10,12 @@ import (
 	"github.com/3scale/3scale-porta-go-client/client"
 )
 
+// Authorizer fetches configuration from 3scale and authorizes requests to 3scale
+type Authorizer interface {
+	GetSystemConfiguration(systemURL string, request SystemRequest) (client.ProxyConfig, error)
+	AuthRep(backendURL string, request BackendRequest) (*BackendResponse, error)
+}
+
 // Manager manages connections and interactions between the adapter and 3scale (system and backend)
 // Supports managing interactions between multiple hosts and can optionally leverage available caching implementations
 // Capable of Authorizing a request to 3scale and providing the required functionality to pull from the sources to do so
@@ -70,6 +76,39 @@ type BackendParams struct {
 	AppKey  string
 	UserID  string
 	UserKey string
+}
+
+// NewManager returns an instance of Manager with some sensible configuration defaults
+// if not explicitly provided
+func NewManager(builder Builder, systemCache *SystemCache) (*Manager, error) {
+	if builder == nil {
+		return nil, fmt.Errorf("manager requires a valid builder")
+	}
+
+	if systemCache.cache != nil {
+		if systemCache.config.refreshInterval == time.Duration(0) {
+			conf := &systemCache.config
+			conf.refreshInterval = cache.DefaultCacheRefreshInterval
+		}
+
+		if systemCache.config.ttlSeconds == time.Duration(0) {
+			conf := &systemCache.config
+			conf.ttlSeconds = cache.DefaultCacheTTL
+		}
+	}
+
+	return &Manager{
+		clientBuilder: builder,
+		systemCache:   *systemCache,
+	}, nil
+}
+
+// NewSystemCache returns a system cache based on the provided interface and config
+func NewSystemCache(cache cache.ConfigurationCache, config SystemCacheConfig) *SystemCache {
+	return &SystemCache{
+		cache:  cache,
+		config: config,
+	}
 }
 
 // GetSystemConfiguration returns the configuration from 3scale system which can be used to fulfill and Auth request
