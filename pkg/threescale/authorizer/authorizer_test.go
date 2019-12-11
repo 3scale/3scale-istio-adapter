@@ -2,10 +2,13 @@ package authorizer
 
 import (
 	"fmt"
+	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/3scale/3scale-authorizer/pkg/system/v1/cache"
 	"github.com/3scale/3scale-go-client/threescale"
+	"github.com/3scale/3scale-go-client/threescale/api"
 	"github.com/3scale/3scale-porta-go-client/client"
 )
 
@@ -277,9 +280,223 @@ func TestManager_CacheRefreshCallback(t *testing.T) {
 
 }
 
+func TestManager_AuthRep(t *testing.T) {
+	inputs := []struct {
+		name             string
+		url              string
+		request          BackendRequest
+		builder          Builder
+		expectErr        bool
+		expectAuthorized bool
+	}{
+		{
+			name: "Test expect fail when fail to build a client",
+			// we know we cannot build a client if we dont provide a valid URL
+			builder:   NewClientBuilder(http.DefaultClient),
+			expectErr: true,
+		},
+		{
+			name: "Test expect fail when a bad transaction is provided",
+			url:  "https://somewhere-valid.com",
+			// we can build a client here but expect not to use it
+			builder: NewClientBuilder(http.DefaultClient),
+			request: BackendRequest{
+				Auth: BackendAuth{
+					Type:  "any",
+					Value: "any",
+				},
+				Service:      "any",
+				Transactions: nil,
+			},
+			expectErr: true,
+		},
+		{
+			name: "Test expect error when the client that gets built throws an error",
+			builder: mockBuilder{
+				withBackendClient: mockBackendClient{
+					withAuthRepErr: true,
+				},
+			},
+			request: BackendRequest{
+				Auth: BackendAuth{
+					Type:  "any",
+					Value: "any",
+				},
+				Service: "any",
+				Transactions: []BackendTransaction{
+					{
+						Metrics: map[string]int{"hits": 5},
+						Params: BackendParams{
+							AppID:  "yes",
+							AppKey: "no",
+							UserID: "maybe",
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "Test expect end-to-end success and failed auth",
+			builder: mockBuilder{
+				withBackendClient: mockBackendClient{
+					withAuthRepErr:   false,
+					withAuthResponse: &mochAuthzResult{withSuccess: false},
+				},
+			},
+			request: BackendRequest{
+				Auth: BackendAuth{
+					Type:  "any",
+					Value: "any",
+				},
+				Service: "any",
+				Transactions: []BackendTransaction{
+					{
+						Metrics: map[string]int{"hits": 5},
+						Params: BackendParams{
+							AppID:  "yes",
+							AppKey: "no",
+							UserID: "maybe",
+						},
+					},
+				},
+			},
+			expectErr:        false,
+			expectAuthorized: false,
+		},
+		{
+			name: "Test expect end-to-end success",
+			builder: mockBuilder{
+				withBackendClient: mockBackendClient{
+					withAuthRepErr:   false,
+					withAuthResponse: &mochAuthzResult{withSuccess: true},
+				},
+			},
+			request: BackendRequest{
+				Auth: BackendAuth{
+					Type:  "any",
+					Value: "any",
+				},
+				Service: "any",
+				Transactions: []BackendTransaction{
+					{
+						Metrics: map[string]int{"hits": 5},
+						Params: BackendParams{
+							AppID:  "yes",
+							AppKey: "no",
+							UserID: "maybe",
+						},
+					},
+				},
+			},
+			expectAuthorized: true,
+		},
+	}
+
+	for _, input := range inputs {
+		t.Run(input.name, func(t *testing.T) {
+			m := Manager{
+				clientBuilder: input.builder,
+			}
+
+			response, err := m.AuthRep(input.url, input.request)
+			if err != nil {
+				if !input.expectErr {
+					t.Errorf("unexpected error %v", err)
+				}
+				return
+			}
+
+			if response.Authorized != input.expectAuthorized {
+				t.Errorf("unexpected auth result")
+			}
+		})
+
+	}
+}
+
+func TestBackendRequest_ToAPIRequest(t *testing.T) {
+	badRequestWithNilTransaction := BackendRequest{
+		Auth: BackendAuth{
+			Type:  "any",
+			Value: "any",
+		},
+		Service:      "any",
+		Transactions: nil,
+	}
+
+	_, err := badRequestWithNilTransaction.ToAPIRequest()
+	if err == nil {
+		t.Errorf("expected an error due to nil transaction")
+	}
+
+	badRequestWithEmptyTransaction := BackendRequest{
+		Auth: BackendAuth{
+			Type:  "any",
+			Value: "any",
+		},
+		Service:      "any",
+		Transactions: []BackendTransaction{},
+	}
+	_, err = badRequestWithEmptyTransaction.ToAPIRequest()
+	if err == nil {
+		t.Errorf("expected an error due to empty transactions")
+	}
+
+	validRequest := BackendRequest{
+		Auth: BackendAuth{
+			Type:  "any",
+			Value: "any",
+		},
+		Service: "any",
+		Transactions: []BackendTransaction{
+			{
+				Metrics: map[string]int{"hits": 5},
+				Params: BackendParams{
+					AppID:  "yes",
+					AppKey: "no",
+					UserID: "maybe",
+				},
+			},
+		},
+	}
+
+	apiReq, err := validRequest.ToAPIRequest()
+	if err != nil {
+		t.Errorf("unexpected error when transforming request")
+	}
+
+	expect := &threescale.Request{
+		Auth: api.ClientAuth{
+			Type:  api.AuthType("any"),
+			Value: "any",
+		},
+		Extensions: nil,
+		Service:    "any",
+		Transactions: []api.Transaction{
+			{
+				Metrics: api.Metrics{"hits": 5},
+				Params: api.Params{
+					AppID:    "yes",
+					AppKey:   "no",
+					Referrer: "",
+					UserID:   "maybe",
+					UserKey:  "",
+				},
+				Timestamp: "",
+			},
+		},
+	}
+
+	if !reflect.DeepEqual(expect, apiReq) {
+		t.Errorf("expected pointer values to be deeply equal")
+	}
+}
+
 type mockBuilder struct {
 	withBuildSystemClientErr bool
 	withSystemClient         mockSystemClient
+	withBackendClient        mockBackendClient
 }
 
 func (m mockBuilder) BuildSystemClient(systemURL, accessToken string) (SystemClient, error) {
@@ -290,7 +507,7 @@ func (m mockBuilder) BuildSystemClient(systemURL, accessToken string) (SystemCli
 }
 
 func (m mockBuilder) BuildBackendClient(backendURL string) (threescale.Client, error) {
-	panic("implement me")
+	return m.withBackendClient, nil
 }
 
 func newMockBuilderWithSystemClientBuildError(t *testing.T) mockBuilder {
@@ -305,7 +522,51 @@ type mockSystemClient struct {
 
 func (m mockSystemClient) GetLatestProxyConfig(serviceID, environment string) (client.ProxyConfigElement, error) {
 	if m.withErr {
-		return client.ProxyConfigElement{}, fmt.Errorf("arbitary error")
+		return client.ProxyConfigElement{}, fmt.Errorf("arbitrary error")
 	}
 	return m.withConfig, nil
+}
+
+type mockBackendClient struct {
+	withAuthRepErr   bool
+	withAuthResponse threescale.AuthorizeResult
+}
+
+func (mbc mockBackendClient) Authorize(request threescale.Request) (threescale.AuthorizeResult, error) {
+	panic("implement me")
+}
+
+func (mbc mockBackendClient) AuthRep(request threescale.Request) (threescale.AuthorizeResult, error) {
+	if mbc.withAuthRepErr {
+		return nil, fmt.Errorf("arbitrary error")
+	}
+	return mbc.withAuthResponse, nil
+}
+
+func (mockBackendClient) Report(request threescale.Request) (threescale.ReportResult, error) {
+	panic("implement me")
+}
+
+func (mockBackendClient) GetPeer() string {
+	panic("implement me")
+}
+
+type mochAuthzResult struct {
+	withSuccess bool
+}
+
+func (mochAuthzResult) GetHierarchy() api.Hierarchy {
+	panic("implement me")
+}
+
+func (mochAuthzResult) GetRateLimits() *api.RateLimits {
+	panic("implement me")
+}
+
+func (mochAuthzResult) GetUsageReports() api.UsageReports {
+	panic("implement me")
+}
+
+func (mar mochAuthzResult) Success() bool {
+	return mar.withSuccess
 }
