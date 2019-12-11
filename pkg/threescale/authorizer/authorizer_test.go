@@ -12,6 +12,22 @@ import (
 	"github.com/3scale/3scale-porta-go-client/client"
 )
 
+func TestNewManager(t *testing.T) {
+	manager, err := NewManager(nil, nil)
+	if err == nil {
+		t.Errorf("expected error as no builder provided")
+	}
+
+	manager, err = NewManager(NewClientBuilder(http.DefaultClient), NewSystemCache(&cache.ConfigCache{}, SystemCacheConfig{}))
+	if err != nil {
+		t.Error("unexpected error")
+	}
+
+	if manager.systemCache.config.ttlSeconds.Seconds() != cache.DefaultCacheTTL.Seconds() {
+		t.Error("unexpected defaults set")
+	}
+}
+
 func TestManager_GetSystemConfiguration(t *testing.T) {
 	const systemURL = "test"
 	const token = "any"
