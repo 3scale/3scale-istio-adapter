@@ -4,23 +4,21 @@ package threescale
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/3scale/3scale-go-client/fake"
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
-	sysFake "github.com/3scale/3scale-porta-go-client/fake"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
+	"github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
 	integration "istio.io/istio/mixer/pkg/adapter/test"
 )
 
+const validAuth = "VALID"
 const authenticatedSuccess = `
 	{
 		"AdapterState": null,
@@ -40,6 +38,7 @@ const authenticatedSuccess = `
 func TestAuthorizationCheck(t *testing.T) {
 	var conf []string
 	var files []string
+	var handlerConf []byte
 
 	path, _ := filepath.Abs("../../testdata")
 	err := filepath.Walk(path, func(f string, info os.FileInfo, err error) error {
@@ -57,20 +56,204 @@ func TestAuthorizationCheck(t *testing.T) {
 	for _, f := range files {
 		adapterConf, err := ioutil.ReadFile(f)
 		if err != nil {
-			fmt.Println(err)
 			t.Fatalf("error reading adapter config")
 		}
+		if strings.Contains(f, "handler.yaml") {
+			handlerConf = adapterConf
+			continue
+		}
+
 		conf = append(conf, string(adapterConf))
 	}
 
 	inputs := []struct {
-		name            string
-		callWith        []integration.Call
-		expect          string
-		injectProxyConf string
+		name       string
+		callWith   []integration.Call
+		expect     string
+		authorizer authorizer.Authorizer
+		handler    []byte
 	}{
 		{
-			name: "Test No Authn Credentials Provided Denied",
+			name: "Test failure when no url_path provided",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "",
+						"request.method":        "get",
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+							"service-mesh.3scale.net/service-id":  "any",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig:    client.ProxyConfig{},
+				withSystemErr: nil,
+			},
+			expect: generatedExpectedError(t, rpc.FAILED_PRECONDITION, "request path must be provided."),
+		},
+		{
+			name: "Test failure when no mapping rule matches incoming request",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/",
+						"request.method":        "get",
+						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+							"service-mesh.3scale.net/service-id":  "any",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodPost,
+								},
+							},
+						},
+					},
+				},
+				withSystemErr: nil,
+			},
+			expect: generatedExpectedError(t, rpc.PERMISSION_DENIED, "no matching mapping rule for request"),
+		},
+		{
+			name: "Test failure when no access token set in handler",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/",
+						"request.method":        "get",
+						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+							"service-mesh.3scale.net/service-id":  "any",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/",
+								},
+							},
+						},
+					},
+				},
+				withSystemErr: nil,
+			},
+			handler: []byte(`apiVersion: config.istio.io/v1alpha2
+kind: handler
+metadata:
+  creationTimestamp: null
+  name: threescale
+  namespace: istio-system
+spec:
+  adapter: threescale
+  connection:
+    address: '[::]:3333'
+  params:
+    system_url: http://127.0.0.1:8090`),
+			expect: generatedExpectedError(t, rpc.FAILED_PRECONDITION, errAccessToken.Error()+"."),
+		},
+		{
+			name: "Test failure when no system url set in handler",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/",
+						"request.method":        "get",
+						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+							"service-mesh.3scale.net/service-id":  "any",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/",
+								},
+							},
+						},
+					},
+				},
+				withSystemErr: nil,
+			},
+			handler: []byte(`apiVersion: config.istio.io/v1alpha2
+kind: handler
+metadata:
+  creationTimestamp: null
+  name: threescale
+  namespace: istio-system
+spec:
+  adapter: threescale
+  connection:
+    address: '[::]:3333'
+  params:
+    access_token: secret-token`),
+			expect: generatedExpectedError(t, rpc.FAILED_PRECONDITION, errSystemURL.Error()+"."),
+		},
+		{
+			name: "Test failure when no service ID provided",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/",
+						"request.method":        "get",
+						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/",
+								},
+							},
+						},
+					},
+				},
+			},
+			expect: generatedExpectedError(t, rpc.FAILED_PRECONDITION, errServiceID.Error()+"."),
+		},
+		{
+			name: "Test error when no credentials provided",
 			callWith: []integration.Call{
 				{
 					CallKind: integration.CHECK,
@@ -85,7 +268,21 @@ func TestAuthorizationCheck(t *testing.T) {
 					},
 				},
 			},
-			expect: generatedExpectedError(t, rpc.PERMISSION_DENIED, unauthenticatedErr),
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/",
+								},
+							},
+						},
+					},
+				},
+			},
+			expect: generatedExpectedError(t, rpc.UNAUTHENTICATED, errNoCredentials.Error()),
 		},
 		{
 			name: "Test Authorization API Key via headers success",
@@ -95,13 +292,31 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
-						"request.headers":       map[string]string{"x-user-key": "VALID"},
+						"request.headers":       map[string]string{"x-user-key": validAuth},
 						"request.method":        "get",
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 							"service-mesh.3scale.net/service-id":  "any",
 						},
 					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/thispath",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized:     false,
+					RejectedReason: "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -114,13 +329,31 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
-						"request.query_params":  map[string]string{"user_key": "VALID"},
+						"request.query_params":  map[string]string{"user_key": validAuth},
 						"request.method":        "get",
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 							"service-mesh.3scale.net/service-id":  "any",
 						},
 					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/thispath",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized:     false,
+					RejectedReason: "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -133,13 +366,31 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
+						"request.headers":       map[string]string{"app-id": validAuth, "app-key": "secret"},
 						"request.method":        "get",
-						"request.headers":       map[string]string{"app-id": "test", "app-key": "secret"},
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 							"service-mesh.3scale.net/service-id":  "any",
 						},
 					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/thispath",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized:     false,
+					RejectedReason: "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -152,13 +403,31 @@ func TestAuthorizationCheck(t *testing.T) {
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
+						"request.query_params":  map[string]string{"app_id": validAuth},
 						"request.method":        "get",
-						"request.query_params":  map[string]string{"app_id": "VALID"},
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 							"service-mesh.3scale.net/service-id":  "any",
 						},
 					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/thispath",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized:     false,
+					RejectedReason: "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -179,8 +448,26 @@ func TestAuthorizationCheck(t *testing.T) {
 					},
 				},
 			},
-			expect:          generatedExpectedError(t, rpc.PERMISSION_DENIED, unauthenticatedErr),
-			injectProxyConf: strings.Replace(sysFake.GetProxyConfigLatestJson(), `"backend_version": "1",`, `"backend_version": "oauth",`, -1),
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						BackendVersion: openIDTypeIdentifier,
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/oidc",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized:     false,
+					RejectedReason: "should not overwrite",
+				},
+			},
+			expect: generatedExpectedError(t, rpc.UNAUTHENTICATED, errNoCredentials.Error()),
 		},
 		{
 			name: "Test OIDC integration success",
@@ -191,7 +478,7 @@ func TestAuthorizationCheck(t *testing.T) {
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/oidc",
 						"request.method":        "get",
-						"request.auth.claims":   map[string]string{"azp": "VALID"},
+						"request.auth.claims":   map[string]string{"azp": validAuth},
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 							"service-mesh.3scale.net/service-id":  "any",
@@ -199,17 +486,73 @@ func TestAuthorizationCheck(t *testing.T) {
 					},
 				},
 			},
-			expect:          authenticatedSuccess,
-			injectProxyConf: strings.Replace(sysFake.GetProxyConfigLatestJson(), `"backend_version": "1",`, `"backend_version": "oauth",`, -1),
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						BackendVersion: openIDTypeIdentifier,
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/oidc",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized:     false,
+					RejectedReason: "should overwrite",
+				},
+			},
+			expect: authenticatedSuccess,
+		},
+		{
+			name: "Test backend response is respected for failed auth",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/oidc",
+						"request.method":        "get",
+						"request.auth.claims":   map[string]string{"azp": "INVALID"},
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+							"service-mesh.3scale.net/service-id":  "any",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						BackendVersion: openIDTypeIdentifier,
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/oidc",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized:     false,
+					RejectedReason: "should not overwrite",
+				},
+			},
+			expect: generatedExpectedError(t, rpc.PERMISSION_DENIED, "should not overwrite"),
 		},
 	}
 
 	for _, input := range inputs {
-		sysServer, backendServer := startTestBackends(t, input.injectProxyConf)
-
 		s := integration.Scenario{
 			Setup: func() (ctx interface{}, err error) {
-				pServer, err := NewThreescale("3333", &AdapterConfig{clientBuilder: NewClientBuilder(http.DefaultClient), backend: backend.DefaultBackend{}})
+				config := NewAdapterConfig(input.authorizer, time.Second)
+
+				pServer, err := NewThreescale("3333", config)
 				if err != nil {
 					return nil, err
 				}
@@ -227,7 +570,18 @@ func TestAuthorizationCheck(t *testing.T) {
 				s.Close()
 			},
 			GetConfig: func(ctx interface{}) ([]string, error) {
-				return conf, nil
+				doConf := func(input []byte) []string {
+					var aggregatedConf = make([]string, len(conf))
+					copy(aggregatedConf, conf)
+					aggregatedConf = append(aggregatedConf, string(input))
+					return aggregatedConf
+				}
+
+				if input.handler == nil {
+					return doConf(handlerConf), nil
+				}
+
+				return doConf(input.handler), nil
 			},
 			GetState: func(ctx interface{}) (interface{}, error) {
 				return nil, nil
@@ -235,48 +589,10 @@ func TestAuthorizationCheck(t *testing.T) {
 			ParallelCalls: input.callWith,
 			Want:          input.expect,
 		}
-		t.Run(input.name, func(t *testing.T) {
-			integration.RunTest(t, nil, s)
-			sysServer.Close()
-			backendServer.Close()
-		})
+		integration.RunTest(t, nil, s)
 
 	}
 
-}
-
-func startTestBackends(t *testing.T, proxyConfResp string) (*httptest.Server, *httptest.Server) {
-	sysListener, err := net.Listen("tcp", "127.0.0.1:8090")
-	if err != nil {
-		t.Fatalf("error listening on port for test data")
-	}
-
-	backendListener, err := net.Listen("tcp", "127.0.0.1:8091")
-	if err != nil {
-		t.Fatalf("error listening on port for test data")
-	}
-
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		if proxyConfResp == "" {
-			proxyConfResp = sysFake.GetProxyConfigLatestJson()
-		}
-		io.WriteString(w, strings.Replace(proxyConfResp, "https://su1.3scale.net", "http://127.0.0.1:8091", -1))
-	}))
-	ts.Listener.Close()
-	ts.Listener = sysListener
-	ts.Start()
-
-	bs := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fake.GetAuthSuccess())
-		return
-	}))
-
-	bs.Listener.Close()
-	bs.Listener = backendListener
-	bs.Start()
-
-	return ts, bs
 }
 
 func generatedExpectedError(t *testing.T, status rpc.Code, reason string) string {
