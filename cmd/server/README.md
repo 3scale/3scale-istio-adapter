@@ -12,11 +12,11 @@ configuring the following environment variables:
 | THREESCALE_LISTEN_ADDR           | Sets the listen address for the gRPC server                                                        | 0       |
 | THREESCALE_LOG_LEVEL             | Sets the minimum log output level. Accepted values are one of `debug`,`info`,`warn`,`error`,`none` | info    |
 | THREESCALE_LOG_JSON              | Controls whether the log is formatted as JSON                                                      | true    |
-| THREESCALE_LOG_GRPC              | Controls whether the log includes gRPC info                                                           | false   |
+| THREESCALE_LOG_GRPC              | Controls whether the log includes gRPC info                                                        | false   |
 | THREESCALE_REPORT_METRICS        | Controls whether 3scale system and backend metrics are collected and reported to Prometheus        | true    |
 | THREESCALE_METRICS_PORT          | Sets the port which 3scale `/metrics` endpoint can be scrapped from                                | 8080    |
 | THREESCALE_CACHE_TTL_SECONDS     | Time period, in seconds, to wait before purging expired items from the cache                       | 300     |
-| THREESCALE_CACHE_REFRESH_SECONDS | Time period before expiry, when cache elements are attempted to be refreshed                       | 180     |
+| THREESCALE_CACHE_REFRESH_SECONDS | Time period in seconds, before a background process attempts to refresh cached entries             | 180     |
 | THREESCALE_CACHE_ENTRIES_MAX     | Max number of items that can be stored in the cache at any time. Set to 0 to disable caching       | 1000    |
 | THREESCALE_CACHE_REFRESH_RETRIES | Sets the number of times unreachable hosts will be retried during a cache update loop              | 1       |
 | THREESCALE_ALLOW_INSECURE_CONN   | Allow to skip certificate verification when calling 3scale API's. Enabling is not recommended      | false   |
