@@ -35,6 +35,7 @@ type SystemCacheConfig struct {
 	numRetryFailedRefresh int
 	refreshInterval       time.Duration
 	ttlSeconds            time.Duration
+	stop                  chan struct{}
 }
 
 // SystemRequest provides the required input to request the latest configuration from 3scale system
@@ -78,8 +79,8 @@ type BackendParams struct {
 	UserKey string
 }
 
-// NewManager returns an instance of Manager with some sensible configuration defaults
-// if not explicitly provided
+// NewManager returns an instance of Manager with some sensible configuration defaults if not explicitly provided
+// Starts refreshing background process for underlying system cache if provided
 func NewManager(builder Builder, systemCache *SystemCache) (*Manager, error) {
 	if builder == nil {
 		return nil, fmt.Errorf("manager requires a valid builder")
@@ -95,6 +96,20 @@ func NewManager(builder Builder, systemCache *SystemCache) (*Manager, error) {
 			conf := &systemCache.config
 			conf.ttlSeconds = cache.DefaultCacheTTL
 		}
+
+		go func() {
+			ticker := time.NewTicker(systemCache.config.refreshInterval)
+			for {
+				select {
+				case <-ticker.C:
+					systemCache.cache.Refresh()
+				case <-systemCache.config.stop:
+					ticker.Stop()
+					return
+				}
+			}
+		}()
+
 	}
 
 	return &Manager{
@@ -108,6 +123,15 @@ func NewSystemCache(cache cache.ConfigurationCache, config SystemCacheConfig) *S
 	return &SystemCache{
 		cache:  cache,
 		config: config,
+	}
+}
+
+func NewSystemCacheConfig(refreshRetries int, refreshInterval, ttlSeconds time.Duration, stopRefreshing chan struct{}) *SystemCacheConfig {
+	return &SystemCacheConfig{
+		numRetryFailedRefresh: refreshRetries,
+		refreshInterval:       refreshInterval,
+		ttlSeconds:            ttlSeconds,
+		stop:                  stopRefreshing,
 	}
 }
 
