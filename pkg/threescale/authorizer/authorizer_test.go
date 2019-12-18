@@ -18,12 +18,12 @@ func TestNewManager(t *testing.T) {
 		t.Errorf("expected error as no builder provided")
 	}
 
-	manager, err = NewManager(NewClientBuilder(http.DefaultClient), NewSystemCache(&cache.ConfigCache{}, SystemCacheConfig{}))
+	manager, err = NewManager(NewClientBuilder(http.DefaultClient), NewSystemCache(SystemCacheConfig{}, nil))
 	if err != nil {
 		t.Error("unexpected error")
 	}
 
-	if manager.systemCache.config.ttlSeconds.Seconds() != cache.DefaultCacheTTL.Seconds() {
+	if manager.systemCache.TTL.Seconds() != cache.DefaultCacheTTL.Seconds() {
 		t.Error("unexpected defaults set")
 	}
 }
@@ -34,7 +34,7 @@ func TestManager_GetSystemConfiguration(t *testing.T) {
 	const svcID = "any"
 	const env = "test"
 
-	var cacheKey = Manager{}.generateSystemCacheKey(systemURL, svcID)
+	var cacheKey = generateSystemCacheKey(systemURL, svcID)
 
 	validRequest := SystemRequest{
 		AccessToken: token,
@@ -236,7 +236,7 @@ func TestManager_CacheRefreshCallback(t *testing.T) {
 	const env = "test"
 
 	m := Manager{}
-	cacheKey := m.generateSystemCacheKey(systemURL, svcID)
+	cacheKey := generateSystemCacheKey(systemURL, svcID)
 
 	sc := SystemCache{cache: cache.NewDefaultConfigCache()}
 	value := cache.Value{
