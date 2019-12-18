@@ -26,16 +26,17 @@ type Manager struct {
 
 // SystemCache wraps the caching implementation and its configuration for 3scale system
 type SystemCache struct {
-	cache  cache.ConfigurationCache
-	config SystemCacheConfig
+	SystemCacheConfig
+	cache              cache.ConfigurationCache
+	stopRefreshingTask chan struct{}
 }
 
 // SystemCacheConfig holds the configuration for the cache
 type SystemCacheConfig struct {
-	numRetryFailedRefresh int
-	refreshInterval       time.Duration
-	ttlSeconds            time.Duration
-	stop                  chan struct{}
+	MaxSize               int
+	NumRetryFailedRefresh int
+	RefreshInterval       time.Duration
+	TTL                   time.Duration
 }
 
 // SystemRequest provides the required input to request the latest configuration from 3scale system
@@ -79,7 +80,7 @@ type BackendParams struct {
 	UserKey string
 }
 
-// NewManager returns an instance of Manager with some sensible configuration defaults if not explicitly provided
+// NewManager returns an instance of Manager
 // Starts refreshing background process for underlying system cache if provided
 func NewManager(builder Builder, systemCache *SystemCache) (*Manager, error) {
 	if builder == nil {
@@ -87,23 +88,13 @@ func NewManager(builder Builder, systemCache *SystemCache) (*Manager, error) {
 	}
 
 	if systemCache.cache != nil {
-		if systemCache.config.refreshInterval == time.Duration(0) {
-			conf := &systemCache.config
-			conf.refreshInterval = cache.DefaultCacheRefreshInterval
-		}
-
-		if systemCache.config.ttlSeconds == time.Duration(0) {
-			conf := &systemCache.config
-			conf.ttlSeconds = cache.DefaultCacheTTL
-		}
-
 		go func() {
-			ticker := time.NewTicker(systemCache.config.refreshInterval)
+			ticker := time.NewTicker(systemCache.RefreshInterval)
 			for {
 				select {
 				case <-ticker.C:
 					systemCache.cache.Refresh()
-				case <-systemCache.config.stop:
+				case <-systemCache.stopRefreshingTask:
 					ticker.Stop()
 					return
 				}
@@ -118,20 +109,23 @@ func NewManager(builder Builder, systemCache *SystemCache) (*Manager, error) {
 	}, nil
 }
 
-// NewSystemCache returns a system cache based on the provided interface and config
-func NewSystemCache(cache cache.ConfigurationCache, config SystemCacheConfig) *SystemCache {
-	return &SystemCache{
-		cache:  cache,
-		config: config,
-	}
-}
+// NewSystemCache returns a system cache configured with an in-memory caching implementation
+// and sets some sensible defaults if zero values have been provided for the config
+func NewSystemCache(config SystemCacheConfig, stopRefreshing chan struct{}) *SystemCache {
+	c := cache.NewConfigCache(config.TTL, config.MaxSize)
 
-func NewSystemCacheConfig(refreshRetries int, refreshInterval, ttlSeconds time.Duration, stopRefreshing chan struct{}) *SystemCacheConfig {
-	return &SystemCacheConfig{
-		numRetryFailedRefresh: refreshRetries,
-		refreshInterval:       refreshInterval,
-		ttlSeconds:            ttlSeconds,
-		stop:                  stopRefreshing,
+	if config.RefreshInterval == time.Duration(0) {
+		config.RefreshInterval = cache.DefaultCacheRefreshInterval
+	}
+
+	if config.TTL == time.Duration(0) {
+		config.TTL = cache.DefaultCacheTTL
+	}
+
+	return &SystemCache{
+		cache:              c,
+		stopRefreshingTask: stopRefreshing,
+		SystemCacheConfig:  config,
 	}
 }
 
@@ -140,7 +134,7 @@ func (m Manager) GetSystemConfiguration(systemURL string, request SystemRequest)
 	var config client.ProxyConfig
 	var err error
 
-	if err = m.validateSystemRequest(request); err != nil {
+	if err = validateSystemRequest(request); err != nil {
 		return config, err
 	}
 
@@ -178,23 +172,11 @@ func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendRes
 	return &BackendResponse{Authorized: res.Success()}, nil
 }
 
-// validateSystemRequest to avoid wasting compute time on invalid request
-func (m Manager) validateSystemRequest(request SystemRequest) error {
-	if request.Environment == "" || request.ServiceID == "" || request.AccessToken == "" {
-		return fmt.Errorf("invalid arguements provided")
-	}
-	return nil
-}
-
-func (m Manager) generateSystemCacheKey(systemURL, svcID string) string {
-	return fmt.Sprintf("%s_%s", systemURL, svcID)
-}
-
 func (m Manager) fetchSystemConfigFromCache(systemURL string, request SystemRequest) (client.ProxyConfig, error) {
 	var config client.ProxyConfig
 	var err error
 
-	cacheKey := m.generateSystemCacheKey(systemURL, request.ServiceID)
+	cacheKey := generateSystemCacheKey(systemURL, request.ServiceID)
 	cachedValue, found := m.systemCache.cache.Get(cacheKey)
 	if !found {
 		config, err = m.fetchSystemConfigRemotely(systemURL, request)
@@ -243,8 +225,7 @@ func (m Manager) refreshCallback(systemURL string, request SystemRequest, retryA
 }
 
 func (m Manager) setValueFromConfig(systemURL string, request SystemRequest, value *cache.Value) *cache.Value {
-	value.SetRefreshCallback(m.refreshCallback(systemURL, request, m.systemCache.config.numRetryFailedRefresh))
-	value.SetExpiry(time.Now().Add(time.Second * m.systemCache.config.ttlSeconds))
+	value.SetRefreshCallback(m.refreshCallback(systemURL, request, m.systemCache.NumRetryFailedRefresh))
 	return value
 }
 
@@ -273,4 +254,16 @@ func (request BackendRequest) ToAPIRequest() (*threescale.Request, error) {
 			},
 		},
 	}, nil
+}
+
+// validateSystemRequest to avoid wasting compute time on invalid request
+func validateSystemRequest(request SystemRequest) error {
+	if request.Environment == "" || request.ServiceID == "" || request.AccessToken == "" {
+		return fmt.Errorf("invalid arguements provided")
+	}
+	return nil
+}
+
+func generateSystemCacheKey(systemURL, svcID string) string {
+	return fmt.Sprintf("%s_%s", systemURL, svcID)
 }
