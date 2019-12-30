@@ -344,7 +344,6 @@
   version = "v1.0.2"
 
 [[projects]]
-  branch = "master"
   digest = "1:f1a78353e6ea232ec554ccbd787534f8a451e724cb7ecf57ec241c664d76853e"
   name = "github.com/orcaman/concurrent-map"
   packages = ["."]
@@ -1135,6 +1134,7 @@
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
+    "github.com/orcaman/concurrent-map",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/prometheus/client_golang/prometheus/testutil",
