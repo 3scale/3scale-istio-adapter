@@ -36,3 +36,15 @@ type LimitCounter map[string]map[api.Period]*Limit
 
 // UnlimitedCounter keeps a count of metrics without limits
 type UnlimitedCounter map[string]int
+
+// deepCopy creates a clone of the LimitCounter 'lc'
+func (lc LimitCounter) deepCopy() LimitCounter {
+	clone := make(LimitCounter)
+	for metric, periods := range lc {
+		clone[metric] = make(map[api.Period]*Limit, len(periods))
+		for period, limit := range periods {
+			clone[metric][period] = &Limit{current: limit.current, max: limit.max}
+		}
+	}
+	return clone
+}
