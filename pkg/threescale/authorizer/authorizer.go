@@ -169,7 +169,7 @@ func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendRes
 		return nil, fmt.Errorf("error calling AuthRep - %s", err)
 	}
 
-	return &BackendResponse{Authorized: res.Success()}, nil
+	return &BackendResponse{Authorized: res.Authorized, RejectedReason: res.ErrorCode}, nil
 }
 
 func (m Manager) fetchSystemConfigFromCache(systemURL string, request SystemRequest) (client.ProxyConfig, error) {

@@ -356,8 +356,12 @@ func TestManager_AuthRep(t *testing.T) {
 			name: "Test expect end-to-end success and failed auth",
 			builder: mockBuilder{
 				withBackendClient: mockBackendClient{
-					withAuthRepErr:   false,
-					withAuthResponse: &mochAuthzResult{withSuccess: false},
+					withAuthRepErr: false,
+					withAuthResponse: &threescale.AuthorizeResult{
+						Authorized:          false,
+						ErrorCode:           "some_error",
+						AuthorizeExtensions: threescale.AuthorizeExtensions{},
+					},
 				},
 			},
 			request: BackendRequest{
@@ -384,8 +388,10 @@ func TestManager_AuthRep(t *testing.T) {
 			name: "Test expect end-to-end success",
 			builder: mockBuilder{
 				withBackendClient: mockBackendClient{
-					withAuthRepErr:   false,
-					withAuthResponse: &mochAuthzResult{withSuccess: true},
+					withAuthRepErr: false,
+					withAuthResponse: &threescale.AuthorizeResult{
+						Authorized: true,
+					},
 				},
 			},
 			request: BackendRequest{
@@ -545,44 +551,24 @@ func (m mockSystemClient) GetLatestProxyConfig(serviceID, environment string) (c
 
 type mockBackendClient struct {
 	withAuthRepErr   bool
-	withAuthResponse threescale.AuthorizeResult
+	withAuthResponse *threescale.AuthorizeResult
 }
 
-func (mbc mockBackendClient) Authorize(request threescale.Request) (threescale.AuthorizeResult, error) {
+func (mbc mockBackendClient) Authorize(request threescale.Request) (*threescale.AuthorizeResult, error) {
 	panic("implement me")
 }
 
-func (mbc mockBackendClient) AuthRep(request threescale.Request) (threescale.AuthorizeResult, error) {
+func (mbc mockBackendClient) AuthRep(request threescale.Request) (*threescale.AuthorizeResult, error) {
 	if mbc.withAuthRepErr {
 		return nil, fmt.Errorf("arbitrary error")
 	}
 	return mbc.withAuthResponse, nil
 }
 
-func (mockBackendClient) Report(request threescale.Request) (threescale.ReportResult, error) {
+func (mockBackendClient) Report(request threescale.Request) (*threescale.ReportResult, error) {
 	panic("implement me")
 }
 
 func (mockBackendClient) GetPeer() string {
 	panic("implement me")
-}
-
-type mochAuthzResult struct {
-	withSuccess bool
-}
-
-func (mochAuthzResult) GetHierarchy() api.Hierarchy {
-	panic("implement me")
-}
-
-func (mochAuthzResult) GetRateLimits() *api.RateLimits {
-	panic("implement me")
-}
-
-func (mochAuthzResult) GetUsageReports() api.UsageReports {
-	panic("implement me")
-}
-
-func (mar mochAuthzResult) Success() bool {
-	return mar.withSuccess
 }
