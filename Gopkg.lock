@@ -17,26 +17,21 @@
   revision = "8b3f1e0858ea5890389def65da3dcb063e606332"
 
 [[projects]]
-  digest = "1:dc70beaa94140a1055544d60b8678ec13ea7e9cdeca6622ed7aeabb631105310"
+  digest = "1:13e5bceb514358a2fb30d03942dfd730bdf5dd38e8bc87100b15bd837f8f9431"
   name = "github.com/3scale/3scale-go-client"
   packages = [
-    "fake",
     "threescale",
     "threescale/api",
     "threescale/http",
     "threescale/internal",
   ]
   pruneopts = "NUT"
-  revision = "4dc2b2829af9295cd84f667e7e41e7c2f3d5c520"
-  version = "v0.0.3"
+  revision = "19d97231826234b0672e59715e73d2e3ea371f33"
 
 [[projects]]
-  digest = "1:95de505d36161043ba005ec9409ed185d731186adbf012b12aeafaf16af9e0c5"
+  digest = "1:be660b3d469d79ce10dca0ac101e0b37c9fe80803880950afa2cc85825b93b63"
   name = "github.com/3scale/3scale-porta-go-client"
-  packages = [
-    "client",
-    "fake",
-  ]
+  packages = ["client"]
   pruneopts = "NUT"
   revision = "f6fbb21026d4577eb42c1186be300f01c859b686"
 
@@ -1130,12 +1125,10 @@
   analyzer-version = 1
   input-imports = [
     "github.com/3scale/3scale-authorizer/pkg/system/v1/cache",
-    "github.com/3scale/3scale-go-client/fake",
     "github.com/3scale/3scale-go-client/threescale",
     "github.com/3scale/3scale-go-client/threescale/api",
     "github.com/3scale/3scale-go-client/threescale/http",
     "github.com/3scale/3scale-porta-go-client/client",
-    "github.com/3scale/3scale-porta-go-client/fake",
     "github.com/ghodss/yaml",
     "github.com/gogo/googleapis/google/rpc",
     "github.com/gogo/protobuf/gogoproto",
