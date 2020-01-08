@@ -81,7 +81,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		return result, err
 	}
 
-	backendReq := s.requestFromConfig(proxyConf, *r.Instance)
+	backendReq := s.requestFromConfig(proxyConf, *r.Instance, *cfg)
 	rpcFN, err := s.validateBackendRequest(backendReq)
 	if err != nil {
 		result.Status = rpcFN(err.Error())
@@ -160,7 +160,7 @@ func (s *Threescale) systemRequestFromHandlerConfig(cfg *config.Params) authoriz
 	}
 }
 
-func (s *Threescale) requestFromConfig(systemConf system.ProxyConfig, istioConf authorization.InstanceMsg) authorizer.BackendRequest {
+func (s *Threescale) requestFromConfig(systemConf system.ProxyConfig, istioConf authorization.InstanceMsg, cfg config.Params) authorizer.BackendRequest {
 	var (
 		// Application ID/OpenID Connect authentication pattern - App Key is optional when using this authn
 		appID, appKey string
@@ -189,7 +189,7 @@ func (s *Threescale) requestFromConfig(systemConf system.ProxyConfig, istioConf 
 			Type:  systemConf.Content.BackendAuthenticationType,
 			Value: systemConf.Content.BackendAuthenticationValue,
 		},
-		Service: istioConf.Action.Service,
+		Service: cfg.ServiceId,
 		Transactions: []authorizer.BackendTransaction{
 			{
 				Metrics: metrics,
