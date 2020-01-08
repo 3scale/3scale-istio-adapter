@@ -11,21 +11,19 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
+	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
 	"github.com/3scale/3scale-istio-adapter/config"
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
-	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
-	sysC "github.com/3scale/3scale-porta-go-client/client"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
+	system "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
+
 	"istio.io/api/mixer/adapter/model/v1beta1"
 	"istio.io/istio/mixer/pkg/status"
 	"istio.io/istio/mixer/template/authorization"
@@ -36,195 +34,207 @@ import (
 var _ authorization.HandleAuthorizationServiceServer = &Threescale{}
 
 const (
-	pathErr            = "missing request path"
-	unauthenticatedErr = "no auth credentials provided or provided in invalid location"
+	// consts reflect key values in instance config - exported as required for yaml generation by cli
+	AppIDAttributeKey  = "app_id"
+	AppKeyAttributeKey = "app_key"
+	OIDCAttributeKey   = "client_id"
 
 	// oauthTypeIdentifier refers to the name by which 3scale config described oauth OpenID connect authentication pattern
 	openIDTypeIdentifier = "oauth"
 
-	// consts reflect key values in instance config
-	AppIDAttributeKey  = "app_id"
-	AppKeyAttributeKey = "app_key"
-	OIDCAttributeKey   = "client_id"
+	environment = "production"
 )
 
 // HandleAuthorization takes care of the authorization request from mixer
 func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.HandleAuthorizationRequest) (*v1beta1.CheckResult, error) {
-	var result v1beta1.CheckResult
-	var systemClient SystemClient
-	var proxyConfElement sysC.ProxyConfigElement
-	var backendClient threescale.Client
-	var backendURL string
-	var err error
 
 	log.Debugf("Got instance %+v", r.Instance)
+	result := &v1beta1.CheckResult{
+		// Caching at Mixer/Envoy layer needs to be disabled currently since we would miss reporting
+		// cached requests. We can determine caching values going forward by splitting the check
+		// and report functionality and using cache values obtained from 3scale extension api
+
+		// Setting a negative value will invalidate the cache - it seems from integration test
+		// and manual testing that zero values for a successful check set a large default value
+		ValidDuration: 0 * time.Second,
+		ValidUseCount: -1,
+	}
 
 	cfg, err := s.parseConfigParams(r)
 	if err != nil {
-		result.Status, err = rpcStatusErrorHandler("", status.WithInternal, err)
-		goto out
+		// this theoretically should not happen
+		log.Errorf("error parsing params - %v", err)
+		result.Status = status.WithInternal(err.Error())
+		return result, err
 	}
 
-	// Support receiving service_id as both hardcoded value in handler and at request time
-	if cfg.ServiceId == "" {
-		if r.Instance.Action.Service == "" {
-			result.Status, err = rpcStatusErrorHandler("error. No Service ID provided", status.WithInvalidArgument, err)
-			goto out
-		}
-		cfg.ServiceId = r.Instance.Action.Service
-	}
-
-	systemClient, err = s.conf.clientBuilder.BuildSystemClient(cfg.SystemUrl)
+	err = s.validateRequestAndConfigParams(r, cfg)
 	if err != nil {
-		result.Status, err = rpcStatusErrorHandler("error building HTTP client for 3scale system", status.WithInvalidArgument, err)
-		goto out
+		// intentionally return nil as error here as failed rpc.Status is sufficient
+		result.Status = status.WithFailedPrecondition(err.Error())
+		return result, nil
 	}
 
-	proxyConfElement, err = s.extractProxyConf(cfg, systemClient)
+	proxyConf, err := s.conf.authorizer.GetSystemConfiguration(cfg.SystemUrl, s.systemRequestFromHandlerConfig(cfg))
 	if err != nil {
-		result.Status, err = rpcStatusErrorHandler("currently unable to fetch required data from 3scale system", status.WithUnavailable, err)
-		goto out
+		result.Status, err = rpcStatusErrorHandler("error fetching config from 3scale", errorToRpcStatus(err), err)
+		return result, err
 	}
 
-	backendURL = cfg.BackendUrl
-	if backendURL == "" {
-		backendURL = proxyConfElement.ProxyConfig.Content.Proxy.Backend.Endpoint
-	}
-
-	backendClient, err = s.conf.clientBuilder.BuildBackendClient(backendURL)
+	backendReq := s.requestFromConfig(proxyConf, *r.Instance, *cfg)
+	rpcFN, err := s.validateBackendRequest(backendReq)
 	if err != nil {
-		result.Status, err = rpcStatusErrorHandler("error creating 3scale backend client", status.WithInvalidArgument, err)
-		goto out
+		result.Status = rpcFN(err.Error())
+		// intentionally return nil as error here as failed rpc.Status is sufficient
+		return result, nil
 	}
 
-	result.Status = s.isAuthorized(cfg.ServiceId, *r.Instance, proxyConfElement.ProxyConfig, backendClient)
+	if cfg.BackendUrl == "" {
+		//if not set in the handler, take it from 3scale config
+		cfg.BackendUrl = proxyConf.Content.Proxy.Backend.Endpoint
+	}
 
-	// Caching at Mixer/Envoy layer needs to be disabled currently since we would miss reporting
-	// cached requests. We can determine caching values going forward by splitting the check
-	// and report functionality and using cache values obtained from 3scale extension api
+	authResult, err := s.conf.authorizer.AuthRep(cfg.BackendUrl, backendReq)
+	if err != nil {
+		result.Status, err = rpcStatusErrorHandler("request authorization failed", errorToRpcStatus(err), err)
+		return result, err
+	}
 
-	// Setting a negative value will invalidate the cache - it seems from integration test
-	// and manual testing that zero values for a successful check set a large default value
-	result.ValidDuration = 0 * time.Second
-	result.ValidUseCount = -1
-	goto out
-out:
-	return &result, err
+	return s.convertAuthResponse(authResult, result, err)
 }
 
 // parseConfigParams - parses the configuration passed to the adapter from mixer
 // Where an error occurs during parsing, error is formatted and logged and nil value returned for config
 func (s *Threescale) parseConfigParams(r *authorization.HandleAuthorizationRequest) (*config.Params, error) {
 	if r.AdapterConfig == nil {
-		err := errors.New("internal error - adapter config is not available")
+		err := errors.New("adapter config cannot be nil")
 		return nil, err
 	}
 
 	cfg := &config.Params{}
 	if err := cfg.Unmarshal(r.AdapterConfig.Value); err != nil {
-		unmarshalErr := errors.New("internal error - unable to unmarshal adapter config")
-		return nil, unmarshalErr
+		return nil, fmt.Errorf("failed to unmarshal adapter config")
 	}
+
+	// Support receiving service_id as both hardcoded value in handler and at request time
+	if cfg.ServiceId == "" {
+		cfg.ServiceId = r.Instance.Action.Service
+	}
+
 	return cfg, nil
 }
 
-// extractProxyConf - fetches the latest system proxy configuration or returns an error if unavailable
-// If system cache is enabled, config will be fetched from the cache
-func (s *Threescale) extractProxyConf(cfg *config.Params, c SystemClient) (sysC.ProxyConfigElement, error) {
-	var pce sysC.ProxyConfigElement
-	var proxyConfErr error
-
-	if s.conf.systemCache != nil {
-		pce, proxyConfErr = s.conf.systemCache.Get(cfg, c)
-	} else {
-		pce, proxyConfErr = GetFromRemote(cfg, c, s.reportMetrics)
+func (s *Threescale) validateRequestAndConfigParams(r *authorization.HandleAuthorizationRequest, config *config.Params) error {
+	var errMsgs []string
+	if config.AccessToken == "" {
+		errMsgs = append(errMsgs, errAccessToken.Error())
 	}
-	return pce, proxyConfErr
+
+	if config.SystemUrl == "" {
+		errMsgs = append(errMsgs, errSystemURL.Error())
+	}
+
+	if config.ServiceId == "" {
+		errMsgs = append(errMsgs, errServiceID.Error())
+	}
+
+	if r.Instance.Action.Path == "" {
+		errMsgs = append(errMsgs, errRequestPath.Error())
+	}
+
+	if len(errMsgs) > 0 {
+		var errMsg string
+		for _, msg := range errMsgs {
+			errMsg += fmt.Sprintf("%s. ", msg)
+		}
+		return errors.New(strings.TrimSpace(errMsg))
+	}
+	return nil
 }
 
-// isAuthorized - is responsible for parsing the incoming request and determining if it is valid, building out the request to be sent
-// to 3scale and parsing the response. Returns code 0 if authorization is successful based on
-// grpc return codes https://github.com/grpc/grpc-go/blob/master/codes/codes.go
-func (s *Threescale) isAuthorized(svcID string, request authorization.InstanceMsg, proxyConf sysC.ProxyConfig, client threescale.Client) rpc.Status {
+func (s *Threescale) systemRequestFromHandlerConfig(cfg *config.Params) authorizer.SystemRequest {
+	return authorizer.SystemRequest{
+		AccessToken: cfg.AccessToken,
+		ServiceID:   cfg.ServiceId,
+		Environment: environment,
+	}
+}
+
+func (s *Threescale) requestFromConfig(systemConf system.ProxyConfig, istioConf authorization.InstanceMsg, cfg config.Params) authorizer.BackendRequest {
 	var (
 		// Application ID/OpenID Connect authentication pattern - App Key is optional when using this authn
 		appID, appKey string
-
 		// Application Key auth pattern
 		userKey string
 	)
 
-	if request.Action.Path == "" {
-		return status.WithInvalidArgument(pathErr)
-	}
-
-	if request.Subject != nil {
+	if istioConf.Subject != nil {
 		var appIdentifierKey string
 
-		if proxyConf.Content.BackendVersion == openIDTypeIdentifier {
+		if systemConf.Content.BackendVersion == openIDTypeIdentifier {
 			// OIDC integration configured so force app identifier to come from jwt claims
 			appIdentifierKey = OIDCAttributeKey
 		} else {
 			appIdentifierKey = AppIDAttributeKey
 		}
 
-		appID = request.Subject.Properties[appIdentifierKey].GetStringValue()
-		appKey = request.Subject.Properties[AppKeyAttributeKey].GetStringValue()
-
-		userKey = request.Subject.User
+		appID = istioConf.Subject.Properties[appIdentifierKey].GetStringValue()
+		appKey = istioConf.Subject.Properties[AppKeyAttributeKey].GetStringValue()
+		userKey = istioConf.Subject.User
 	}
+	metrics := generateMetrics(istioConf.Action.Path, istioConf.Action.Method, systemConf)
 
-	if appID == "" && userKey == "" {
-		return status.WithPermissionDenied(unauthenticatedErr)
-	}
-
-	metrics := generateMetrics(request.Action.Path, request.Action.Method, proxyConf)
-	if len(metrics) == 0 {
-		return status.WithPermissionDenied(fmt.Sprintf("no matching mapping rule for request with method %s and path %s",
-			request.Action.Method, request.Action.Path))
-	}
-
-	authRepRequest := backend.Request{
-		Auth: api.ClientAuth{
-			Type:  api.AuthType(proxyConf.Content.BackendAuthenticationType),
-			Value: proxyConf.Content.BackendAuthenticationValue,
+	request := authorizer.BackendRequest{
+		Auth: authorizer.BackendAuth{
+			Type:  systemConf.Content.BackendAuthenticationType,
+			Value: systemConf.Content.BackendAuthenticationValue,
 		},
-		ServiceID: svcID,
-		Transaction: api.Transaction{
-			Metrics: metrics,
-			Params: api.Params{
-				AppID:   appID,
-				AppKey:  appKey,
-				UserKey: userKey,
+		Service: cfg.ServiceId,
+		Transactions: []authorizer.BackendTransaction{
+			{
+				Metrics: metrics,
+				Params: authorizer.BackendParams{
+					AppID:   appID,
+					AppKey:  appKey,
+					UserKey: userKey,
+				},
 			},
 		},
 	}
 
-	return s.apiRespConverter(s.conf.backend.AuthRep(authRepRequest, client))
+	return request
 }
 
-func (s *Threescale) apiRespConverter(resp backend.Response, e error) rpc.Status {
-	if e != nil {
-		status, _ := rpcStatusErrorHandler("error calling 3scale backend", status.WithUnknown, e)
-		return status
+// validateBackendRequest will help us reduce network calls by verifying that required auth credentials have been set
+func (s *Threescale) validateBackendRequest(request authorizer.BackendRequest) (func(string) rpc.Status, error) {
+	for _, transaction := range request.Transactions {
+		if transaction.Params.AppID == "" && transaction.Params.UserKey == "" {
+			return status.WithUnauthenticated, errNoCredentials
+		}
 
+		if len(transaction.Metrics) == 0 {
+			return status.WithPermissionDenied, errNoMappingRule
+		}
 	}
-	if !resp.Success {
-		return status.WithPermissionDenied(resp.Reason)
-	}
-
-	return status.OK
+	return nil, nil
 }
 
-// reportMetrics - report metrics for 3scale adapter to Prometheus. Function is safe to call if
-// a reporter has not been configured
-func (s *Threescale) reportMetrics(svcID string, l prometheus.LatencyReport, sr prometheus.StatusReport) {
-	if s.conf != nil {
-		s.conf.metricsReporter.ReportMetrics(svcID, l, sr)
+func (s *Threescale) convertAuthResponse(resp *authorizer.BackendResponse, result *v1beta1.CheckResult, err error) (*v1beta1.CheckResult, error) {
+	if err != nil {
+		result.Status, _ = rpcStatusErrorHandler("request authorization failed", errorToRpcStatus(err), err)
+		return result, err
+
 	}
+	if !resp.Authorized {
+		result.Status = status.WithPermissionDenied(resp.RejectedReason)
+	} else {
+		result.Status = status.OK
+	}
+
+	return result, nil
 }
 
-func generateMetrics(path string, method string, conf sysC.ProxyConfig) api.Metrics {
+func generateMetrics(path string, method string, conf system.ProxyConfig) api.Metrics {
 	metrics := make(api.Metrics)
 
 	for _, pr := range conf.Content.Proxy.ProxyRules {
@@ -235,29 +245,6 @@ func generateMetrics(path string, method string, conf sysC.ProxyConfig) api.Metr
 		}
 	}
 	return metrics
-}
-
-func parseURL(url *url.URL) (string, string, int) {
-	scheme := url.Scheme
-	if scheme == "" {
-		scheme = "https"
-	}
-
-	host, port, _ := net.SplitHostPort(url.Host)
-	if port == "" {
-		if scheme == "http" {
-			port = "80"
-		} else if scheme == "https" {
-			port = "443"
-		}
-	}
-
-	if host == "" {
-		host = url.Host
-	}
-
-	p, _ := strconv.Atoi(port)
-	return scheme, host, p
 }
 
 // rpcStatusErrorHandler provides a uniform way to log and format error messages and status which should be
@@ -273,6 +260,65 @@ func rpcStatusErrorHandler(userFacingErrMsg string, fn func(string) rpc.Status, 
 
 	log.Error(err.Error())
 	return fn(err.Error()), err
+}
+
+func errorToRpcStatus(err error) func(string) rpc.Status {
+	switch e := err.(type) {
+	case system.ApiErr:
+		code, ok := httpStatusToRpcStatus[e.Code()]
+		if !ok {
+			return status.WithUnknown
+		}
+		return code
+	default:
+		return status.WithUnknown
+	}
+}
+
+var httpStatusToRpcStatus = map[int]func(string) rpc.Status{
+	http.StatusInternalServerError: status.WithUnknown,
+	http.StatusBadRequest:          status.WithInvalidArgument,
+	http.StatusGatewayTimeout:      status.WithDeadlineExceeded,
+	http.StatusNotFound:            status.WithNotFound,
+	http.StatusForbidden:           status.WithPermissionDenied,
+	http.StatusUnauthorized:        status.WithUnauthenticated,
+	http.StatusTooManyRequests:     status.WithResourceExhausted,
+	http.StatusServiceUnavailable:  status.WithUnavailable,
+}
+
+var (
+	errAccessToken   = errors.New("access token must be set in configuration")
+	errSystemURL     = errors.New("3scale system URL must be provided in configuration")
+	errServiceID     = errors.New("service ID must be provided in configuration")
+	errRequestPath   = errors.New("request path must be provided")
+	errNoMappingRule = errors.New("no matching mapping rule for request")
+	errNoCredentials = errors.New("no auth credentials provided or provided in invalid location")
+)
+
+// NewThreescale returns a Server interface
+func NewThreescale(addr string, conf *AdapterConfig) (Server, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
+	if err != nil {
+		return nil, err
+	}
+
+	s := &Threescale{
+		listener: listener,
+		conf:     conf,
+	}
+
+	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
+
+	s.server = grpc.NewServer(grpc.KeepaliveParams(keepalive.ServerParameters{
+		MaxConnectionAge: conf.keepAliveMaxAge,
+	}))
+	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
+	return s, nil
+}
+
+// NewAdapterConfig - Creates configuration for Threescale adapter
+func NewAdapterConfig(authorizer authorizer.Authorizer, grpcKeepalive time.Duration) *AdapterConfig {
+	return &AdapterConfig{authorizer, grpcKeepalive}
 }
 
 // Addr returns the Threescale addrs as a string
@@ -296,50 +342,4 @@ func (s *Threescale) Close() error {
 	}
 
 	return nil
-}
-
-// NewThreescale returns a Server interface
-func NewThreescale(addr string, conf *AdapterConfig) (Server, error) {
-
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", addr))
-	if err != nil {
-		return nil, err
-	}
-
-	s := &Threescale{
-		listener: listener,
-		conf:     conf,
-	}
-
-	if conf != nil {
-		if conf.metricsReporter != nil {
-			conf.metricsReporter.Serve()
-		}
-	}
-
-	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
-
-	s.server = grpc.NewServer(grpc.KeepaliveParams(keepalive.ServerParameters{
-		MaxConnectionAge: conf.keepAliveMaxAge,
-	}))
-	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
-	return s, nil
-}
-
-// NewAdapterConfig - Creates configuration for Threescale adapter
-func NewAdapterConfig(builder Builder, cache *ProxyConfigCache, metrics *prometheus.Reporter, b backend.Backend, grpcKeepalive time.Duration) *AdapterConfig {
-	if cache != nil {
-		cache.metricsReporter = metrics
-	}
-
-	var reportFn prometheus.ReportMetricsFn
-	if metrics != nil {
-		reportFn = metrics.ReportMetrics
-	}
-
-	if b == nil {
-		b = backend.DefaultBackend{ReportFn: reportFn}
-	}
-
-	return &AdapterConfig{builder, cache, metrics, b, grpcKeepalive}
 }

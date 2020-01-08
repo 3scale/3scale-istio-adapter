@@ -10,29 +10,30 @@
   version = "v0.33.0"
 
 [[projects]]
-  digest = "1:dc70beaa94140a1055544d60b8678ec13ea7e9cdeca6622ed7aeabb631105310"
+  digest = "1:55ad135bf39d7da1aa9ef59772b3effed869ea04c490ae934015801247fd5b4b"
+  name = "github.com/3scale/3scale-authorizer"
+  packages = ["pkg/system/v1/cache"]
+  pruneopts = "NUT"
+  revision = "8b3f1e0858ea5890389def65da3dcb063e606332"
+
+[[projects]]
+  digest = "1:13e5bceb514358a2fb30d03942dfd730bdf5dd38e8bc87100b15bd837f8f9431"
   name = "github.com/3scale/3scale-go-client"
   packages = [
-    "fake",
     "threescale",
     "threescale/api",
     "threescale/http",
     "threescale/internal",
   ]
   pruneopts = "NUT"
-  revision = "4dc2b2829af9295cd84f667e7e41e7c2f3d5c520"
-  version = "v0.0.3"
+  revision = "19d97231826234b0672e59715e73d2e3ea371f33"
 
 [[projects]]
-  digest = "1:91981d63946f5d802a03ab508e7d5a701f6c3f85100949719a467dd81033a9eb"
+  digest = "1:be660b3d469d79ce10dca0ac101e0b37c9fe80803880950afa2cc85825b93b63"
   name = "github.com/3scale/3scale-porta-go-client"
-  packages = [
-    "client",
-    "fake",
-  ]
+  packages = ["client"]
   pruneopts = "NUT"
-  revision = "91f46f5fe308b7ad92068b92bdece0721be09ca1"
-  version = "v0.0.2"
+  revision = "f6fbb21026d4577eb42c1186be300f01c859b686"
 
 [[projects]]
   branch = "master"
@@ -340,6 +341,14 @@
   pruneopts = "NUT"
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
   version = "v1.0.2"
+
+[[projects]]
+  branch = "master"
+  digest = "1:f1a78353e6ea232ec554ccbd787534f8a451e724cb7ecf57ec241c664d76853e"
+  name = "github.com/orcaman/concurrent-map"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "8c72a8bb44f6cfcff2abae8ebcbaaaf883331363"
 
 [[projects]]
   digest = "1:51ea800cff51752ff68e12e04106f5887b4daec6f9356721238c28019f0b42db"
@@ -1115,12 +1124,11 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/3scale/3scale-go-client/fake",
+    "github.com/3scale/3scale-authorizer/pkg/system/v1/cache",
     "github.com/3scale/3scale-go-client/threescale",
     "github.com/3scale/3scale-go-client/threescale/api",
     "github.com/3scale/3scale-go-client/threescale/http",
     "github.com/3scale/3scale-porta-go-client/client",
-    "github.com/3scale/3scale-porta-go-client/fake",
     "github.com/ghodss/yaml",
     "github.com/gogo/googleapis/google/rpc",
     "github.com/gogo/protobuf/gogoproto",

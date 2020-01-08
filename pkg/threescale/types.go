@@ -4,8 +4,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/connectors/backend"
-	prometheus "github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
 	"google.golang.org/grpc"
 )
 
@@ -25,9 +24,7 @@ type Threescale struct {
 
 // AdapterConfig wraps optional configuration for the 3scale adapter
 type AdapterConfig struct {
-	clientBuilder   Builder
-	systemCache     *ProxyConfigCache
-	metricsReporter *prometheus.Reporter
-	backend         backend.Backend
+	authorizer authorizer.Authorizer
+	//gRPC connection keepalive duration
 	keepAliveMaxAge time.Duration
 }

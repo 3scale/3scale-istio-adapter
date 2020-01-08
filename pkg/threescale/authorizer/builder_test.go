@@ -1,4 +1,4 @@
-package threescale
+package authorizer
 
 import (
 	"net/http"
@@ -6,22 +6,25 @@ import (
 )
 
 func TestClientBuilder_BuildSystemClient(t *testing.T) {
+	const token = "any"
 	builder := NewClientBuilder(http.DefaultClient)
 
-	_, err := builder.BuildSystemClient("invalid.due.to.no.scheme")
+	_, err := builder.BuildSystemClient("invalid.due.to.no.scheme", token)
 	if err == nil {
 		t.Errorf("expected failure due to no scheme provided")
 	}
 
-	// todo : this test is commented while https://github.com/3scale/3scale-porta-go-client/pull/19 remains
-	// open and the dependency not updated
+	_, err = builder.BuildSystemClient("/", token)
+	if err == nil {
+		t.Error("expected failure due to badly configured admin portal")
+	}
 
-	//_, err = builder.BuildSystemClient("/")
-	//if err == nil {
-	//	t.Error("expected failure due to badly configured admin portal")
-	//}
+	_, err = builder.BuildSystemClient("http://expect.pass", token)
+	if err != nil {
+		t.Errorf("unexpected failure buidling http client")
+	}
 
-	_, err = builder.BuildSystemClient("https://expect.pass")
+	_, err = builder.BuildSystemClient("https://expect.pass", token)
 	if err != nil {
 		t.Errorf("unexpected failure buidling http client")
 	}

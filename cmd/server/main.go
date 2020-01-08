@@ -14,13 +14,23 @@ import (
 	"time"
 
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"github.com/spf13/viper"
+
 	"google.golang.org/grpc/grpclog"
+
 	istiolog "istio.io/istio/pkg/log"
 )
 
 var version string
+
+const (
+	defaultSystemCacheRetries                = 1
+	defaultSystemCacheTTLSeconds             = 300
+	defaultSystemCacheRefreshIntervalSeconds = 180
+	defaultSystemCacheSize                   = 1000
+)
 
 func init() {
 	viper.SetEnvPrefix("threescale")
@@ -120,18 +130,18 @@ func parseClientConfig() *http.Client {
 	return c
 }
 
-func cacheConfigBuilder() *threescale.ProxyConfigCache {
-	cacheTTL := threescale.DefaultCacheTTL
-	cacheRefreshInterval := threescale.DefaultCacheRefreshBuffer
-	cacheEntriesMax := threescale.DefaultCacheLimit
-	cacheUpdateRetries := threescale.DefaultCacheUpdateRetries
+func cacheConfigBuilder() *authorizer.SystemCache {
+	cacheTTL := defaultSystemCacheTTLSeconds
+	cacheEntriesMax := defaultSystemCacheSize
+	cacheUpdateRetries := defaultSystemCacheRetries
+	cacheRefreshInterval := defaultSystemCacheRefreshIntervalSeconds
 
 	if viper.IsSet("cache_ttl_seconds") {
-		cacheTTL = time.Duration(viper.GetInt("cache_ttl_seconds")) * time.Second
+		cacheTTL = viper.GetInt("cache_ttl_seconds")
 	}
 
 	if viper.IsSet("cache_refresh_seconds") {
-		cacheRefreshInterval = time.Duration(viper.GetInt("cache_refresh_seconds")) * time.Second
+		cacheRefreshInterval = viper.GetInt("cache_refresh_seconds")
 	}
 
 	if viper.IsSet("cache_entries_max") {
@@ -142,7 +152,14 @@ func cacheConfigBuilder() *threescale.ProxyConfigCache {
 		cacheUpdateRetries = viper.GetInt("cache_refresh_retries")
 	}
 
-	return threescale.NewProxyConfigCache(cacheTTL, cacheRefreshInterval, cacheUpdateRetries, cacheEntriesMax)
+	config := authorizer.SystemCacheConfig{
+		MaxSize:               cacheEntriesMax,
+		NumRetryFailedRefresh: cacheUpdateRetries,
+		RefreshInterval:       time.Duration(cacheRefreshInterval) * time.Second,
+		TTL:                   time.Duration(cacheTTL) * time.Second,
+	}
+
+	return authorizer.NewSystemCache(config, make(chan struct{}))
 }
 
 func main() {
@@ -154,14 +171,19 @@ func main() {
 		addr = "0"
 	}
 
-	proxyCache := cacheConfigBuilder()
-
 	grpcKeepAliveFor := time.Minute
 	if viper.IsSet("grpc_conn_max_seconds") {
 		grpcKeepAliveFor = time.Second * time.Duration(viper.GetInt("grpc_conn_max_seconds"))
 	}
-	clientBuilder := threescale.NewClientBuilder(parseClientConfig())
-	adapterConfig := threescale.NewAdapterConfig(clientBuilder, proxyCache, parseMetricsConfig(), nil, grpcKeepAliveFor)
+	clientBuilder := authorizer.NewClientBuilder(parseClientConfig())
+
+	authorizer, err := authorizer.NewManager(clientBuilder, cacheConfigBuilder())
+	if err != nil {
+		istiolog.Errorf("Unable to create authorizer: %v", err)
+		os.Exit(1)
+	}
+
+	adapterConfig := threescale.NewAdapterConfig(authorizer, grpcKeepAliveFor)
 
 	s, err := threescale.NewThreescale(addr, adapterConfig)
 
@@ -174,11 +196,6 @@ func main() {
 		version = "undefined"
 	}
 	istiolog.Infof("Started server version %s", version)
-
-	proxyCache.StartRefreshWorker()
-	if err != nil {
-		istiolog.Errorf("error while starting cache refresh worker %s", err.Error())
-	}
 
 	shutdown := make(chan error, 1)
 	go func() {

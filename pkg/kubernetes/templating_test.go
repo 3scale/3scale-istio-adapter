@@ -66,14 +66,22 @@ func TestOutputAll(t *testing.T) {
 	const accessToken = "secret-token"
 	const systemURL = "http://127.0.0.1:8090"
 	const configSource = "threescale-adapter-config.yaml"
+	const handlerSource = "handler.yaml"
 
 	var w bytes.Buffer
 
 	path, _ := filepath.Abs("../../testdata")
 	testdata, err := ioutil.ReadFile(fmt.Sprintf("%s/%s", path, configSource))
 	if err != nil {
-		t.Fatalf("error finding testdata file")
+		t.Fatalf("error reading testdata file")
 	}
+
+	handlerData, err := ioutil.ReadFile(fmt.Sprintf("%s/%s", path, handlerSource))
+	if err != nil {
+		t.Fatalf("error reading handler file")
+	}
+
+	testdata = append(handlerData, testdata...)
 
 	conditions := GetDefaultMatchConditions(credentialsName)
 

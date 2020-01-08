@@ -1,16 +1,3 @@
-apiVersion: config.istio.io/v1alpha2
-kind: handler
-metadata:
-  creationTimestamp: null
-  name: threescale
-  namespace: istio-system
-spec:
-  adapter: threescale
-  connection:
-    address: '[::]:3333'
-  params:
-    access_token: secret-token
-    system_url: http://127.0.0.1:8090
 ---
 apiVersion: config.istio.io/v1alpha2
 kind: instance
