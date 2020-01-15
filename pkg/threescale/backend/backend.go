@@ -133,6 +133,11 @@ func (b *Backend) remoteAuth(request threescale.Request) (*threescale.AuthorizeR
 	return b.client.Authorize(request)
 }
 
+// GetPeer returns the hostname of the connected backend
+func (b *Backend) GetPeer() string {
+	return b.client.GetPeer()
+}
+
 // deepCopy creates a clone of the LimitCounter 'lc'
 func (lc LimitCounter) deepCopy() LimitCounter {
 	clone := make(LimitCounter)
