@@ -275,6 +275,17 @@ func TestBackend_Authorize(t *testing.T) {
 	}
 }
 
+func TestBackend_GetPeer(t *testing.T) {
+	mc := &mockRemoteClient{}
+	b := &Backend{
+		client: mc,
+		cache:  nil,
+	}
+	if b.GetPeer() != mc.GetPeer() {
+		t.Errorf("peer should be propogated from dependency")
+	}
+}
+
 // equals fails the test if exp is not equal to act.
 func equals(t *testing.T, exp, act interface{}) {
 	t.Helper()
