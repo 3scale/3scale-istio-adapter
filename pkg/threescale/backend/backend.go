@@ -75,6 +75,47 @@ func (b *Backend) authorize(request threescale.Request) (*threescale.AuthorizeRe
 	return result, nil
 }
 
+// AuthRep authorizes a request based on the current cached values and reports
+// the new state to the cache in cases where the request has been authorized
+// If the request misses the cache, a remote call to 3scale is made
+// Request Transactions must not be nil and must not be empty
+// If multiple transactions are provided, all but the first are discarded
+func (b *Backend) AuthRep(request threescale.Request) (*threescale.AuthorizeResult, error) {
+	return b.authRep(request)
+}
+
+func (b *Backend) authRep(request threescale.Request) (*threescale.AuthorizeResult, error) {
+	var err error
+
+	err = validateTransactions(request.Transactions)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheKey := generateCacheKeyFromRequest(request)
+	app := b.getApplicationFromCache(cacheKey)
+
+	if app == nil {
+		app, err = b.handleCacheMiss(request, cacheKey)
+		if err != nil {
+			return nil, fmt.Errorf("unable to process request - %s", err.Error())
+		}
+	}
+
+	affectedMetrics := computeAffectedMetrics(app, request)
+	isAuthorized := b.isAuthorized(app, affectedMetrics)
+
+	result := &threescale.AuthorizeResult{Authorized: isAuthorized}
+	if isAuthorized {
+		b.localReport(cacheKey, affectedMetrics)
+
+	} else {
+		result.ErrorCode = "usage limits are exceeded"
+	}
+
+	return result, nil
+}
+
 // handleCacheMiss attempts to call remote 3scale with a blank request and the
 // required extensions enabled to learn current state for caching purposes.
 // Sets the value in the cache and returns the newly cached value for re-use if required
@@ -133,9 +174,44 @@ func (b *Backend) remoteAuth(request threescale.Request) (*threescale.AuthorizeR
 	return b.client.Authorize(request)
 }
 
+// localReport takes a write lock on the application and reports to the cache
+func (b *Backend) localReport(cacheKey string, metrics api.Metrics) {
+	// note - this should not miss since we will have returned an error prior to this if
+	// we have failed to fetch and build an application and populate the cache with it
+	// that is, since the Set func on the cache currently does not return an error then this is ok
+	// if we end up supporting external caches and the write can fail then this may need updating.
+	application, _ := b.cache.Get(cacheKey)
+
+	application.Lock()
+	defer application.Unlock()
+
+	for metric, incrementBy := range metrics {
+		cachedValue, ok := application.LimitCounter[metric]
+		if ok {
+			for _, limit := range cachedValue {
+				limit.current += incrementBy
+			}
+		} else {
+			application.updateUnlimitedCounter(metric, incrementBy)
+		}
+	}
+	b.cache.Set(cacheKey, application)
+}
+
 // GetPeer returns the hostname of the connected backend
 func (b *Backend) GetPeer() string {
 	return b.client.GetPeer()
+}
+
+// updateUnlimitedCounter modifies the Applications 'UnlimitedCounter' field
+func (a *Application) updateUnlimitedCounter(metric string, incrementBy int) {
+	// has no limits so just cache the value for reporting purposes
+	current, ok := a.UnlimitedCounter[metric]
+	if !ok {
+		a.UnlimitedCounter[metric] = 0
+	}
+
+	a.UnlimitedCounter[metric] = current + incrementBy
 }
 
 // deepCopy creates a clone of the LimitCounter 'lc'
