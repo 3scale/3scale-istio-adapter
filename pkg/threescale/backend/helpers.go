@@ -53,8 +53,8 @@ func getAppIDFromTransaction(transaction api.Transaction) string {
 	return transaction.Params.AppID
 }
 
-func generateCacheKeyFromRequest(request threescale.Request) string {
-	return fmt.Sprintf("%s_%s", request.GetServiceID(), getAppIDFromTransaction(request.Transactions[0]))
+func generateCacheKeyFromRequest(request threescale.Request, transactionIndex int) string {
+	return fmt.Sprintf("%s_%s", request.GetServiceID(), getAppIDFromTransaction(request.Transactions[transactionIndex]))
 }
 
 // getEmptyAuthRequest is a helper method to return a request suitable for a blanket auth request

@@ -146,7 +146,7 @@ func Test_GenerateCacheKeyFromRequest(t *testing.T) {
 		},
 	}
 
-	result := generateCacheKeyFromRequest(request)
+	result := generateCacheKeyFromRequest(request, 0)
 	if result != expect {
 		t.Errorf("unexpected result, wanted %s, but got %s", expect, result)
 	}
