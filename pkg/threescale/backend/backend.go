@@ -54,7 +54,7 @@ func (b *Backend) authorize(request threescale.Request) (*threescale.AuthorizeRe
 		return nil, err
 	}
 
-	cacheKey := generateCacheKeyFromRequest(request)
+	cacheKey := generateCacheKeyFromRequest(request, 0)
 	app := b.getApplicationFromCache(cacheKey)
 
 	if app == nil {
@@ -92,7 +92,7 @@ func (b *Backend) authRep(request threescale.Request) (*threescale.AuthorizeResu
 		return nil, err
 	}
 
-	cacheKey := generateCacheKeyFromRequest(request)
+	cacheKey := generateCacheKeyFromRequest(request, 0)
 	app := b.getApplicationFromCache(cacheKey)
 
 	if app == nil {
@@ -159,6 +159,61 @@ out:
 		}
 	}
 	return authorized
+}
+
+// Report the provided request transactions to the cache
+// Report always returns with 'Accepted' as bool 'true' and the error will only ever be nil
+// in cases where  the provided transaction are empty or nil
+// The background task will abort in cases where we have a cache miss and we also fail to get the hierarchy from 3scale
+// Typically, we can handle cache miss and report to cache once we are aware of a hierarchy for the service
+// Request Transactions must not be nil and must not be empty
+// Supports multiple transactions
+func (b *Backend) Report(request threescale.Request) (*threescale.ReportResult, error) {
+	return b.report(request)
+}
+
+func (b *Backend) report(request threescale.Request) (*threescale.ReportResult, error) {
+	var hierarchy api.Hierarchy
+	var err error
+
+	err = validateTransactions(request.Transactions)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		for index, transaction := range request.Transactions {
+			// we support reporting in batches so for every transaction, grab the cache key and see if we
+			// have a match. if not, we can report locally regardless once we know the hierarchy
+			cacheKey := generateCacheKeyFromRequest(request, index)
+
+			app, ok := b.cache.Get(cacheKey)
+			if !ok {
+				// if we missed, configure a blank app
+				app = newApplication()
+			}
+
+			if hierarchy == nil {
+				if app.RemoteState == nil {
+					// while reporting locally, we don't care about cache misses, however we do need
+					// to deal with the exception of cases where we have no hierarchy
+					// which could lead to incorrect reports
+					app, err = b.handleCacheMiss(request, cacheKey)
+					if err != nil {
+						// we can continue here and try to deal with the rest of the transactions
+						// it may fail if 3scale was down and likely a transient error
+						continue
+					}
+				}
+				hierarchy = app.metricHierarchy
+			}
+
+			affectedMetrics := transaction.Metrics.AddHierarchyToMetrics(app.metricHierarchy)
+			b.localReport(cacheKey, affectedMetrics)
+		}
+	}()
+
+	return &threescale.ReportResult{Accepted: true}, nil
 }
 
 func (b *Backend) getApplicationFromCache(key string) *Application {
