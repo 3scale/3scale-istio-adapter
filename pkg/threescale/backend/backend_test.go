@@ -657,6 +657,317 @@ func TestBackend_AuthRep(t *testing.T) {
 	}
 }
 
+func TestBackend_Report(t *testing.T) {
+	const cacheKey = "test_application"
+
+	inputs := []struct {
+		name                              string
+		setup                             func(cacheable *mockCache, remoteClient *mockRemoteClient) *Backend
+		request                           threescale.Request
+		expectError                       bool
+		expectProcessedTransactionCounter int
+		expectCacheState                  Application
+	}{
+		{
+			name: "Test error when no transactions are provided",
+			setup: func(cacheable *mockCache, remoteClient *mockRemoteClient) *Backend {
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+			},
+			expectError: true,
+		},
+		{
+			name: "Test cache miss and error from 3scale, can't fetch hierarchy",
+			setup: func(cacheable *mockCache, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.authErr(t, fmt.Errorf("some arbitary error"))
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Test cache miss, can fetch hierarchy from 3scale, entry is set",
+			setup: func(cacheable *mockCache, remoteClient *mockRemoteClient) *Backend {
+
+				remoteResponse := &threescale.AuthorizeResult{
+					Authorized: true,
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						Hierarchy: api.Hierarchy{"hits": []string{"hits_child"}},
+						UsageReports: api.UsageReports{
+							"hits": api.UsageReport{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
+				}
+
+				remoteClient.setAuthResponse(t, remoteResponse)
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"hits": 2, "orphan": 2},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			// we expect two here because we call out for hierarchy which will set the entry in the cache
+			expectProcessedTransactionCounter: 2,
+			expectCacheState: Application{
+				auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				params: api.Params{
+					AppID: "application",
+				},
+				RemoteState: newLimitCounter(t, "hits", api.Minute, &Limit{
+					current: 3,
+					max:     4,
+				}),
+				LimitCounter: newLimitCounter(t, "hits", api.Minute, &Limit{
+					current: 5,
+					max:     4,
+				}),
+				UnlimitedCounter: map[string]int{"orphan": 2},
+			},
+		},
+		{
+			name: "Test cache hit and correct reporting, no hierarchy",
+			setup: func(cacheable *mockCache, remoteClient *mockRemoteClient) *Backend {
+
+				remoteResponse := &threescale.AuthorizeResult{
+					Authorized: true,
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						Hierarchy: api.Hierarchy{"hits": []string{"hits_child"}},
+						UsageReports: api.UsageReports{
+							"hits": api.UsageReport{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
+				}
+
+				fullRemoteState := getApplicationFromResponse(remoteResponse)
+
+				lc := make(LimitCounter)
+				lc["hits"] = make(map[api.Period]*Limit)
+				lc["hits"][api.Minute] = &Limit{
+					current: 3,
+					max:     4,
+				}
+
+				app := &Application{
+					RemoteState:      fullRemoteState.RemoteState,
+					LimitCounter:     lc,
+					UnlimitedCounter: map[string]int{"orphan": 1},
+				}
+
+				cacheable.Set(cacheKey, app)
+				// reset the counter
+				cacheable.setCounter = 0
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"hits": 2, "orphan": 2},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectProcessedTransactionCounter: 1,
+			expectCacheState: Application{
+				RemoteState: newLimitCounter(t, "hits", api.Minute, &Limit{
+					current: 3,
+					max:     4,
+				}),
+				LimitCounter: newLimitCounter(t, "hits", api.Minute, &Limit{
+					current: 5,
+					max:     4,
+				}),
+				UnlimitedCounter: map[string]int{"orphan": 3},
+			},
+		},
+		{
+			name: "Test cache hit and correct reporting, with hierarchy",
+			setup: func(cacheable *mockCache, remoteClient *mockRemoteClient) *Backend {
+
+				remoteResponse := &threescale.AuthorizeResult{
+					Authorized: true,
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
+						RateLimits: nil,
+						UsageReports: api.UsageReports{
+							"hits": api.UsageReport{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
+				}
+
+				fullRemoteState := getApplicationFromResponse(remoteResponse)
+
+				lc := make(LimitCounter)
+				lc["hits"] = make(map[api.Period]*Limit)
+				lc["hits"][api.Minute] = &Limit{
+					current: 3,
+					max:     4,
+				}
+
+				app := &Application{
+					RemoteState:      fullRemoteState.RemoteState,
+					LimitCounter:     lc,
+					UnlimitedCounter: map[string]int{"orphan": 1},
+					metricHierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
+				}
+
+				cacheable.Set(cacheKey, app)
+				// reset the counter
+				cacheable.setCounter = 0
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"hits": 2, "orphan": 2, "hits_child": 2},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectProcessedTransactionCounter: 1,
+			expectCacheState: Application{
+				RemoteState: newLimitCounter(t, "hits", api.Minute, &Limit{
+					current: 3,
+					max:     4,
+				}),
+				LimitCounter: newLimitCounter(t, "hits", api.Minute, &Limit{
+					current: 7,
+					max:     4,
+				}),
+				UnlimitedCounter: map[string]int{"orphan": 3, "hits_child": 2},
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		t.Run(input.name, func(t *testing.T) {
+			remoteClient := &mockRemoteClient{
+				repRes: &threescale.ReportResult{},
+			}
+
+			cache := &mockCache{
+				internal:   NewLocalCache(),
+				setCounter: 0,
+			}
+			b := input.setup(cache, remoteClient)
+
+			// ignoring error since we know it will return nil each time and run a background task
+			resp, err := b.Report(input.request)
+			if err != nil {
+				if !input.expectError {
+					t.Errorf("unexpeced error - %s", err.Error())
+				}
+				return
+			}
+
+			// expect it to be accepted every call
+			equals(t, resp.Accepted, true)
+
+			for cache.setCounter < input.expectProcessedTransactionCounter {
+				// wait for job to finish transactions, the cache will adjust the counter each time it calls Set
+			}
+
+			// check the final end state matches desired state
+			cachedVal, cacheHit := b.cache.Get(cacheKey)
+
+			if input.expectProcessedTransactionCounter == 0 {
+				if cacheHit {
+					t.Errorf("unexpected entry in cache")
+				}
+				return
+			}
+
+			equals(t, cachedVal.LimitCounter["hits"][api.Minute], input.expectCacheState.LimitCounter["hits"][api.Minute])
+			equals(t, cachedVal.UnlimitedCounter, input.expectCacheState.UnlimitedCounter)
+			equals(t, cachedVal.RemoteState, input.expectCacheState.RemoteState)
+			equals(t, cachedVal.params, input.expectCacheState.params)
+			equals(t, cachedVal.params, input.expectCacheState.params)
+
+		})
+	}
+}
+
 func TestBackend_GetPeer(t *testing.T) {
 	mc := &mockRemoteClient{}
 	b := &Backend{
@@ -755,6 +1066,24 @@ func (mar *mockAuthResult) setHierarchy(t *testing.T, h api.Hierarchy) *mockAuth
 	t.Helper()
 	mar.hierarchy = h
 	return mar
+}
+
+type mockCache struct {
+	internal   Cacheable
+	setCounter int
+}
+
+func (mc *mockCache) Get(cacheKey string) (*Application, bool) {
+	return mc.internal.Get(cacheKey)
+}
+
+func (mc *mockCache) Set(key string, application *Application) {
+	mc.internal.Set(key, application)
+	mc.setCounter++
+}
+
+func (mc *mockCache) Keys() []string {
+	return mc.internal.Keys()
 }
 
 // ********************************
