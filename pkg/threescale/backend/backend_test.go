@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -964,6 +965,169 @@ func TestBackend_Report(t *testing.T) {
 			equals(t, cachedVal.params, input.expectCacheState.params)
 			equals(t, cachedVal.params, input.expectCacheState.params)
 
+		})
+	}
+}
+
+func TestBackend_Flush(t *testing.T) {
+	const service = api.Service("testService")
+	const application = "testApplication"
+	const authValue = "any"
+
+	const cacheKey = string(service + "_" + application)
+
+	tests := []struct {
+		name             string
+		setup            func(cache Cacheable)
+		remoteClient     threescale.Client
+		expectFinalState *Application
+	}{
+		{
+			name: "Test reporting error and authorization error leaves cached item untouched",
+			setup: func(cache Cacheable) {
+				app := newApplication()
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 30})
+				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 50})
+				app.UnlimitedCounter["orphan"] = 10
+
+				cache.Set(cacheKey, app)
+			},
+			remoteClient: &mockRemoteClient{
+				authzErr:  errors.New("err"),
+				reportErr: errors.New("err"),
+			},
+			expectFinalState: &Application{
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 30}),
+				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 50}),
+				UnlimitedCounter: map[string]int{"orphan": 10},
+			},
+		},
+		{
+			name: "Test reporting success and authorization error - new remote state = current remote state + reported deltas",
+			setup: func(cache Cacheable) {
+				app := newApplication()
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 30})
+				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 50})
+				app.UnlimitedCounter["orphan"] = 10
+
+				cache.Set(cacheKey, app)
+			},
+			remoteClient: &mockRemoteClient{
+				reportCallback: func(request threescale.Request) {
+					// verify that the metrics that we report for metrics with rate limits
+					// are the current state minus the last known state 50 - 30
+					// as well as the counters for unlimited metrics
+					equals(t, api.Metrics{"orphan": 10, "hits": 20}, request.Transactions[0].Metrics)
+				},
+				authzErr: errors.New("err"),
+			},
+			expectFinalState: &Application{
+				// we expect the local representation of the remote state to be updated with the deltas
+				RemoteState: newLimitCounter(t, "hits", api.Hour, &Limit{current: 50}),
+				// we expect the counter for rate limited metrics to remain untouched
+				LimitCounter: newLimitCounter(t, "hits", api.Hour, &Limit{current: 50}),
+				// we expect the metrics that remain  unreported to be empty
+				UnlimitedCounter: make(UnlimitedCounter),
+			},
+		},
+		{
+			name: "Test reporting error and authorization success - hits += new_auth_hits - snapshot_hits + to_report - actually_reported",
+			setup: func(cache Cacheable) {
+				app := newApplication()
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 80})
+				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 90})
+				app.UnlimitedCounter["orphan"] = 10
+
+				cache.Set(cacheKey, app)
+			},
+			remoteClient: &mockRemoteClient{
+				reportErr: errors.New("err"),
+				authRes: &threescale.AuthorizeResult{
+					Authorized: true,
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						UsageReports: api.UsageReports{
+							"hits": api.UsageReport{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Hour,
+								},
+								CurrentValue: 80,
+							},
+						},
+					},
+				},
+				reportCallback: func(request threescale.Request) {
+					// verify that the metrics that we report for metrics with rate limits
+					// are the current state minus the last known state 90 - 80
+					// as well as the counters for unlimited metrics
+					equals(t, api.Metrics{"orphan": 10, "hits": 10}, request.Transactions[0].Metrics)
+				},
+			},
+			expectFinalState: &Application{
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 80}),
+				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 90}),
+				UnlimitedCounter: map[string]int{"orphan": 10},
+			},
+		},
+		{
+			name: "Test reporting success and authorization success - hits += new_auth_hits - snapshot_hits + to_report - actually_reported",
+			setup: func(cache Cacheable) {
+				app := newApplication()
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 80})
+				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 90})
+				app.UnlimitedCounter["orphan"] = 10
+
+				cache.Set(cacheKey, app)
+			},
+			remoteClient: &mockRemoteClient{
+				authRes: &threescale.AuthorizeResult{
+					Authorized: true,
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						UsageReports: api.UsageReports{
+							"hits": api.UsageReport{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Hour,
+								},
+								CurrentValue: 90,
+							},
+						},
+					},
+				},
+				reportCallback: func(request threescale.Request) {
+					// verify that the metrics that we report for metrics with rate limits
+					// are the current state minus the last known state 90 - 80
+					// as well as the counters for unlimited metrics
+					equals(t, api.Metrics{"orphan": 10, "hits": 10}, request.Transactions[0].Metrics)
+				},
+			},
+			expectFinalState: &Application{
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 90}),
+				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 90}),
+				UnlimitedCounter: make(UnlimitedCounter),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cache := NewLocalCache()
+			test.setup(cache)
+
+			b := &Backend{
+				client: test.remoteClient,
+				cache:  cache,
+			}
+			b.Flush()
+
+			app, _ := b.cache.Get(cacheKey)
+
+			equals(t, app.RemoteState, test.expectFinalState.RemoteState)
+			for metric, periods := range test.expectFinalState.LimitCounter {
+				for period := range periods {
+					equals(t, app.LimitCounter[metric][period], test.expectFinalState.LimitCounter[metric][period])
+				}
+
+			}
+			equals(t, test.expectFinalState.UnlimitedCounter, app.UnlimitedCounter)
 		})
 	}
 }
