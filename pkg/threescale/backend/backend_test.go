@@ -976,9 +976,20 @@ func TestBackend_Flush(t *testing.T) {
 
 	const cacheKey = string(service + "_" + application)
 
+	type augmenter struct {
+		unlimitedMetrics api.Metrics
+		limitedMetrics   api.Metrics
+	}
+
 	tests := []struct {
-		name             string
-		setup            func(cache Cacheable)
+		name  string
+		setup func(cache Cacheable)
+		// augmenter will modify the cache used in the setup function above with its metrics
+		// this augmentation will occur after the initial snapshot is taken and prior to calling the authorize
+		// endpoint at the end of the flushing process, therefore simulating a set of requests that will be
+		// seen as intermediate activity, allowing us to test the concurrent nature of the cycle.
+		// provided metrics should be known to the cache in advance for limited metrics
+		augmenter        augmenter
 		remoteClient     threescale.Client
 		expectFinalState *Application
 	}{
@@ -1105,6 +1116,146 @@ func TestBackend_Flush(t *testing.T) {
 				UnlimitedCounter: make(UnlimitedCounter),
 			},
 		},
+		{
+			name: "Test reporting error and authorization error with intermediate activity leaves cached updated",
+			setup: func(cache Cacheable) {
+				app := newApplication()
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 30})
+				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 50})
+				app.UnlimitedCounter["orphan"] = 10
+
+				cache.Set(cacheKey, app)
+			},
+			augmenter: augmenter{
+				unlimitedMetrics: api.Metrics{"orphan": 5},
+				limitedMetrics:   api.Metrics{"hits": 5},
+			},
+			remoteClient: &mockRemoteClient{
+				authzErr:  errors.New("err"),
+				reportErr: errors.New("err"),
+			},
+			expectFinalState: &Application{
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 30}),
+				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 55}),
+				UnlimitedCounter: map[string]int{"orphan": 15},
+			},
+		},
+		{
+			name: "Test reporting success and authorization error with intermediate activity",
+			setup: func(cache Cacheable) {
+				app := newApplication()
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 30})
+				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 50})
+				app.UnlimitedCounter["orphan"] = 10
+
+				cache.Set(cacheKey, app)
+			},
+			augmenter: augmenter{
+				unlimitedMetrics: api.Metrics{"orphan": 5},
+				limitedMetrics:   api.Metrics{"hits": 5},
+			},
+			remoteClient: &mockRemoteClient{
+				reportCallback: func(request threescale.Request) {
+					// verify that the metrics that we report for metrics with rate limits
+					// are the current state minus the last known state 50 - 30
+					// as well as the counters for unlimited metrics
+					equals(t, api.Metrics{"orphan": 10, "hits": 20}, request.Transactions[0].Metrics)
+				},
+				authzErr: errors.New("err"),
+			},
+			expectFinalState: &Application{
+				// we expect the local representation of the remote state to be updated with the deltas
+				RemoteState: newLimitCounter(t, "hits", api.Hour, &Limit{current: 50}),
+				// we expect the counter for rate limited metrics to include intermediate activity
+				LimitCounter: newLimitCounter(t, "hits", api.Hour, &Limit{current: 55}),
+				// we expect intermediate metrics to be known
+				UnlimitedCounter: map[string]int{"orphan": 5},
+			},
+		},
+		{
+			name: "Test reporting error and authorization success with intermediate activity",
+			setup: func(cache Cacheable) {
+				app := newApplication()
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 80})
+				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 90})
+				app.UnlimitedCounter["orphan"] = 10
+
+				cache.Set(cacheKey, app)
+			},
+			augmenter: augmenter{
+				unlimitedMetrics: api.Metrics{"orphan": 5},
+				limitedMetrics:   api.Metrics{"hits": 5},
+			},
+			remoteClient: &mockRemoteClient{
+				reportErr: errors.New("err"),
+				authRes: &threescale.AuthorizeResult{
+					Authorized: true,
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						UsageReports: api.UsageReports{
+							"hits": api.UsageReport{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Hour,
+								},
+								CurrentValue: 80,
+							},
+						},
+					},
+				},
+				reportCallback: func(request threescale.Request) {
+					// verify that the metrics that we report for metrics with rate limits
+					// are the current state minus the last known state 90 - 80
+					// as well as the counters for unlimited metrics
+					equals(t, api.Metrics{"orphan": 10, "hits": 10}, request.Transactions[0].Metrics)
+				},
+			},
+			expectFinalState: &Application{
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 80}),
+				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 95}),
+				UnlimitedCounter: map[string]int{"orphan": 15},
+			},
+		},
+		{
+			name: "Test reporting success and authorization success with intermediate activity",
+			setup: func(cache Cacheable) {
+				app := newApplication()
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 80})
+				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 90})
+				app.UnlimitedCounter["orphan"] = 10
+
+				cache.Set(cacheKey, app)
+			},
+			augmenter: augmenter{
+				unlimitedMetrics: api.Metrics{"orphan": 5},
+				limitedMetrics:   api.Metrics{"hits": 5},
+			},
+			remoteClient: &mockRemoteClient{
+				authRes: &threescale.AuthorizeResult{
+					Authorized: true,
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						UsageReports: api.UsageReports{
+							"hits": api.UsageReport{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Hour,
+								},
+								CurrentValue: 90,
+							},
+						},
+					},
+				},
+				reportCallback: func(request threescale.Request) {
+					// verify that the metrics that we report for metrics with rate limits
+					// are the current state minus the last known state 90 - 80
+					// as well as the counters for unlimited metrics
+					equals(t, api.Metrics{"orphan": 10, "hits": 10}, request.Transactions[0].Metrics)
+				},
+			},
+			expectFinalState: &Application{
+				RemoteState:  newLimitCounter(t, "hits", api.Hour, &Limit{current: 90}),
+				LimitCounter: newLimitCounter(t, "hits", api.Hour, &Limit{current: 95}),
+				// we expect intermediate metrics to be known
+				UnlimitedCounter: map[string]int{"orphan": 5},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1112,13 +1263,33 @@ func TestBackend_Flush(t *testing.T) {
 			cache := NewLocalCache()
 			test.setup(cache)
 
+			reportNotifier := make(chan bool)
+			client := test.remoteClient.(*mockRemoteClient)
+			client.reportDone = reportNotifier
+
 			b := &Backend{
 				client: test.remoteClient,
 				cache:  cache,
 			}
 			b.Flush()
 
+			<-reportNotifier
+
 			app, _ := b.cache.Get(cacheKey)
+			app.Lock()
+			for metric, value := range test.augmenter.unlimitedMetrics {
+				app.UnlimitedCounter[metric] += value
+			}
+
+			for metric, value := range test.augmenter.limitedMetrics {
+				limits, ok := app.LimitCounter[metric]
+				if ok {
+					for _, v := range limits {
+						v.current += value
+					}
+				}
+			}
+			app.Unlock()
 
 			equals(t, app.RemoteState, test.expectFinalState.RemoteState)
 			for metric, periods := range test.expectFinalState.LimitCounter {
@@ -1163,13 +1334,21 @@ func newLimitCounter(t *testing.T, metric string, period api.Period, limit *Limi
 
 // mocks and helpers *****************
 type mockRemoteClient struct {
-	authzErr       error
-	reportErr      error
-	authRes        *threescale.AuthorizeResult
-	repRes         *threescale.ReportResult
-	authCallback   func(request threescale.Request)
+	// error from authorization call, default nil
+	authzErr error
+	// error from report call, default nil
+	reportErr error
+	// the response the client should respond to an authorization call with
+	authRes *threescale.AuthorizeResult
+	// the response the client should respond to an report call with
+	repRes *threescale.ReportResult
+	// can be used for verification of the information sent to 3scale at authz stage
+	authCallback func(request threescale.Request)
+	// can be used for verification of the information sent to 3scale at report stage
 	reportCallback func(request threescale.Request)
-	err            error
+	// *don't set* - this is used internally where required
+	reportDone chan bool
+	err        error
 }
 
 func (mc *mockRemoteClient) Authorize(request threescale.Request) (*threescale.AuthorizeResult, error) {
@@ -1191,6 +1370,12 @@ func (mc *mockRemoteClient) AuthRep(request threescale.Request) (*threescale.Aut
 func (mc *mockRemoteClient) Report(request threescale.Request) (*threescale.ReportResult, error) {
 	if mc.reportCallback != nil {
 		mc.reportCallback(request)
+	}
+
+	if mc.reportDone != nil {
+		go func() {
+			mc.reportDone <- true
+		}()
 	}
 
 	if mc.reportErr != nil {
