@@ -13,6 +13,9 @@ import (
 type Backend struct {
 	client threescale.Client
 	cache  Cacheable
+	// a queue to enqueue cached applications whose counters need to be reported in a older period
+	// queue must not be nil
+	queue *dequeue
 }
 
 // Application defined under a 3scale service
