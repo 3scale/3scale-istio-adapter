@@ -119,7 +119,6 @@
   revision = "d60b5acac426cb52f7e28124c6aaa862d9f339f5"
 
 [[projects]]
-  branch = "master"
   digest = "1:e0f096f9332ad5f84341de82db69fd098864b17c668333a1fbbffd1b846dcc2b"
   name = "github.com/golang/glog"
   packages = ["."]
@@ -344,7 +343,6 @@
   version = "v1.0.2"
 
 [[projects]]
-  branch = "master"
   digest = "1:f1a78353e6ea232ec554ccbd787534f8a451e724cb7ecf57ec241c664d76853e"
   name = "github.com/orcaman/concurrent-map"
   packages = ["."]
@@ -747,6 +745,14 @@
   version = "v0.9.1"
 
 [[projects]]
+  digest = "1:a00835b7324a3a40ce1218811a6693cdd7fd75f393b5b273adbb9bbf3bd5341e"
+  name = "gopkg.in/oleiade/lane.v1"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "28f7c3f09254f12b51e620fa4db136ba58804762"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:7c95b35057a0ff2e19f707173cc1a947fa43a6eb5c4d300d196ece0334046082"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -1136,6 +1142,7 @@
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
     "github.com/golang/glog",
+    "github.com/orcaman/concurrent-map",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/prometheus/client_golang/prometheus/testutil",
@@ -1143,6 +1150,7 @@
     "google.golang.org/grpc",
     "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/keepalive",
+    "gopkg.in/oleiade/lane.v1",
     "istio.io/api/mixer/adapter/model/v1beta1",
     "istio.io/api/policy/v1beta1",
     "istio.io/istio/mixer/pkg/adapter/test",
