@@ -17,7 +17,8 @@
   revision = "8b3f1e0858ea5890389def65da3dcb063e606332"
 
 [[projects]]
-  digest = "1:5c9f933504cd1b492e9fd560962da2d600fb1dd673166a8001baf1dd418ef1fe"
+  branch = "master"
+  digest = "1:539a2211943586879990054c15d3c767d26731df4fd302bbe5619c86efb378a0"
   name = "github.com/3scale/3scale-go-client"
   packages = [
     "threescale",
@@ -26,8 +27,7 @@
     "threescale/internal",
   ]
   pruneopts = "NUT"
-  revision = "d971f40c55f32351d3102c782affe8882c6ba38e"
-  version = "v0.4.0"
+  revision = "71833da7188f11b46d5a5c59d651d355b9e16baa"
 
 [[projects]]
   digest = "1:be660b3d469d79ce10dca0ac101e0b37c9fe80803880950afa2cc85825b93b63"
@@ -746,6 +746,14 @@
   version = "v0.9.1"
 
 [[projects]]
+  digest = "1:a00835b7324a3a40ce1218811a6693cdd7fd75f393b5b273adbb9bbf3bd5341e"
+  name = "gopkg.in/oleiade/lane.v1"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "28f7c3f09254f12b51e620fa4db136ba58804762"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:7c95b35057a0ff2e19f707173cc1a947fa43a6eb5c4d300d196ece0334046082"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -1142,6 +1150,7 @@
     "google.golang.org/grpc",
     "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/keepalive",
+    "gopkg.in/oleiade/lane.v1",
     "istio.io/api/mixer/adapter/model/v1beta1",
     "istio.io/api/policy/v1beta1",
     "istio.io/istio/mixer/pkg/adapter/test",
