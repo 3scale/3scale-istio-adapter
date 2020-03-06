@@ -74,12 +74,13 @@ func TestBackend_Authorize(t *testing.T) {
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy: make(api.Hierarchy),
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
+							"hits": []api.UsageReport{{
 								PeriodWindow: api.PeriodWindow{
 									Period: api.Minute,
 								},
 								MaxValue:     4,
 								CurrentValue: 3,
+							},
 							},
 						},
 					},
@@ -117,12 +118,14 @@ func TestBackend_Authorize(t *testing.T) {
 						Hierarchy:  make(api.Hierarchy),
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -130,15 +133,19 @@ func TestBackend_Authorize(t *testing.T) {
 				fullRemoteState := getApplicationFromResponse(remoteResponse)
 
 				lc := make(LimitCounter)
-				lc["hits"] = make(map[api.Period]*Limit)
-				lc["hits"][api.Minute] = &Limit{
-					current: 3,
-					max:     4,
+				lc["hits"] = []api.UsageReport{
+					{
+						PeriodWindow: api.PeriodWindow{
+							Period: api.Minute,
+						},
+						MaxValue:     4,
+						CurrentValue: 3,
+					},
 				}
 
 				app := &Application{
 					RemoteState:      fullRemoteState.RemoteState,
-					LimitCounter:     lc,
+					LocalState:       lc,
 					UnlimitedCounter: make(map[string]int),
 				}
 
@@ -176,12 +183,13 @@ func TestBackend_Authorize(t *testing.T) {
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
+							"hits": []api.UsageReport{{
 								PeriodWindow: api.PeriodWindow{
 									Period: api.Minute,
 								},
 								MaxValue:     4,
 								CurrentValue: 3,
+							},
 							},
 						},
 					},
@@ -220,12 +228,14 @@ func TestBackend_Authorize(t *testing.T) {
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -340,12 +350,14 @@ func TestBackend_AuthRep(t *testing.T) {
 						Hierarchy:  make(api.Hierarchy),
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -384,12 +396,14 @@ func TestBackend_AuthRep(t *testing.T) {
 						Hierarchy:  make(api.Hierarchy),
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -398,15 +412,19 @@ func TestBackend_AuthRep(t *testing.T) {
 				fullRemoteState := getApplicationFromResponse(remoteResponse)
 
 				lc := make(LimitCounter)
-				lc["hits"] = make(map[api.Period]*Limit)
-				lc["hits"][api.Minute] = &Limit{
-					current: 3,
-					max:     4,
+				lc["hits"] = []api.UsageReport{
+					{
+						PeriodWindow: api.PeriodWindow{
+							Period: api.Minute,
+						},
+						MaxValue:     4,
+						CurrentValue: 3,
+					},
 				}
 
 				app := &Application{
-					RemoteState:      fullRemoteState.LimitCounter,
-					LimitCounter:     lc,
+					RemoteState:      fullRemoteState.LocalState,
+					LocalState:       lc,
 					UnlimitedCounter: make(map[string]int),
 				}
 
@@ -444,12 +462,14 @@ func TestBackend_AuthRep(t *testing.T) {
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -488,12 +508,14 @@ func TestBackend_AuthRep(t *testing.T) {
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -529,14 +551,8 @@ func TestBackend_AuthRep(t *testing.T) {
 				params: api.Params{
 					AppID: "application",
 				},
-				RemoteState: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 3,
-					max:     4,
-				}),
-				LimitCounter: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 4,
-					max:     4,
-				}),
+				RemoteState:      newLimitCounter(t, "hits", api.Minute, 3, 4),
+				LocalState:       newLimitCounter(t, "hits", api.Minute, 4, 4),
 				UnlimitedCounter: map[string]int{"orphan": 2},
 			},
 		},
@@ -549,12 +565,14 @@ func TestBackend_AuthRep(t *testing.T) {
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -563,10 +581,14 @@ func TestBackend_AuthRep(t *testing.T) {
 				fullRemoteState := getApplicationFromResponse(remoteResponse)
 
 				lc := make(LimitCounter)
-				lc["hits"] = make(map[api.Period]*Limit)
-				lc["hits"][api.Minute] = &Limit{
-					current: 3,
-					max:     4,
+				lc["hits"] = []api.UsageReport{
+					{
+						PeriodWindow: api.PeriodWindow{
+							Period: api.Minute,
+						},
+						MaxValue:     4,
+						CurrentValue: 3,
+					},
 				}
 
 				app := &Application{
@@ -578,7 +600,7 @@ func TestBackend_AuthRep(t *testing.T) {
 						AppID: "application",
 					},
 					RemoteState:      fullRemoteState.RemoteState,
-					LimitCounter:     lc,
+					LocalState:       lc,
 					UnlimitedCounter: map[string]int{"orphan": 1},
 				}
 
@@ -613,14 +635,8 @@ func TestBackend_AuthRep(t *testing.T) {
 				params: api.Params{
 					AppID: "application",
 				},
-				RemoteState: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 3,
-					max:     4,
-				}),
-				LimitCounter: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 4,
-					max:     4,
-				}),
+				RemoteState:      newLimitCounter(t, "hits", api.Minute, 3, 4),
+				LocalState:       newLimitCounter(t, "hits", api.Minute, 4, 4),
 				UnlimitedCounter: map[string]int{"orphan": 3},
 			},
 		},
@@ -648,7 +664,7 @@ func TestBackend_AuthRep(t *testing.T) {
 
 			if resp.Authorized {
 				equals(t, input.expectCacheState.UnlimitedCounter, cachedVal.UnlimitedCounter)
-				equals(t, input.expectCacheState.LimitCounter, cachedVal.LimitCounter)
+				equals(t, input.expectCacheState.LocalState, cachedVal.LocalState)
 				equals(t, input.expectCacheState.RemoteState, cachedVal.RemoteState)
 
 				equals(t, cachedVal.params, input.expectCacheState.params)
@@ -720,12 +736,14 @@ func TestBackend_Report(t *testing.T) {
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy: api.Hierarchy{"hits": []string{"hits_child"}},
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -762,14 +780,8 @@ func TestBackend_Report(t *testing.T) {
 				params: api.Params{
 					AppID: "application",
 				},
-				RemoteState: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 3,
-					max:     4,
-				}),
-				LimitCounter: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 5,
-					max:     4,
-				}),
+				RemoteState:      newLimitCounter(t, "hits", api.Minute, 3, 4),
+				LocalState:       newLimitCounter(t, "hits", api.Minute, 5, 4),
 				UnlimitedCounter: map[string]int{"orphan": 2},
 			},
 		},
@@ -782,12 +794,14 @@ func TestBackend_Report(t *testing.T) {
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy: api.Hierarchy{"hits": []string{"hits_child"}},
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -796,15 +810,19 @@ func TestBackend_Report(t *testing.T) {
 				fullRemoteState := getApplicationFromResponse(remoteResponse)
 
 				lc := make(LimitCounter)
-				lc["hits"] = make(map[api.Period]*Limit)
-				lc["hits"][api.Minute] = &Limit{
-					current: 3,
-					max:     4,
+				lc["hits"] = []api.UsageReport{
+					{
+						PeriodWindow: api.PeriodWindow{
+							Period: api.Minute,
+						},
+						MaxValue:     4,
+						CurrentValue: 3,
+					},
 				}
 
 				app := &Application{
 					RemoteState:      fullRemoteState.RemoteState,
-					LimitCounter:     lc,
+					LocalState:       lc,
 					UnlimitedCounter: map[string]int{"orphan": 1},
 				}
 
@@ -834,14 +852,8 @@ func TestBackend_Report(t *testing.T) {
 			},
 			expectProcessedTransactionCounter: 1,
 			expectCacheState: Application{
-				RemoteState: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 3,
-					max:     4,
-				}),
-				LimitCounter: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 5,
-					max:     4,
-				}),
+				RemoteState:      newLimitCounter(t, "hits", api.Minute, 3, 4),
+				LocalState:       newLimitCounter(t, "hits", api.Minute, 5, 4),
 				UnlimitedCounter: map[string]int{"orphan": 3},
 			},
 		},
@@ -855,12 +867,14 @@ func TestBackend_Report(t *testing.T) {
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Minute,
+									},
+									MaxValue:     4,
+									CurrentValue: 3,
 								},
-								MaxValue:     4,
-								CurrentValue: 3,
 							},
 						},
 					},
@@ -869,15 +883,19 @@ func TestBackend_Report(t *testing.T) {
 				fullRemoteState := getApplicationFromResponse(remoteResponse)
 
 				lc := make(LimitCounter)
-				lc["hits"] = make(map[api.Period]*Limit)
-				lc["hits"][api.Minute] = &Limit{
-					current: 3,
-					max:     4,
+				lc["hits"] = []api.UsageReport{
+					{
+						PeriodWindow: api.PeriodWindow{
+							Period: api.Minute,
+						},
+						MaxValue:     4,
+						CurrentValue: 3,
+					},
 				}
 
 				app := &Application{
 					RemoteState:      fullRemoteState.RemoteState,
-					LimitCounter:     lc,
+					LocalState:       lc,
 					UnlimitedCounter: map[string]int{"orphan": 1},
 					metricHierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 				}
@@ -908,14 +926,8 @@ func TestBackend_Report(t *testing.T) {
 			},
 			expectProcessedTransactionCounter: 1,
 			expectCacheState: Application{
-				RemoteState: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 3,
-					max:     4,
-				}),
-				LimitCounter: newLimitCounter(t, "hits", api.Minute, &Limit{
-					current: 7,
-					max:     4,
-				}),
+				RemoteState:      newLimitCounter(t, "hits", api.Minute, 3, 4),
+				LocalState:       newLimitCounter(t, "hits", api.Minute, 7, 4),
 				UnlimitedCounter: map[string]int{"orphan": 3, "hits_child": 2},
 			},
 		},
@@ -959,7 +971,7 @@ func TestBackend_Report(t *testing.T) {
 				return
 			}
 
-			equals(t, cachedVal.LimitCounter["hits"][api.Minute], input.expectCacheState.LimitCounter["hits"][api.Minute])
+			equals(t, cachedVal.LocalState["hits"], input.expectCacheState.LocalState["hits"])
 			equals(t, cachedVal.UnlimitedCounter, input.expectCacheState.UnlimitedCounter)
 			equals(t, cachedVal.RemoteState, input.expectCacheState.RemoteState)
 			equals(t, cachedVal.params, input.expectCacheState.params)
@@ -997,8 +1009,8 @@ func TestBackend_Flush(t *testing.T) {
 			name: "Test reporting error and authorization error leaves cached item untouched",
 			setup: func(cache Cacheable) {
 				app := newApplication()
-				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 30})
-				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 50})
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 30, 0)
+				app.LocalState = newLimitCounter(t, "hits", api.Hour, 50, 0)
 				app.UnlimitedCounter["orphan"] = 10
 
 				cache.Set(cacheKey, app)
@@ -1008,17 +1020,17 @@ func TestBackend_Flush(t *testing.T) {
 				reportErr: errors.New("err"),
 			},
 			expectFinalState: &Application{
-				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 30}),
-				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 50}),
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, 30, 0),
+				LocalState:       newLimitCounter(t, "hits", api.Hour, 50, 0),
 				UnlimitedCounter: map[string]int{"orphan": 10},
 			},
 		},
 		{
-			name: "Test reporting success and authorization error - new remote state = current remote state + reported deltas",
+			name: "Test reporting success and authorization error - remote_state = remote_state + actually_reported_hits. No change to local counters.",
 			setup: func(cache Cacheable) {
 				app := newApplication()
-				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 30})
-				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 50})
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 30, 0)
+				app.LocalState = newLimitCounter(t, "hits", api.Hour, 50, 0)
 				app.UnlimitedCounter["orphan"] = 10
 
 				cache.Set(cacheKey, app)
@@ -1034,9 +1046,9 @@ func TestBackend_Flush(t *testing.T) {
 			},
 			expectFinalState: &Application{
 				// we expect the local representation of the remote state to be updated with the deltas
-				RemoteState: newLimitCounter(t, "hits", api.Hour, &Limit{current: 50}),
+				RemoteState: newLimitCounter(t, "hits", api.Hour, 50, 0),
 				// we expect the counter for rate limited metrics to remain untouched
-				LimitCounter: newLimitCounter(t, "hits", api.Hour, &Limit{current: 50}),
+				LocalState: newLimitCounter(t, "hits", api.Hour, 50, 0),
 				// we expect the metrics that remain  unreported to be empty
 				UnlimitedCounter: make(UnlimitedCounter),
 			},
@@ -1045,8 +1057,8 @@ func TestBackend_Flush(t *testing.T) {
 			name: "Test reporting error and authorization success - hits += new_auth_hits - snapshot_hits + to_report - actually_reported",
 			setup: func(cache Cacheable) {
 				app := newApplication()
-				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 80})
-				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 90})
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 80, 0)
+				app.LocalState = newLimitCounter(t, "hits", api.Hour, 90, 0)
 				app.UnlimitedCounter["orphan"] = 10
 
 				cache.Set(cacheKey, app)
@@ -1057,11 +1069,13 @@ func TestBackend_Flush(t *testing.T) {
 					Authorized: true,
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Hour,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Hour,
+									},
+									CurrentValue: 80,
 								},
-								CurrentValue: 80,
 							},
 						},
 					},
@@ -1074,8 +1088,8 @@ func TestBackend_Flush(t *testing.T) {
 				},
 			},
 			expectFinalState: &Application{
-				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 80}),
-				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 90}),
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, 80, 0),
+				LocalState:       newLimitCounter(t, "hits", api.Hour, 90, 0),
 				UnlimitedCounter: map[string]int{"orphan": 10},
 			},
 		},
@@ -1083,8 +1097,8 @@ func TestBackend_Flush(t *testing.T) {
 			name: "Test reporting success and authorization success - hits += new_auth_hits - snapshot_hits + to_report - actually_reported",
 			setup: func(cache Cacheable) {
 				app := newApplication()
-				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 80})
-				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 90})
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 80, 0)
+				app.LocalState = newLimitCounter(t, "hits", api.Hour, 90, 0)
 				app.UnlimitedCounter["orphan"] = 10
 
 				cache.Set(cacheKey, app)
@@ -1094,11 +1108,13 @@ func TestBackend_Flush(t *testing.T) {
 					Authorized: true,
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Hour,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Hour,
+									},
+									CurrentValue: 90,
 								},
-								CurrentValue: 90,
 							},
 						},
 					},
@@ -1111,8 +1127,8 @@ func TestBackend_Flush(t *testing.T) {
 				},
 			},
 			expectFinalState: &Application{
-				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 90}),
-				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 90}),
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, 90, 0),
+				LocalState:       newLimitCounter(t, "hits", api.Hour, 90, 0),
 				UnlimitedCounter: make(UnlimitedCounter),
 			},
 		},
@@ -1120,8 +1136,8 @@ func TestBackend_Flush(t *testing.T) {
 			name: "Test reporting error and authorization error with intermediate activity leaves cached updated",
 			setup: func(cache Cacheable) {
 				app := newApplication()
-				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 30})
-				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 50})
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 30, 0)
+				app.LocalState = newLimitCounter(t, "hits", api.Hour, 50, 0)
 				app.UnlimitedCounter["orphan"] = 10
 
 				cache.Set(cacheKey, app)
@@ -1135,8 +1151,8 @@ func TestBackend_Flush(t *testing.T) {
 				reportErr: errors.New("err"),
 			},
 			expectFinalState: &Application{
-				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 30}),
-				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 55}),
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, 30, 0),
+				LocalState:       newLimitCounter(t, "hits", api.Hour, 55, 0),
 				UnlimitedCounter: map[string]int{"orphan": 15},
 			},
 		},
@@ -1144,8 +1160,8 @@ func TestBackend_Flush(t *testing.T) {
 			name: "Test reporting success and authorization error with intermediate activity",
 			setup: func(cache Cacheable) {
 				app := newApplication()
-				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 30})
-				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 50})
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 30, 0)
+				app.LocalState = newLimitCounter(t, "hits", api.Hour, 50, 0)
 				app.UnlimitedCounter["orphan"] = 10
 
 				cache.Set(cacheKey, app)
@@ -1165,9 +1181,9 @@ func TestBackend_Flush(t *testing.T) {
 			},
 			expectFinalState: &Application{
 				// we expect the local representation of the remote state to be updated with the deltas
-				RemoteState: newLimitCounter(t, "hits", api.Hour, &Limit{current: 50}),
+				RemoteState: newLimitCounter(t, "hits", api.Hour, 50, 0),
 				// we expect the counter for rate limited metrics to include intermediate activity
-				LimitCounter: newLimitCounter(t, "hits", api.Hour, &Limit{current: 55}),
+				LocalState: newLimitCounter(t, "hits", api.Hour, 55, 0),
 				// we expect intermediate metrics to be known
 				UnlimitedCounter: map[string]int{"orphan": 5},
 			},
@@ -1176,8 +1192,8 @@ func TestBackend_Flush(t *testing.T) {
 			name: "Test reporting error and authorization success with intermediate activity",
 			setup: func(cache Cacheable) {
 				app := newApplication()
-				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 80})
-				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 90})
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 80, 0)
+				app.LocalState = newLimitCounter(t, "hits", api.Hour, 90, 0)
 				app.UnlimitedCounter["orphan"] = 10
 
 				cache.Set(cacheKey, app)
@@ -1192,11 +1208,13 @@ func TestBackend_Flush(t *testing.T) {
 					Authorized: true,
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Hour,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Hour,
+									},
+									CurrentValue: 80,
 								},
-								CurrentValue: 80,
 							},
 						},
 					},
@@ -1209,8 +1227,8 @@ func TestBackend_Flush(t *testing.T) {
 				},
 			},
 			expectFinalState: &Application{
-				RemoteState:      newLimitCounter(t, "hits", api.Hour, &Limit{current: 80}),
-				LimitCounter:     newLimitCounter(t, "hits", api.Hour, &Limit{current: 95}),
+				RemoteState:      newLimitCounter(t, "hits", api.Hour, 80, 0),
+				LocalState:       newLimitCounter(t, "hits", api.Hour, 95, 0),
 				UnlimitedCounter: map[string]int{"orphan": 15},
 			},
 		},
@@ -1218,8 +1236,8 @@ func TestBackend_Flush(t *testing.T) {
 			name: "Test reporting success and authorization success with intermediate activity",
 			setup: func(cache Cacheable) {
 				app := newApplication()
-				app.RemoteState = newLimitCounter(t, "hits", api.Hour, &Limit{current: 80})
-				app.LimitCounter = newLimitCounter(t, "hits", api.Hour, &Limit{current: 90})
+				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 80, 0)
+				app.LocalState = newLimitCounter(t, "hits", api.Hour, 90, 0)
 				app.UnlimitedCounter["orphan"] = 10
 
 				cache.Set(cacheKey, app)
@@ -1233,11 +1251,13 @@ func TestBackend_Flush(t *testing.T) {
 					Authorized: true,
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						UsageReports: api.UsageReports{
-							"hits": api.UsageReport{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Hour,
+							"hits": []api.UsageReport{
+								{
+									PeriodWindow: api.PeriodWindow{
+										Period: api.Hour,
+									},
+									CurrentValue: 90,
 								},
-								CurrentValue: 90,
 							},
 						},
 					},
@@ -1250,8 +1270,8 @@ func TestBackend_Flush(t *testing.T) {
 				},
 			},
 			expectFinalState: &Application{
-				RemoteState:  newLimitCounter(t, "hits", api.Hour, &Limit{current: 90}),
-				LimitCounter: newLimitCounter(t, "hits", api.Hour, &Limit{current: 95}),
+				RemoteState: newLimitCounter(t, "hits", api.Hour, 90, 0),
+				LocalState:  newLimitCounter(t, "hits", api.Hour, 95, 0),
 				// we expect intermediate metrics to be known
 				UnlimitedCounter: map[string]int{"orphan": 5},
 			},
@@ -1282,19 +1302,19 @@ func TestBackend_Flush(t *testing.T) {
 			}
 
 			for metric, value := range test.augmenter.limitedMetrics {
-				limits, ok := app.LimitCounter[metric]
+				counters, ok := app.LocalState[metric]
 				if ok {
-					for _, v := range limits {
-						v.current += value
+					for i, _ := range counters {
+						counters[i].CurrentValue += value
 					}
 				}
 			}
 			app.Unlock()
 
-			equals(t, app.RemoteState, test.expectFinalState.RemoteState)
-			for metric, periods := range test.expectFinalState.LimitCounter {
+			equals(t, test.expectFinalState.RemoteState, app.RemoteState)
+			for metric, periods := range test.expectFinalState.LocalState {
 				for period := range periods {
-					equals(t, app.LimitCounter[metric][period], test.expectFinalState.LimitCounter[metric][period])
+					equals(t, app.LocalState[metric][period], test.expectFinalState.LocalState[metric][period])
 				}
 
 			}
@@ -1324,11 +1344,18 @@ func equals(t *testing.T, exp, act interface{}) {
 	}
 }
 
-func newLimitCounter(t *testing.T, metric string, period api.Period, limit *Limit) LimitCounter {
+func newLimitCounter(t *testing.T, metric string, period api.Period, current, max int) LimitCounter {
 	t.Helper()
 	lc := make(LimitCounter)
-	lc[metric] = make(map[api.Period]*Limit)
-	lc[metric][period] = limit
+	lc[metric] = []api.UsageReport{
+		{
+			PeriodWindow: api.PeriodWindow{
+				Period: period,
+			},
+			CurrentValue: current,
+			MaxValue:     max,
+		},
+	}
 	return lc
 }
 
