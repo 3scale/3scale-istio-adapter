@@ -24,20 +24,13 @@ func computeAffectedMetrics(app *Application, request threescale.Request) api.Me
 
 // getApplicationFromResponse builds an Application from a response from 3scale client
 func getApplicationFromResponse(resp *threescale.AuthorizeResult) Application {
-	limitCounter := make(LimitCounter)
+	resp.UsageReports.OrderByAscendingGranularity()
 
-	for metric, report := range resp.UsageReports {
-		l := &Limit{
-			current: report.CurrentValue,
-			max:     report.MaxValue,
-		}
-		limitCounter[metric] = make(map[api.Period]*Limit)
-		limitCounter[metric][report.PeriodWindow.Period] = l
-	}
+	counters := LimitCounter(resp.UsageReports)
 
 	return Application{
-		RemoteState:      limitCounter.deepCopy(),
-		LimitCounter:     limitCounter,
+		RemoteState:      counters,
+		LocalState:       counters.deepCopy(),
 		UnlimitedCounter: make(map[string]int),
 		metricHierarchy:  resp.AuthorizeExtensions.Hierarchy,
 	}
@@ -98,7 +91,7 @@ func validateTransactions(transactions []api.Transaction) error {
 func newApplication() *Application {
 	return &Application{
 		RemoteState:      nil,
-		LimitCounter:     make(LimitCounter),
+		LocalState:       make(LimitCounter),
 		UnlimitedCounter: make(map[string]int),
 	}
 }

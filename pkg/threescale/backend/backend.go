@@ -19,9 +19,11 @@ type Backend struct {
 }
 
 // Application defined under a 3scale service
+// It is the responsibility of creator of an application to ensure that the counters for both remote and local state
+// is sorted by ascending granularity. The internals of the cache relies on these semantics.
 type Application struct {
 	RemoteState      LimitCounter
-	LimitCounter     LimitCounter
+	LocalState       LimitCounter
 	UnlimitedCounter UnlimitedCounter
 	sync.RWMutex
 	metricHierarchy api.Hierarchy
@@ -29,14 +31,8 @@ type Application struct {
 	params          api.Params
 }
 
-// Limit captures the current state of the rate limit for a particular time period
-type Limit struct {
-	current int
-	max     int
-}
-
 // LimitCounter keeps a count of limits for a given period
-type LimitCounter map[string]map[api.Period]*Limit
+type LimitCounter api.UsageReports
 
 // UnlimitedCounter keeps a count of metrics without limits
 type UnlimitedCounter map[string]int
@@ -151,13 +147,15 @@ func (b *Backend) isAuthorized(application *Application, affectedMetrics api.Met
 
 out:
 	for metric, incrementBy := range affectedMetrics {
-		cachedValue, ok := application.LimitCounter[metric]
-		if ok {
-			for _, limit := range cachedValue {
-				if limit.current+incrementBy > limit.max {
-					authorized = false
-					break out
-				}
+		cachedValue, ok := application.LocalState[metric]
+		if !ok {
+			continue
+		}
+
+		for _, granularity := range cachedValue {
+			if granularity.CurrentValue+incrementBy > granularity.MaxValue {
+				authorized = false
+				break out
 			}
 		}
 	}
@@ -248,10 +246,11 @@ func (b *Backend) localReport(cacheKey string, metrics api.Metrics) {
 	defer application.Unlock()
 
 	for metric, incrementBy := range metrics {
-		cachedValue, ok := application.LimitCounter[metric]
+		cachedValue, ok := application.LocalState[metric]
+
 		if ok {
-			for _, limit := range cachedValue {
-				limit.current += incrementBy
+			for index := range cachedValue {
+				updateCountersCurrentValue(&cachedValue[index], incrementBy)
 			}
 		} else {
 			application.updateUnlimitedCounter(metric, incrementBy)
@@ -394,7 +393,7 @@ func (b *Backend) handleFlushCacheUpdate(apps []cachedApp) {
 			continue
 		}
 
-		// handle case (3)
+		// handle case (4)
 		if !cachedApp.reportingErr && cachedApp.authErr {
 			app.Lock()
 			// This is necessary when, during flushing, we have reported correctly but failed to authorize
@@ -429,14 +428,22 @@ func (b *Backend) GetPeer() string {
 func (a *Application) calculateDeltas() api.Metrics {
 	deltas := make(api.Metrics)
 
-	for metric := range a.LimitCounter {
-		lowestPeriod := a.LimitCounter.getLowestKnownPeriodForMetric(metric)
-		if lowestPeriod != nil {
-			if lastKnownState, ok := a.RemoteState[metric][*lowestPeriod]; ok {
-				toReport := a.LimitCounter[metric][*lowestPeriod].current - lastKnownState.current
-				deltas.Add(metric, toReport)
-			}
+	for metric, counters := range a.LocalState {
+		// we want to handle the lowest granularity only here
+		if canHandle := a.compareLocalToRemoteState(metric, 0); !canHandle {
+			// TODO - add logging
+			continue
 		}
+
+		lowestLocalGranularity := counters[0]
+		lowestRemoteGranularity := a.RemoteState[metric][0]
+
+		if lowestLocalGranularity.PeriodWindow.Period != lowestRemoteGranularity.PeriodWindow.Period {
+			continue
+		}
+
+		toReport := lowestLocalGranularity.CurrentValue - lowestRemoteGranularity.CurrentValue
+		deltas.Add(metric, toReport)
 	}
 
 	// now add the metrics with no limits to the delta
@@ -449,13 +456,13 @@ func (a *Application) calculateDeltas() api.Metrics {
 // addDeltasToRemoteState modifies the remote state with the provided deltas
 func (a *Application) addDeltasToRemoteState(deltas api.Metrics) *Application {
 	for metric, value := range deltas {
-		periods, ok := a.RemoteState[metric]
+		counters, ok := a.RemoteState[metric]
 		if !ok {
 			continue
 		}
 
-		for period, _ := range periods {
-			a.RemoteState[metric][period].current += value
+		for index := range counters {
+			updateCountersCurrentValue(&counters[index], value)
 		}
 	}
 
@@ -470,8 +477,8 @@ func (a *Application) deepCopy() Application {
 	}
 
 	return Application{
-		RemoteState:      a.RemoteState,
-		LimitCounter:     a.LimitCounter.deepCopy(),
+		RemoteState:      a.RemoteState.deepCopy(),
+		LocalState:       a.LocalState.deepCopy(),
 		UnlimitedCounter: unlimitedHitsClone,
 		params:           a.params,
 		auth:             a.auth,
@@ -510,33 +517,27 @@ func (a *Application) pruneUnlimitedCounter(snapshot Application) {
 func (a *Application) adjustLocalState(flushingState cachedApp, remoteState LimitCounter) *Application {
 	a.RemoteState = remoteState
 
-	for metric := range a.LimitCounter {
-		lowestPeriod := a.LimitCounter.getLowestKnownPeriodForMetric(metric)
+	for metric, counters := range a.LocalState {
 
-		if lowestPeriod == nil {
+		if canAdjust := a.statesAreComparable(metric, 0, a.RemoteState, flushingState.snapshot.LocalState); !canAdjust {
 			continue
 		}
 
-		snapped, ok := flushingState.snapshot.LimitCounter[metric][*lowestPeriod]
-		if !ok {
-			continue
-		}
-
-		latest, ok := a.RemoteState[metric][*lowestPeriod]
-		if !ok {
-			continue
-		}
-
-		lowestLimit := a.LimitCounter[metric][*lowestPeriod]
+		lowestLocalGranularity := counters[0]
+		lowestSnappedGranularity := flushingState.snapshot.LocalState[metric][0]
+		lowestRemoteGranularity := a.RemoteState[metric][0]
 
 		var reportedHits int
 		delta := flushingState.deltas[metric]
 		if !flushingState.reportingErr {
 			reportedHits = delta
 		}
-		updated := lowestLimit.current + latest.current - (snapped.current - delta) - reportedHits
-		lowestLimit.current = updated
-		lowestLimit.max = a.RemoteState[metric][*lowestPeriod].max
+
+		updated := lowestLocalGranularity.CurrentValue + lowestRemoteGranularity.CurrentValue -
+			(lowestSnappedGranularity.CurrentValue - delta) - reportedHits
+
+		lowestLocalGranularity.CurrentValue = updated
+		lowestLocalGranularity.MaxValue = lowestRemoteGranularity.MaxValue
 	}
 
 	if !flushingState.reportingErr {
@@ -547,33 +548,41 @@ func (a *Application) adjustLocalState(flushingState cachedApp, remoteState Limi
 	return a
 }
 
-// deepCopy creates a clone of the LimitCounter 'lc'
+// statesAreComparable allows us to work with an applications counter and ensure that it makes sense to do calculations
+// on the provided index and metric. It also ensures we aren't duplicating code and checking for panics in the calling funcs
+// We can safely call this function with any index and know we wont panic. If the function returns false, the provided
+// args are unusable and we should handle in the caller appropriately
+// TODO - this may end up returning an error instead to provide more context if we need it for others purposes (eg logging)
+func (a *Application) statesAreComparable(metric string, index int, state, compareTo LimitCounter) bool {
+	localCounters, ok := state[metric]
+	if !ok || (len(localCounters)-1) < index {
+		return false
+	}
+
+	remoteCounter, ok := compareTo[metric]
+	if !ok || (len(remoteCounter)-1) < index {
+		return false
+	}
+
+	if localCounters[index].PeriodWindow.Period != remoteCounter[index].PeriodWindow.Period {
+		return false
+	}
+	return true
+}
+
+func (a *Application) compareLocalToRemoteState(metric string, index int) bool {
+	return a.statesAreComparable(metric, index, a.LocalState, a.RemoteState)
+}
+
+// deepCopy creates a clone of the LocalState 'lc'
 func (lc LimitCounter) deepCopy() LimitCounter {
 	clone := make(LimitCounter)
-	for metric, periods := range lc {
-		clone[metric] = make(map[api.Period]*Limit, len(periods))
-		for period, limit := range periods {
-			clone[metric][period] = &Limit{current: limit.current, max: limit.max}
-		}
+	for metric, counters := range lc {
+		clone[metric] = append([]api.UsageReport(nil), counters...)
 	}
 	return clone
 }
 
-var ascendingPeriodSequence = []api.Period{api.Minute, api.Hour, api.Day, api.Week, api.Month, api.Eternity}
-
-func (lc LimitCounter) getLowestKnownPeriodForMetric(metric string) *api.Period {
-	var period *api.Period
-
-	periodMap, ok := lc[metric]
-	if !ok {
-		return nil
-	}
-
-	for _, lowestKnownPeriod := range ascendingPeriodSequence {
-		if _, ok := periodMap[lowestKnownPeriod]; ok {
-			period = &lowestKnownPeriod
-			break
-		}
-	}
-	return period
+func updateCountersCurrentValue(counter *api.UsageReport, incrementBy int) {
+	counter.CurrentValue += incrementBy
 }
