@@ -41,8 +41,37 @@ func Test_GetApplicationFromResponse(t *testing.T) {
 	response := &threescale.AuthorizeResult{
 		Authorized: true,
 		AuthorizeExtensions: threescale.AuthorizeExtensions{
-			UsageReports: map[string]api.UsageReport{
+			UsageReports: map[string][]api.UsageReport{
 				"hits": {
+					{
+						PeriodWindow: api.PeriodWindow{
+							Period: api.Day,
+							Start:  1000,
+							End:    2000,
+						},
+						MaxValue:     5,
+						CurrentValue: 10,
+					},
+				},
+				"other": {
+					{
+						PeriodWindow: api.PeriodWindow{
+							Period: api.Minute,
+							Start:  1000,
+							End:    2000,
+						},
+						MaxValue:     1000,
+						CurrentValue: 100,
+					},
+				},
+			},
+		},
+	}
+
+	expect := Application{
+		RemoteState: LimitCounter{
+			"hits": []api.UsageReport{
+				{
 					PeriodWindow: api.PeriodWindow{
 						Period: api.Day,
 						Start:  1000,
@@ -51,7 +80,33 @@ func Test_GetApplicationFromResponse(t *testing.T) {
 					MaxValue:     5,
 					CurrentValue: 10,
 				},
-				"other": {
+			},
+			"other": {
+				{
+					PeriodWindow: api.PeriodWindow{
+						Period: api.Minute,
+						Start:  1000,
+						End:    2000,
+					},
+					MaxValue:     1000,
+					CurrentValue: 100,
+				},
+			},
+		},
+		LocalState: LimitCounter{
+			"hits": []api.UsageReport{
+				{
+					PeriodWindow: api.PeriodWindow{
+						Period: api.Day,
+						Start:  1000,
+						End:    2000,
+					},
+					MaxValue:     5,
+					CurrentValue: 10,
+				},
+			},
+			"other": {
+				{
 					PeriodWindow: api.PeriodWindow{
 						Period: api.Minute,
 						Start:  1000,
@@ -64,28 +119,9 @@ func Test_GetApplicationFromResponse(t *testing.T) {
 		},
 	}
 
-	expect := Application{
-		RemoteState: LimitCounter{
-			"hits": map[api.Period]*Limit{
-				api.Day: &Limit{current: 10, max: 5},
-			},
-			"other": map[api.Period]*Limit{
-				api.Minute: {current: 100, max: 1000},
-			},
-		},
-		LimitCounter: LimitCounter{
-			"hits": map[api.Period]*Limit{
-				api.Day: &Limit{current: 10, max: 5},
-			},
-			"other": map[api.Period]*Limit{
-				api.Minute: {current: 100, max: 1000},
-			},
-		},
-	}
-
 	result := getApplicationFromResponse(response)
 	equals(t, expect.RemoteState, result.RemoteState)
-	equals(t, expect.LimitCounter, result.LimitCounter)
+	equals(t, expect.LocalState, result.LocalState)
 }
 
 func Test_GetAppIDFromTransaction(t *testing.T) {
