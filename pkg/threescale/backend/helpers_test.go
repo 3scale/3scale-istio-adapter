@@ -18,7 +18,7 @@ func Test_EmptyTransactionFrom(t *testing.T) {
 			"hits": 5,
 		},
 		Params:    params,
-		Timestamp: "100",
+		Timestamp: 100,
 	}
 
 	result := emptyTransactionFrom(transaction)
@@ -31,7 +31,7 @@ func Test_EmptyTransactionFrom(t *testing.T) {
 		t.Errorf("expected metrics to be empty")
 	}
 
-	if result.Timestamp != "100" {
+	if result.Timestamp != 100 {
 		t.Errorf("expected timestamp to be copied")
 	}
 
@@ -117,11 +117,13 @@ func Test_GetApplicationFromResponse(t *testing.T) {
 				},
 			},
 		},
+		timestamp: 1000,
 	}
 
 	result := getApplicationFromResponse(response)
 	equals(t, expect.RemoteState, result.RemoteState)
 	equals(t, expect.LocalState, result.LocalState)
+	equals(t, expect.timestamp, result.timestamp)
 }
 
 func Test_GetAppIDFromTransaction(t *testing.T) {
@@ -269,7 +271,7 @@ func Test_ValidateTransactions(t *testing.T) {
 					Params: api.Params{
 						AppID: "any",
 					},
-					Timestamp: "1",
+					Timestamp: 1,
 				},
 			},
 		},
