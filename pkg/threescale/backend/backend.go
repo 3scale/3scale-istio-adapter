@@ -29,6 +29,7 @@ type Application struct {
 	metricHierarchy api.Hierarchy
 	auth            api.ClientAuth
 	params          api.Params
+	timestamp       int64
 }
 
 // LimitCounter keeps a count of limits for a given period
