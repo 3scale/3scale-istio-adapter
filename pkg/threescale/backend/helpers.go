@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
@@ -33,7 +34,23 @@ func getApplicationFromResponse(resp *threescale.AuthorizeResult) Application {
 		LocalState:       counters.deepCopy(),
 		UnlimitedCounter: make(map[string]int),
 		metricHierarchy:  resp.AuthorizeExtensions.Hierarchy,
+		timestamp:        deriveTimestamp(resp.UsageReports),
 	}
+}
+
+func deriveTimestamp(reports api.UsageReports) int64 {
+	var timestamp int64
+	for _, report := range reports {
+		if lowestGranularity := report[0]; lowestGranularity.PeriodWindow.Period == api.Minute {
+			timestamp = lowestGranularity.PeriodWindow.Start
+			break
+		}
+	}
+
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	return timestamp
 }
 
 // getAppIdFromTransaction prioritizes and returns a user key if present, defaulting to app id otherwise
