@@ -1032,6 +1032,7 @@ func TestBackend_Flush(t *testing.T) {
 				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 30, 0)
 				app.LocalState = newLimitCounter(t, "hits", api.Hour, 50, 0)
 				app.UnlimitedCounter["orphan"] = 10
+				app.timestamp = 1000
 
 				cache.Set(cacheKey, app)
 			},
@@ -1041,6 +1042,7 @@ func TestBackend_Flush(t *testing.T) {
 					// are the current state minus the last known state 50 - 30
 					// as well as the counters for unlimited metrics
 					equals(t, api.Metrics{"orphan": 10, "hits": 20}, request.Transactions[0].Metrics)
+					equals(t, int64(1000), request.Transactions[0].Timestamp)
 				},
 				authzErr: errors.New("err"),
 			},
@@ -1060,6 +1062,7 @@ func TestBackend_Flush(t *testing.T) {
 				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 80, 0)
 				app.LocalState = newLimitCounter(t, "hits", api.Hour, 90, 0)
 				app.UnlimitedCounter["orphan"] = 10
+				app.timestamp = 1000
 
 				cache.Set(cacheKey, app)
 			},
@@ -1085,6 +1088,7 @@ func TestBackend_Flush(t *testing.T) {
 					// are the current state minus the last known state 90 - 80
 					// as well as the counters for unlimited metrics
 					equals(t, api.Metrics{"orphan": 10, "hits": 10}, request.Transactions[0].Metrics)
+					equals(t, int64(1000), request.Transactions[0].Timestamp)
 				},
 			},
 			expectFinalState: &Application{
@@ -1100,7 +1104,7 @@ func TestBackend_Flush(t *testing.T) {
 				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 80, 0)
 				app.LocalState = newLimitCounter(t, "hits", api.Hour, 90, 0)
 				app.UnlimitedCounter["orphan"] = 10
-
+				app.timestamp = 500
 				cache.Set(cacheKey, app)
 			},
 			remoteClient: &mockRemoteClient{
@@ -1124,6 +1128,7 @@ func TestBackend_Flush(t *testing.T) {
 					// are the current state minus the last known state 90 - 80
 					// as well as the counters for unlimited metrics
 					equals(t, api.Metrics{"orphan": 10, "hits": 10}, request.Transactions[0].Metrics)
+					equals(t, int64(500), request.Transactions[0].Timestamp)
 				},
 			},
 			expectFinalState: &Application{
@@ -1163,7 +1168,7 @@ func TestBackend_Flush(t *testing.T) {
 				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 30, 0)
 				app.LocalState = newLimitCounter(t, "hits", api.Hour, 50, 0)
 				app.UnlimitedCounter["orphan"] = 10
-
+				app.timestamp = 1000
 				cache.Set(cacheKey, app)
 			},
 			augmenter: augmenter{
@@ -1176,6 +1181,7 @@ func TestBackend_Flush(t *testing.T) {
 					// are the current state minus the last known state 50 - 30
 					// as well as the counters for unlimited metrics
 					equals(t, api.Metrics{"orphan": 10, "hits": 20}, request.Transactions[0].Metrics)
+					equals(t, int64(1000), request.Transactions[0].Timestamp)
 				},
 				authzErr: errors.New("err"),
 			},
@@ -1195,7 +1201,7 @@ func TestBackend_Flush(t *testing.T) {
 				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 80, 0)
 				app.LocalState = newLimitCounter(t, "hits", api.Hour, 90, 0)
 				app.UnlimitedCounter["orphan"] = 10
-
+				app.timestamp = 200
 				cache.Set(cacheKey, app)
 			},
 			augmenter: augmenter{
@@ -1224,6 +1230,7 @@ func TestBackend_Flush(t *testing.T) {
 					// are the current state minus the last known state 90 - 80
 					// as well as the counters for unlimited metrics
 					equals(t, api.Metrics{"orphan": 10, "hits": 10}, request.Transactions[0].Metrics)
+					equals(t, int64(200), request.Transactions[0].Timestamp)
 				},
 			},
 			expectFinalState: &Application{
@@ -1239,7 +1246,7 @@ func TestBackend_Flush(t *testing.T) {
 				app.RemoteState = newLimitCounter(t, "hits", api.Hour, 80, 0)
 				app.LocalState = newLimitCounter(t, "hits", api.Hour, 90, 0)
 				app.UnlimitedCounter["orphan"] = 10
-
+				app.timestamp = 500
 				cache.Set(cacheKey, app)
 			},
 			augmenter: augmenter{
@@ -1267,6 +1274,7 @@ func TestBackend_Flush(t *testing.T) {
 					// are the current state minus the last known state 90 - 80
 					// as well as the counters for unlimited metrics
 					equals(t, api.Metrics{"orphan": 10, "hits": 10}, request.Transactions[0].Metrics)
+					equals(t, int64(500), request.Transactions[0].Timestamp)
 				},
 			},
 			expectFinalState: &Application{
