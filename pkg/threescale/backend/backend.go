@@ -350,8 +350,9 @@ func (b *Backend) handleFlushReporting(apps []cachedApp) {
 			Service: cachedApp.serviceID,
 			Transactions: []api.Transaction{
 				{
-					Metrics: deltas,
-					Params:  app.params,
+					Metrics:   deltas,
+					Params:    app.params,
+					Timestamp: appClone.timestamp,
 				},
 			},
 			Extensions: api.Extensions{
@@ -483,6 +484,7 @@ func (a *Application) deepCopy() Application {
 		UnlimitedCounter: unlimitedHitsClone,
 		params:           a.params,
 		auth:             a.auth,
+		timestamp:        a.timestamp,
 	}
 }
 
