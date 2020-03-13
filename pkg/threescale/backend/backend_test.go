@@ -1298,6 +1298,7 @@ func TestBackend_Flush(t *testing.T) {
 			b := &Backend{
 				client: test.remoteClient,
 				cache:  cache,
+				queue:  newQueue(10),
 			}
 			b.Flush()
 

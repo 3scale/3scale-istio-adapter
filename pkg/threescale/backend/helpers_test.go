@@ -236,7 +236,7 @@ func Test_ParseCacheKey(t *testing.T) {
 				t.Errorf("test that expected error failed to return an error")
 			}
 
-			if svc != test.expectService {
+			if svc != api.Service(test.expectService) {
 				t.Errorf("unexpected service after parsing")
 			}
 
