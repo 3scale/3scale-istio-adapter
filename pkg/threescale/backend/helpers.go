@@ -81,14 +81,14 @@ func getEmptyAuthRequest(service api.Service, auth api.ClientAuth, params api.Pa
 	}
 }
 
-func parseCacheKey(cacheKey string) (service string, application string, err error) {
+func parseCacheKey(cacheKey string) (service api.Service, application string, err error) {
 	parsed := strings.Split(cacheKey, "_")
 
 	if len(parsed) != 2 {
 		return service, application, fmt.Errorf("error parsing key")
 	}
 
-	service, application = parsed[0], parsed[1]
+	service, application = api.Service(parsed[0]), parsed[1]
 
 	if service == "" || application == "" {
 		return service, application, fmt.Errorf("error parsing key. empty service or application")
