@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
@@ -30,6 +31,10 @@ type Application struct {
 	auth            api.ClientAuth
 	params          api.Params
 	timestamp       int64
+	// id as recorded by 3scale
+	id string
+	// ownedBy this service id
+	ownedBy api.Service
 }
 
 // LimitCounter keeps a count of limits for a given period
@@ -130,9 +135,7 @@ func (b *Backend) handleCacheMiss(request threescale.Request, cacheKey string) (
 		return nil, err
 	}
 	app = getApplicationFromResponse(resp)
-	app.auth = request.Auth
-	app.params = request.Transactions[0].Params
-	app.metricHierarchy = resp.Hierarchy
+	app.annotateWithRequestDetails(request)
 
 	b.cache.Set(cacheKey, &app)
 	return &app, nil
@@ -265,13 +268,12 @@ func (b *Backend) Flush() {
 	b.flush()
 }
 
-// cachedApp provides a placeholder for information for cache flushing
-type cachedApp struct {
+// handledApp represents an application that is going through the flushing process
+// It holds the state of the application at the time of the remote report as well
+// as some metadata which gives insight into the events that occurred during flushing
+type handledApp struct {
 	// snapshot stores the app state (copy) as it was when we attempted to flush the cache
 	snapshot     Application
-	cacheKey     string
-	serviceID    api.Service
-	appID        string
 	reportingErr bool
 	authErr      bool
 	authResp     *threescale.AuthorizeResult
@@ -281,89 +283,125 @@ type cachedApp struct {
 }
 
 func (b *Backend) flush() {
-	// create a hash of cached applications under a serviceApps ID
-	// this may not be required down in future and we can simplify but
-	// this gives us the flexibility to do batched reporting
-	groupedKeys := b.groupCachedItems()
-	for _, serviceApps := range groupedKeys {
+	// read the cache and write the items to the queue
+	b.enqueueCachedApplications()
 
-		// the first stage of flushing the cache involves calculating the value to be reported to 3scale
-		// and reporting remotely
-		b.handleFlushReporting(serviceApps)
+	// report the metrics for all known applications
+	handledApps := b.handleFlushReporting()
 
-		// after we have reported for each known app under this service, we assume backend has finished its
-		// processing from the queue and authorize the app with a blank request to fetch updated state
-		// saving the response in the process
-		for i, cachedApp := range serviceApps {
-			req := getEmptyAuthRequest(cachedApp.serviceID, cachedApp.snapshot.auth, cachedApp.snapshot.params)
-			resp, err := b.remoteAuth(req)
-			if err != nil {
-				serviceApps[i].authErr = true
-			}
-			serviceApps[i].authResp = resp
-		}
-
-		// update the entry in the cache
-		b.handleFlushCacheUpdate(serviceApps)
-	}
+	// after we have reported for each known app under this service, we assume backend has finished its
+	// processing from the queue and authorize the app with a blank request to fetch updated state
+	// saving the response in the process
+	handledApps = b.handleFlushAuthorization(handledApps)
+	// update the entry in the cache
+	b.handleFlushCacheUpdate(handledApps)
 }
 
-func (b *Backend) groupCachedItems() map[string][]cachedApp {
+// enqueueCachedApplications takes a snapshot of each application currently stored in the cache
+// and writes it to the back of the queue
+func (b *Backend) enqueueCachedApplications() {
 	keys := b.cache.Keys()
-	groupedServices := make(map[string][]cachedApp)
 
 	for _, key := range keys {
-		svc, app, err := parseCacheKey(key)
-		if err == nil {
-			groupedServices[svc] = append(groupedServices[svc], cachedApp{
-				cacheKey:  key,
-				serviceID: api.Service(svc),
-				appID:     app,
-			})
+		if app, ok := b.cache.Get(key); ok {
+			app.RLock()
+			clone := app.deepCopy()
+			app.RUnlock()
+			svc, appID, _ := parseCacheKey(key)
+			clone.ownedBy = svc
+			clone.id = appID
+			b.queue.append(&clone)
 		}
 	}
-	return groupedServices
 }
 
-// handleFlushReporting takes a read lock on the cached application and a snapshot of the app state and releases the
-// lock before computing the data which must be reported to 3scales backend
-func (b *Backend) handleFlushReporting(apps []cachedApp) {
-	for i, cachedApp := range apps {
-		app, ok := b.cache.Get(cachedApp.cacheKey)
-		if !ok {
+// handleFlushReporting removes items from the deque and sorts them under relevant services
+// reports in batches as it pops apps off the queue
+func (b *Backend) handleFlushReporting() []*handledApp {
+	var groupedApps []*Application
+	var handledApps []*handledApp
+	var serviceID api.Service
+
+	for !b.queue.isEmpty() {
+		// take the item off the front of the queue
+		queuedApp := b.queue.shift()
+		if queuedApp == nil {
 			continue
 		}
-		// for each application for this service
-		// take a read lock and take a snapshot of the current state
-		app.RLock()
-		// take a snapshot of the current application
-		apps[i].snapshot = app.deepCopy()
-		app.RUnlock()
-		appClone := &apps[i].snapshot
 
-		// calculate the deltas and report remotely
-		deltas := appClone.calculateDeltas()
-		// store the deltas for further use
-		apps[i].deltas = deltas
-		req := threescale.Request{
-			Auth:    appClone.auth,
-			Service: cachedApp.serviceID,
-			Transactions: []api.Transaction{
-				{
-					Metrics:   deltas,
-					Params:    app.params,
-					Timestamp: appClone.timestamp,
-				},
-			},
-			Extensions: api.Extensions{
-				api.FlatUsageExtension: "1",
-			},
+		if serviceID == "" {
+			serviceID = queuedApp.ownedBy
 		}
-		_, err := b.remoteReport(req)
-		if err != nil {
-			apps[i].reportingErr = true
+		// if we have are currently handling an app from the same service, add to the list and move on
+		if queuedApp.ownedBy == serviceID {
+			groupedApps = append(groupedApps, queuedApp)
+			continue
+		}
+		// we have hit a different service, put it back on the front of the queue
+		b.queue.prepend(queuedApp)
+		// report this batch and mark these items as handled
+		handledApps = append(handledApps, b.reportGroupedApps(serviceID, groupedApps)...)
+		serviceID = ""
+		groupedApps = nil
+
+	}
+	handledApps = append(handledApps, b.reportGroupedApps(serviceID, groupedApps)...)
+	return handledApps
+}
+
+// batch report the applications for the given service id
+func (b *Backend) reportGroupedApps(service api.Service, apps []*Application) []*handledApp {
+	var handledApps []*handledApp
+	if len(apps) < 1 {
+		return handledApps
+	}
+	auth := apps[0].auth
+
+	var transactions []api.Transaction
+	for _, app := range apps {
+		// calculate the deltas and report remotely
+		deltas := app.calculateDeltas()
+
+		transactions = append(transactions, api.Transaction{
+			Metrics:   deltas,
+			Params:    app.params,
+			Timestamp: app.timestamp,
+		})
+
+		handledApps = append(handledApps, &handledApp{
+			snapshot: *app,
+			deltas:   deltas,
+		})
+	}
+	req := threescale.Request{
+		Auth:         auth,
+		Service:      service,
+		Transactions: transactions,
+		Extensions: api.Extensions{
+			api.FlatUsageExtension: "1",
+		},
+	}
+	_, err := b.remoteReport(req)
+	if err != nil {
+		// TODO Log error
+		for _, app := range handledApps {
+			app.reportingErr = true
 		}
 	}
+	return handledApps
+}
+
+// authorize an application with an empty request
+func (b *Backend) handleFlushAuthorization(apps []*handledApp) []*handledApp {
+	for _, app := range apps {
+		req := getEmptyAuthRequest(app.snapshot.ownedBy, app.snapshot.auth, app.snapshot.params)
+		resp, err := b.remoteAuth(req)
+		if err != nil {
+			app.authErr = true
+		}
+		app.authResp = resp
+	}
+	return apps
 }
 
 // handleFlushCacheUpdate updates a cached entry (taking a write lock) using the prior flushing steps as a decision tree.
@@ -379,50 +417,60 @@ func (b *Backend) handleFlushReporting(apps []cachedApp) {
 // 4. report success and authorization error -> remote_state = remote_state + actually_reported_hits. No change to local counters.
 // To summarise, if we have a reporting error, we will not amend our local representation of the remote state. if we have an authorization error we will not amend our local state.
 // In both of these cases, a successful call instead of an error will result in a change in the mentioned state
-func (b *Backend) handleFlushCacheUpdate(apps []cachedApp) {
-	for _, cachedApp := range apps {
+func (b *Backend) handleFlushCacheUpdate(apps []*handledApp) {
+	for _, app := range apps {
 		// handle case (1)
-		if cachedApp.reportingErr && cachedApp.authErr {
+		if app.reportingErr && app.authErr {
 			// nothing to do here only continue on
 			// todo add logging
 			continue
 		}
-
+		cacheKey := app.snapshot.getCacheKey()
 		//now that we have handled the dual error case, we know we need to
 		// read from the cache and modify the entry so we take a write lock
-		app, ok := b.cache.Get(cachedApp.cacheKey)
+		cachedApp, ok := b.cache.Get(cacheKey)
 		if !ok {
 			continue
 		}
 
 		// handle case (4)
-		if !cachedApp.reportingErr && cachedApp.authErr {
-			app.Lock()
+		if !app.reportingErr && app.authErr {
+			cachedApp.Lock()
 			// This is necessary when, during flushing, we have reported correctly but failed to authorize
 			// we dont have an updated state from 3scale so in order to avoid re-reporting what we have already
 			// successfully reported. We can achieve this safely by modifying our last know local
 			// representation of the remote state with the deltas we know that 3scale has processed.
-			app.addDeltasToRemoteState(cachedApp.deltas)
+			cachedApp.addDeltasToRemoteState(app.deltas)
 			// we need to account for activity in between while adjusting our unlimited counter
-			app.pruneUnlimitedCounter(cachedApp.snapshot)
-			b.cache.Set(cachedApp.cacheKey, app)
-			app.Unlock()
+			cachedApp.pruneUnlimitedCounter(app.snapshot)
+			b.cache.Set(cacheKey, cachedApp)
+			cachedApp.Unlock()
 			continue
 		}
 
-		// handles cases (2, 4)
-		remoteState := getApplicationFromResponse(cachedApp.authResp).RemoteState
+		// handles cases (2, 3)
+		updatedApp := getApplicationFromResponse(app.authResp)
 
-		app.Lock()
-		app.adjustLocalState(cachedApp, remoteState)
-		b.cache.Set(cachedApp.cacheKey, app)
-		app.Unlock()
+		cachedApp.Lock()
+		cachedApp.adjustLocalState(app, updatedApp.RemoteState, updatedApp.timestamp)
+		b.cache.Set(cacheKey, cachedApp)
+		cachedApp.Unlock()
 	}
 }
 
 // GetPeer returns the hostname of the connected backend
 func (b *Backend) GetPeer() string {
 	return b.client.GetPeer()
+}
+
+func (a *Application) annotateWithRequestDetails(request threescale.Request) {
+	if len(request.Transactions) > 0 {
+		transaction := request.Transactions[0]
+		a.id = getAppIDFromTransaction(transaction)
+		a.params = transaction.Params
+	}
+	a.ownedBy = request.GetServiceID()
+	a.auth = request.Auth
 }
 
 // calculateDeltas returns a set of metrics that we can report to 3scale using the lowest period known in the counters
@@ -517,7 +565,11 @@ func (a *Application) pruneUnlimitedCounter(snapshot Application) {
 
 // adjustLocalState assumes that we have a new remote state (set on a) fetched from 3scale and modifies local state based
 // on the state obtained during cache flushing
-func (a *Application) adjustLocalState(flushingState cachedApp, remoteState LimitCounter) *Application {
+func (a *Application) adjustLocalState(flushingState *handledApp, remoteState LimitCounter, remoteTimestamp int64) *Application {
+
+	//TODO - check for elapses and handle accordingly
+	time.Unix(flushingState.snapshot.timestamp, 0).Add(time.Minute).After(time.Unix(remoteTimestamp, 0))
+
 	a.RemoteState = remoteState
 
 	for metric, counters := range a.LocalState {
@@ -575,6 +627,10 @@ func (a *Application) statesAreComparable(metric string, index int, state, compa
 
 func (a *Application) compareLocalToRemoteState(metric string, index int) bool {
 	return a.statesAreComparable(metric, index, a.LocalState, a.RemoteState)
+}
+
+func (a *Application) getCacheKey() string {
+	return fmt.Sprintf("%s_%s", a.ownedBy, a.id)
 }
 
 // deepCopy creates a clone of the LocalState 'lc'
