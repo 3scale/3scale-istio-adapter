@@ -254,7 +254,7 @@ func (b *Backend) localReport(cacheKey string, metrics api.Metrics) {
 
 		if ok {
 			for index := range cachedValue {
-				updateCountersCurrentValue(&cachedValue[index], incrementBy)
+				incrementCountersCurrentValue(&cachedValue[index], incrementBy)
 			}
 		} else {
 			application.updateUnlimitedCounter(metric, incrementBy)
@@ -419,15 +419,14 @@ func (b *Backend) handleFlushAuthorization(apps []*handledApp) []*handledApp {
 // In both of these cases, a successful call instead of an error will result in a change in the mentioned state
 func (b *Backend) handleFlushCacheUpdate(apps []*handledApp) {
 	for _, app := range apps {
-		// handle case (1)
-		if app.reportingErr && app.authErr {
-			// nothing to do here only continue on
-			// todo add logging
+		cacheKey := app.snapshot.getCacheKey()
+
+		// handle case (1, 2)
+		if app.reportingErr {
+			b.handleFailedFlushReporting(app, cacheKey)
 			continue
 		}
-		cacheKey := app.snapshot.getCacheKey()
-		//now that we have handled the dual error case, we know we need to
-		// read from the cache and modify the entry so we take a write lock
+
 		cachedApp, ok := b.cache.Get(cacheKey)
 		if !ok {
 			continue
@@ -448,14 +447,70 @@ func (b *Backend) handleFlushCacheUpdate(apps []*handledApp) {
 			continue
 		}
 
-		// handles cases (2, 3)
+		// handles cases (3)
 		updatedApp := getApplicationFromResponse(app.authResp)
-
 		cachedApp.Lock()
-		cachedApp.adjustLocalState(app, updatedApp.RemoteState, updatedApp.timestamp)
+		cachedApp.adjustLocalState(app, updatedApp.RemoteState)
 		b.cache.Set(cacheKey, cachedApp)
 		cachedApp.Unlock()
 	}
+}
+
+func (b *Backend) handleFailedFlushReporting(app *handledApp, cacheKey string) {
+	cachedApp, ok := b.cache.Get(cacheKey)
+	if !ok {
+		return
+	}
+	// handling a reporting error and auth error is simple since there are no adjustments we can make
+	// so we just take the system time and take a lock on the cache at this point
+	deadline := time.Now()
+	cachedApp.Lock()
+	defer cachedApp.Unlock()
+
+	// handle reporting error and authorization success
+	if !app.authErr {
+		// if we have authorised correctly, attempt to glean a timestamp from the response
+		updatedApp := getApplicationFromResponse(app.authResp)
+		deadline = time.Unix(updatedApp.timestamp, 0)
+		// alter the applications state based on the response from 3scale
+		cachedApp.adjustLocalState(app, updatedApp.RemoteState)
+	}
+
+	// we need to check if any of the metrics are under a period that has elapsed and if this is the case
+	// add the snapshot back onto the queue to be reported
+	var deadlineExceeded bool
+out:
+	for _, metric := range cachedApp.LocalState {
+		for _, counter := range metric {
+			if hasSurpassedDeadline(app.snapshot.timestamp, counter.PeriodWindow.Period, deadline) {
+				// add the report to the queue once again since we know this is for an elapsed period
+				b.queue.append(&app.snapshot)
+				deadlineExceeded = true
+				break out
+			}
+		}
+	}
+
+	// if no period has elapsed, treat the timestamp as current and write to the cache
+	if !deadlineExceeded {
+		b.cache.Set(cacheKey, cachedApp)
+		return
+	}
+
+	// if we have had an elapsed period we need to handle it accordingly. This means making a further adjustment
+	// and reducing our local state by the values related to the periods that have elapsed and been re-queued
+	for metric, usageReports := range cachedApp.LocalState {
+		for _, counter := range usageReports {
+			if !hasSurpassedDeadline(app.snapshot.timestamp, counter.PeriodWindow.Period, deadline) {
+				// we can break the loop here since we are sure the counters are sorted by ascending periods
+				break
+			}
+			// since it has surpassed the deadline, we lookup the values we have re-queued and make a reduction
+			// we can safely take the zero value if the map lookup fails
+			counter.CurrentValue -= app.deltas[metric]
+		}
+	}
+
 }
 
 // GetPeer returns the hostname of the connected backend
@@ -476,25 +531,7 @@ func (a *Application) annotateWithRequestDetails(request threescale.Request) {
 // calculateDeltas returns a set of metrics that we can report to 3scale using the lowest period known in the counters
 // for metrics with rate limits attached
 func (a *Application) calculateDeltas() api.Metrics {
-	deltas := make(api.Metrics)
-
-	for metric, counters := range a.LocalState {
-		// we want to handle the lowest granularity only here
-		if canHandle := a.compareLocalToRemoteState(metric, 0); !canHandle {
-			// TODO - add logging
-			continue
-		}
-
-		lowestLocalGranularity := counters[0]
-		lowestRemoteGranularity := a.RemoteState[metric][0]
-
-		if lowestLocalGranularity.PeriodWindow.Period != lowestRemoteGranularity.PeriodWindow.Period {
-			continue
-		}
-
-		toReport := lowestLocalGranularity.CurrentValue - lowestRemoteGranularity.CurrentValue
-		deltas.Add(metric, toReport)
-	}
+	deltas := getDifferenceAsMetrics(a.RemoteState, a.LocalState)
 
 	// now add the metrics with no limits to the delta
 	for unlimitedMetric, reportWithValue := range a.UnlimitedCounter {
@@ -512,7 +549,7 @@ func (a *Application) addDeltasToRemoteState(deltas api.Metrics) *Application {
 		}
 
 		for index := range counters {
-			updateCountersCurrentValue(&counters[index], value)
+			incrementCountersCurrentValue(&counters[index], value)
 		}
 	}
 
@@ -565,16 +602,12 @@ func (a *Application) pruneUnlimitedCounter(snapshot Application) {
 
 // adjustLocalState assumes that we have a new remote state (set on a) fetched from 3scale and modifies local state based
 // on the state obtained during cache flushing
-func (a *Application) adjustLocalState(flushingState *handledApp, remoteState LimitCounter, remoteTimestamp int64) *Application {
-
-	//TODO - check for elapses and handle accordingly
-	time.Unix(flushingState.snapshot.timestamp, 0).Add(time.Minute).After(time.Unix(remoteTimestamp, 0))
-
+func (a *Application) adjustLocalState(flushingState *handledApp, remoteState LimitCounter) *Application {
 	a.RemoteState = remoteState
 
 	for metric, counters := range a.LocalState {
 
-		if canAdjust := a.statesAreComparable(metric, 0, a.RemoteState, flushingState.snapshot.LocalState); !canAdjust {
+		if canAdjust := statesAreComparable(metric, 0, a.RemoteState, flushingState.snapshot.LocalState); !canAdjust {
 			continue
 		}
 
@@ -603,30 +636,8 @@ func (a *Application) adjustLocalState(flushingState *handledApp, remoteState Li
 	return a
 }
 
-// statesAreComparable allows us to work with an applications counter and ensure that it makes sense to do calculations
-// on the provided index and metric. It also ensures we aren't duplicating code and checking for panics in the calling funcs
-// We can safely call this function with any index and know we wont panic. If the function returns false, the provided
-// args are unusable and we should handle in the caller appropriately
-// TODO - this may end up returning an error instead to provide more context if we need it for others purposes (eg logging)
-func (a *Application) statesAreComparable(metric string, index int, state, compareTo LimitCounter) bool {
-	localCounters, ok := state[metric]
-	if !ok || (len(localCounters)-1) < index {
-		return false
-	}
-
-	remoteCounter, ok := compareTo[metric]
-	if !ok || (len(remoteCounter)-1) < index {
-		return false
-	}
-
-	if localCounters[index].PeriodWindow.Period != remoteCounter[index].PeriodWindow.Period {
-		return false
-	}
-	return true
-}
-
 func (a *Application) compareLocalToRemoteState(metric string, index int) bool {
-	return a.statesAreComparable(metric, index, a.LocalState, a.RemoteState)
+	return statesAreComparable(metric, index, a.LocalState, a.RemoteState)
 }
 
 func (a *Application) getCacheKey() string {
@@ -640,8 +651,4 @@ func (lc LimitCounter) deepCopy() LimitCounter {
 		clone[metric] = append([]api.UsageReport(nil), counters...)
 	}
 	return clone
-}
-
-func updateCountersCurrentValue(counter *api.UsageReport, incrementBy int) {
-	counter.CurrentValue += incrementBy
 }
