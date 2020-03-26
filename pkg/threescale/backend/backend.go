@@ -586,8 +586,44 @@ func (a *Application) adjustLocalState(flushingState *handledApp, remoteState Li
 	time.Unix(flushingState.snapshot.timestamp, 0).Add(time.Minute).After(time.Unix(remoteTimestamp, 0))
 
 	a.RemoteState = remoteState
+	added, removed := computeAddedAndRemovedMetrics(a.LocalState, a.RemoteState)
+
+	// if we found a new metric in the remote state, we must add it to known local state
+	// if we failed to report we should update the counters with the current known value
+	for _, newMetric := range added {
+		a.LocalState[newMetric] = a.RemoteState[newMetric]
+		if flushingState.reportingErr {
+			if currentValue, wasKnownUnlimited := a.UnlimitedCounter[newMetric]; wasKnownUnlimited {
+				for _, counters := range a.LocalState[newMetric] {
+					counters.CurrentValue += currentValue
+				}
+			}
+		}
+
+	}
+
+	if !flushingState.reportingErr {
+		// reset the counter if we have reported already
+		a.pruneUnlimitedCounter(flushingState.snapshot)
+	}
 
 	for metric, counters := range a.LocalState {
+
+		// if the limit has been removed we need to convert the current values to an unlimited metric for reporting
+		// if we failed to report, add current values, if we reported successfully add the activity since
+		// remove the metric from our local state and continue
+		if contains(metric, removed) {
+			now := a.LocalState[metric][0].CurrentValue
+			if flushingState.reportingErr {
+				a.UnlimitedCounter[metric] = now
+			} else {
+				then := flushingState.snapshot.LocalState[metric][0].CurrentValue
+				diff := now - then
+				a.UnlimitedCounter[metric] = diff
+			}
+			delete(a.LocalState, metric)
+			continue
+		}
 
 		if canAdjust := a.statesAreComparable(metric, 0, a.RemoteState, flushingState.snapshot.LocalState); !canAdjust {
 			continue
@@ -608,11 +644,6 @@ func (a *Application) adjustLocalState(flushingState *handledApp, remoteState Li
 
 		lowestLocalGranularity.CurrentValue = updated
 		lowestLocalGranularity.MaxValue = lowestRemoteGranularity.MaxValue
-	}
-
-	if !flushingState.reportingErr {
-		// reset the counter if we have reported already
-		a.pruneUnlimitedCounter(flushingState.snapshot)
 	}
 
 	return a
