@@ -104,6 +104,33 @@ func validateTransactions(transactions []api.Transaction) error {
 	return nil
 }
 
+func computeAddedAndRemovedMetrics(src, dst LimitCounter) (added, removed []string) {
+	for metric, _ := range dst {
+		if _, wasKnown := src[metric]; !wasKnown {
+			added = append(added, metric)
+			continue
+		}
+	}
+
+	for metric, _ := range src {
+		if _, stillExists := dst[metric]; !stillExists {
+			removed = append(removed, metric)
+			continue
+		}
+	}
+
+	return added, removed
+}
+
+func contains(key string, in []string) bool {
+	for _, value := range in {
+		if value == key {
+			return true
+		}
+	}
+	return false
+}
+
 // newApplication creates a new, empty application with maps initialised
 func newApplication() *Application {
 	return &Application{
