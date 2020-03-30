@@ -40,9 +40,21 @@ func getApplicationFromResponse(resp *threescale.AuthorizeResult) Application {
 
 func deriveTimestamp(reports api.UsageReports) int64 {
 	var timestamp int64
+	var lowestKnownGranularity *api.UsageReport
+
 	for _, report := range reports {
-		if lowestGranularity := report[0]; lowestGranularity.PeriodWindow.Period == api.Minute {
-			timestamp = lowestGranularity.PeriodWindow.Start
+		lowestGranularity := report[0]
+		if lowestKnownGranularity == nil {
+			lowestKnownGranularity = &lowestGranularity
+		}
+
+		if lowestGranularity.PeriodWindow.Period < lowestKnownGranularity.PeriodWindow.Period {
+			lowestKnownGranularity = &lowestGranularity
+		}
+
+		timestamp = lowestGranularity.PeriodWindow.Start
+
+		if lowestGranularity.PeriodWindow.Period == api.Minute {
 			break
 		}
 	}
