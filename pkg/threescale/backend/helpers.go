@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -132,6 +133,56 @@ func computeAddedAndRemovedMetrics(src, dst LimitCounter) (added, removed []stri
 	}
 
 	return added, removed
+}
+
+// synchronizeState updates the original limit counter based on the current state of the new counter
+// any additional limits in the new counter will be added to the original and any existing limits in the
+// original that have been removed from the new state, will be removed from the source.
+func synchronizeStates(original, new LimitCounter) LimitCounter {
+	for metric, reports := range original {
+		if newReports, contains := new[metric]; contains {
+			// we first grab what has been removed from the new state because we need to prune these
+			getRemovals := getDifferenceBetweenSets(reports, newReports)
+			// do a reverse of the sorted slice so we can safely prune from the back of the list without
+			// affecting the order of our original state, those entries may be valid so take from the tail
+			sort.Reverse(sort.IntSlice(getRemovals))
+			for _, i := range getRemovals {
+				// remove the element at index i
+				original[metric] = append(original[metric][:i], original[metric][i+1:]...)
+			}
+
+			// we npw can grab what was added
+			getAdditions := getDifferenceBetweenSets(newReports, reports)
+			for _, i := range getAdditions {
+				original[metric] = append(original[metric], new[metric][i])
+			}
+
+		}
+	}
+	api.UsageReports(original).OrderByAscendingGranularity()
+	return original
+}
+
+// getDifferenceBetweenSets returns the index of the usage reports whose time periods exist
+// in the source, that are not present in the destination
+func getDifferenceBetweenSets(src, dst []api.UsageReport) []int {
+	var indexes []int
+
+	for index, report := range src {
+		found := false
+		for _, dstReport := range dst {
+			if report.PeriodWindow.Period == dstReport.PeriodWindow.Period {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			indexes = append(indexes, index)
+		}
+	}
+
+	return indexes
 }
 
 func contains(key string, in []string) bool {
