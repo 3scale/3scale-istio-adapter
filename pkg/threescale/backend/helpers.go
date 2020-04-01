@@ -60,9 +60,6 @@ func deriveTimestamp(reports api.UsageReports) int64 {
 		}
 	}
 
-	if timestamp == 0 {
-		timestamp = time.Now().Unix()
-	}
 	return timestamp
 }
 
@@ -200,7 +197,8 @@ func contains(key string, in []string) bool {
 // an hour has been passed through func f and its timestamp set to 12:00:00 and deadline to 12:59:59
 // This works because we only check deadlines on successful auth responses. *When* we provide adjustments for other
 // use cases, f(granularity api.Period, timestamp int64) will need to be created.
-func hasSurpassedDeadline(timestamp int64, granularity api.Period, deadline time.Time) bool {
+func hasSurpassedDeadline(timestamp int64, granularity api.Period, endTimestamp int64) bool {
+	deadline := time.Unix(endTimestamp, 0)
 	switch granularity {
 	case api.Minute:
 		return time.Unix(timestamp, 0).Add(time.Minute).After(deadline)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
@@ -581,11 +580,11 @@ func (a *Application) pruneUnlimitedCounter(snapshot Application) {
 // adjustLocalState assumes that we have a new remote state (set on a) fetched from 3scale and modifies local state based
 // on the state obtained during cache flushing
 func (a *Application) adjustLocalState(flushingState *handledApp, remoteState LimitCounter, remoteTimestamp int64) *Application {
-
-	//TODO - check for elapses and handle accordingly
-	time.Unix(flushingState.snapshot.timestamp, 0).Add(time.Minute).After(time.Unix(remoteTimestamp, 0))
-
 	a.RemoteState = remoteState
+	//elapsedPeriods := a.LocalState.getElapsedPeriods(a.timestamp, remoteTimestamp)
+	// todo - handle elapsed times
+
+	a.LocalState = synchronizeStates(a.LocalState, a.RemoteState)
 	added, removed := computeAddedAndRemovedMetrics(a.LocalState, a.RemoteState)
 
 	// if we found a new metric in the remote state, we must add it to known local state
@@ -696,6 +695,30 @@ func (lc LimitCounter) deepCopy() LimitCounter {
 		clone[metric] = append([]api.UsageReport(nil), counters...)
 	}
 	return clone
+}
+
+func (lc LimitCounter) getElapsedPeriods(startOfPeriod, endOfPeriod int64) map[api.Period]bool {
+	var elapsedPeriods = make(map[api.Period]bool)
+	clone := lc.deepCopy()
+	// sort the clone so we can pull out the largest granularity first
+	api.UsageReports(clone).OrderByDescendingGranularity()
+	for _, reports := range lc {
+		if len(reports) < 1 {
+			continue
+		}
+		largestGranularity := reports[0].PeriodWindow.Period
+		hasElapsed := hasSurpassedDeadline(startOfPeriod, largestGranularity, endOfPeriod)
+		if !hasElapsed {
+			continue
+		}
+		for i := largestGranularity; i > 0; i-- {
+			if elapsedPeriods[i] == true {
+				break
+			}
+			elapsedPeriods[i] = true
+		}
+	}
+	return elapsedPeriods
 }
 
 func updateCountersCurrentValue(counter *api.UsageReport, incrementBy int) {
