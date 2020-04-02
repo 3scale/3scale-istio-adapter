@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -17,6 +18,8 @@ type Backend struct {
 	// a queue to enqueue cached applications whose counters need to be reported in a older period
 	// queue must not be nil
 	queue *dequeue
+	// policy defaults to deny if not set
+	policy FailurePolicy
 }
 
 // Application defined under a 3scale service
@@ -43,6 +46,9 @@ type LimitCounter api.UsageReports
 // UnlimitedCounter keeps a count of metrics without limits
 type UnlimitedCounter map[string]int
 
+// FailurePolicy is a function will be called when we have a cache miss and an error reaching the upstream 3scale
+type FailurePolicy func() bool
+
 // Authorize authorizes a request based on the current cached values
 // If the request misses the cache, a remote call to 3scale is made
 // Request Transactions must not be nil and must not be empty
@@ -65,7 +71,7 @@ func (b *Backend) authorize(request threescale.Request) (*threescale.AuthorizeRe
 	if app == nil {
 		app, err = b.handleCacheMiss(request, cacheKey)
 		if err != nil {
-			return nil, fmt.Errorf("unable to process request - %s", err.Error())
+			return b.handleAuthorizationNetworkError(err)
 		}
 	}
 
@@ -103,7 +109,7 @@ func (b *Backend) authRep(request threescale.Request) (*threescale.AuthorizeResu
 	if app == nil {
 		app, err = b.handleCacheMiss(request, cacheKey)
 		if err != nil {
-			return nil, fmt.Errorf("unable to process request - %s", err.Error())
+			return b.handleAuthorizationNetworkError(err)
 		}
 	}
 
@@ -119,6 +125,15 @@ func (b *Backend) authRep(request threescale.Request) (*threescale.AuthorizeResu
 	}
 
 	return result, nil
+}
+
+// determine what policy to apply, if any, in cases where 3scale cannot be reached.
+func (b *Backend) handleAuthorizationNetworkError(err error) (*threescale.AuthorizeResult, error) {
+	allow := b.applyPolicy(err)
+	if !allow {
+		return nil, fmt.Errorf("unable to process request - %s", err.Error())
+	}
+	return &threescale.AuthorizeResult{Authorized: true}, nil
 }
 
 // handleCacheMiss attempts to call remote 3scale with a blank request and the
@@ -625,6 +640,16 @@ func (a *Application) statesAreComparable(metric string, index int, state, compa
 	return true
 }
 
+func (b *Backend) applyPolicy(err error) bool {
+	if nerr, ok := err.(net.Error); ok && (nerr.Temporary() || nerr.Timeout()) {
+		if b.policy == nil {
+			return false
+		}
+		return b.policy()
+	}
+	return false
+}
+
 func (a *Application) compareLocalToRemoteState(metric string, index int) bool {
 	return a.statesAreComparable(metric, index, a.LocalState, a.RemoteState)
 }
@@ -644,4 +669,14 @@ func (lc LimitCounter) deepCopy() LimitCounter {
 
 func updateCountersCurrentValue(counter *api.UsageReport, incrementBy int) {
 	counter.CurrentValue += incrementBy
+}
+
+// FailOpenPolicy authorizes requests when the upstream 3scale is unavailable
+func FailOpenPolicy() bool {
+	return true
+}
+
+// FailClosedPolicy denies authorization requests when the upstream 3scale is unavailable
+func FailClosedPolicy() bool {
+	return false
 }
