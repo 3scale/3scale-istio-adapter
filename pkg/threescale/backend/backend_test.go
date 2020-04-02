@@ -3,6 +3,7 @@ package backend
 import (
 	"errors"
 	"fmt"
+	"net"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -217,6 +218,156 @@ func TestBackend_Authorize(t *testing.T) {
 				},
 			},
 			expectResult: &threescale.AuthorizeResult{Authorized: false},
+		},
+		{
+			name: "Test the application of policy, fail closed case - timeout error",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTimeout: true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+					policy: FailClosedPolicy,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Test the application of policy, fail closed case - temporary error",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTemporary: true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+					policy: FailClosedPolicy,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Test the application of policy, nil policy default to fail closed",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTemporary: true,
+					IsTimeout:   true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Test the application of policy, fail open case - timeout error",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTimeout: true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+					policy: FailOpenPolicy,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectResult: &threescale.AuthorizeResult{Authorized: true},
+		},
+		{
+			name: "Test the application of policy, fail open case - temporary error",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTemporary: true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+					policy: FailOpenPolicy,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectResult: &threescale.AuthorizeResult{Authorized: true},
 		},
 		{
 			name: "Test success case",
@@ -640,6 +791,156 @@ func TestBackend_AuthRep(t *testing.T) {
 				UnlimitedCounter: map[string]int{"orphan": 3},
 			},
 		},
+		{
+			name: "Test the application of policy, fail closed case - timeout error",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTimeout: true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+					policy: FailClosedPolicy,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Test the application of policy, fail closed case - temporary error",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTemporary: true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+					policy: FailClosedPolicy,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Test the application of policy, nil policy default to fail closed",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTemporary: true,
+					IsTimeout:   true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Test the application of policy, fail open case - timeout error",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTimeout: true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+					policy: FailOpenPolicy,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectResult: &threescale.AuthorizeResult{Authorized: true},
+		},
+		{
+			name: "Test the application of policy, fail open case - temporary error",
+			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
+				remoteClient.err = &net.DNSError{
+					IsTemporary: true,
+				}
+
+				return &Backend{
+					client: remoteClient,
+					cache:  cacheable,
+					policy: FailOpenPolicy,
+				}
+			},
+			request: threescale.Request{
+				Auth: api.ClientAuth{
+					Type:  api.ProviderKey,
+					Value: "any",
+				},
+				Service: "test",
+				Transactions: []api.Transaction{
+					{
+						Metrics: api.Metrics{"orphan": 2, "hits": 1},
+						Params: api.Params{
+							AppID: "application",
+						},
+					},
+				},
+			},
+			expectResult: &threescale.AuthorizeResult{Authorized: true},
+		},
 	}
 
 	for _, input := range inputs {
@@ -662,7 +963,9 @@ func TestBackend_AuthRep(t *testing.T) {
 
 			cachedVal, _ := b.cache.Get(cacheKey)
 
-			if resp.Authorized {
+			// we need to disregard these additional checks in the case where we have fail open policy as
+			// we cant expect anything to be set in the cache
+			if resp.Authorized && input.expectCacheState.LocalState != nil {
 				equals(t, input.expectCacheState.UnlimitedCounter, cachedVal.UnlimitedCounter)
 				equals(t, input.expectCacheState.LocalState, cachedVal.LocalState)
 				equals(t, input.expectCacheState.RemoteState, cachedVal.RemoteState)
