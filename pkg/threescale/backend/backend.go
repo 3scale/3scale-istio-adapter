@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"net"
+	"reflect"
 	"sync"
 
 	"github.com/3scale/3scale-go-client/threescale"
@@ -581,17 +582,21 @@ func (a *Application) pruneUnlimitedCounter(snapshot Application) {
 // on the state obtained during cache flushing
 func (a *Application) adjustLocalState(flushingState *handledApp, remoteState LimitCounter, remoteTimestamp int64) *Application {
 	a.RemoteState = remoteState
-	//elapsedPeriods := a.LocalState.getElapsedPeriods(a.timestamp, remoteTimestamp)
-	// todo - handle elapsed times
 
-	a.LocalState = synchronizeStates(a.LocalState, a.RemoteState)
+	// get a map of periods that have elapsed, computed using our two timestamps
+	elapsedPeriods := a.LocalState.getElapsedPeriods(a.timestamp, remoteTimestamp)
+	// find any metrics and hence associated limits that have been deleted from the updated view of the state
 	added, removed := computeAddedAndRemovedMetrics(a.LocalState, a.RemoteState)
 
+	// sync state by pruning added and removed rate limiting periods from known metrics
+	a.LocalState = synchronizeStates(a.LocalState, a.RemoteState)
+
 	// if we found a new metric in the remote state, we must add it to known local state
-	// if we failed to report we should update the counters with the current known value
 	for _, newMetric := range added {
 		a.LocalState[newMetric] = a.RemoteState[newMetric]
 		if flushingState.reportingErr {
+			// if we failed to report we should check if we previously had any counters for this metric tht
+			// were unlimited and if so update the counters with the current known value
 			if currentValue, wasKnownUnlimited := a.UnlimitedCounter[newMetric]; wasKnownUnlimited {
 				for _, counters := range a.LocalState[newMetric] {
 					counters.CurrentValue += currentValue
@@ -624,13 +629,30 @@ func (a *Application) adjustLocalState(flushingState *handledApp, remoteState Li
 			continue
 		}
 
-		if canAdjust := a.statesAreComparable(metric, 0, a.RemoteState, flushingState.snapshot.LocalState); !canAdjust {
-			continue
-		}
-
+		// we are now, from this point on working with a fully synchronised state
+		// all new metrics have been added to local state
+		// all delete metrics have been removed from local state
+		// all previously known metrics with additional limits have had their limits added and set as remote state
+		// all previously known metrics with removed limits have had their limits removed remote state
+		// *we can now guarantee the state are comparable once again*
+		// update the local state to reflect the updated timestamp for the next iteration
+		a.timestamp = remoteTimestamp
 		lowestLocalGranularity := counters[0]
 		lowestSnappedGranularity := flushingState.snapshot.LocalState[metric][0]
 		lowestRemoteGranularity := a.RemoteState[metric][0]
+		if reflect.DeepEqual(lowestLocalGranularity, lowestRemoteGranularity) {
+			// if these are equal, we can say we have imported this new lowest limit
+			// from 3scale and we dont need to do anything further with it
+			continue
+		}
+
+		// if this was not a new limit we need to see if the period has elapsed
+		if elapsed := elapsedPeriods[lowestLocalGranularity.PeriodWindow.Period]; elapsed {
+			// we add the remote current value if the period has elapsed
+			lowestLocalGranularity.CurrentValue += lowestRemoteGranularity.CurrentValue
+			lowestLocalGranularity.MaxValue = lowestRemoteGranularity.MaxValue
+			continue
+		}
 
 		var reportedHits int
 		delta := flushingState.deltas[metric]
