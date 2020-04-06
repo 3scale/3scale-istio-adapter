@@ -14,11 +14,6 @@ sample_dir="${root_dir}"/istio/samples
 # If parsing fails, default to setting to the latest version.
 function get_istio_version() {
     if [[ "x${ISTIO_VERSION}" = "x" ]] ; then
-        # not using regex here because of some compatibility issues across different OS
-        ISTIO_VERSION=$(grep -A 1 "istio.io/istio" ${root_dir}/Gopkg.toml | grep "version" | cut -d'"' -f 2 | tr -d "=<>~^")
-    fi
-
-    if [[ "x${ISTIO_VERSION}" = "x" ]] ; then
       echo "Unable to parse Istio version from dependencies - attempting to use latest version"
       ISTIO_VERSION=$(curl -L -s https://api.github.com/repos/istio/istio/releases/latest | \
                       grep tag_name | sed "s/ *\"tag_name\": *\"\\(.*\\)\",*/\\1/")
@@ -29,6 +24,9 @@ function get_istio_version() {
       exit;
     fi
 
+    # to-do (pgough) as of >= 1.5 mixer will not be deployed by default so down the road we need to consider how we will
+    # handle this. In all likelihood, this will require a rework and an option to use with/without wasm etc
+    # Parking for now. Needs revisiting. Supporting only < 1.5
     printf ${ISTIO_VERSION}
 }
 
@@ -48,7 +46,7 @@ function get_istio() {
     URL="https://github.com/istio/istio/releases/download/${version}/istio-${version}-${OSEXT}.tar.gz"
     if ! [[ -d ${output_dir}/${NAME} ]]; then
       printf "Downloading %s from %s ..." "$NAME" "$URL"
-      mkdir - p "${output_dir}" && cd "${output_dir}" && curl -L "$URL" | tar xz
+      mkdir -p "${output_dir}" && cd "${output_dir}" && curl -L "$URL" | tar xz
     fi
 }
 
