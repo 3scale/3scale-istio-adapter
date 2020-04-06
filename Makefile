@@ -52,9 +52,9 @@ integration_coverage: integration ## Runs integration tests and generates a html
 local.cluster.environment: local.cluster.up local.install-istio local.install-adapter local.install-httpbin ## Starts a k3s cluster with istio installed alongside the adapter and httpbin sample app
 
 .PHONY: local.cluster.up
-local.cluster.up: ## Starts a k3s cluster
+local.cluster.up: ## Starts a k3s cluster using istio version set in ${ISTIO_VERSION}. Supports only versions of less than 1.5.0
 	docker-compose -f $(PROJECT_PATH)/scripts/local-cluster/docker-compose.yaml up -d
-	sleep 5
+	sleep 10
 	kubectl --kubeconfig $(PROJECT_PATH)/scripts/local-cluster/kubeconfig.yaml wait --for=condition=available --timeout=60s deployment/coredns -n kube-system
 
 .PHONY: local.cluster.clean
