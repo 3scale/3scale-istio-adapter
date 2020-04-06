@@ -3,7 +3,7 @@
 version: '3'
 services:
   server:
-    image: rancher/k3s:v0.6.1
+    image: rancher/k3s:v1.17.4-k3s1
     command: server --disable-agent --no-deploy traefik
     environment:
       - K3S_CLUSTER_SECRET=secret
@@ -16,7 +16,7 @@ services:
       - 6443:6443
 
   node:
-    image: rancher/k3s:v0.6.1
+    image: rancher/k3s:v1.17.4-k3s1
     tmpfs:
       - /run
       - /var/run
