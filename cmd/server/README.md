@@ -22,6 +22,7 @@ configuring the following environment variables:
 | THREESCALE_ALLOW_INSECURE_CONN   | Allow to skip certificate verification when calling 3scale API's. Enabling is not recommended      | false   |
 | THREESCALE_CLIENT_TIMEOUT_SECONDS| Sets the number of seconds to wait before terminating requests to 3scale System and Backend        | 10      |
 | THREESCALE_GRPC_CONN_MAX_SECONDS | Sets the maximum amount of seconds (+/-10% jitter) a connection may exist before it will be closed | 1       |
+| THREESCALE_USE_CACHED_BACKEND    | If true, attempt to create an in-memory apisonator cache for authorization requests                | false   |
 
 #### Caching behaviour
 By default, responses from 3scale System API's will be cached. Entries will be purged from the cache when they
