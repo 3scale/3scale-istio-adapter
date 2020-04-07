@@ -3,10 +3,13 @@ package backend
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"sync"
+	"time"
 
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
+	http2 "github.com/3scale/3scale-go-client/threescale/http"
 )
 
 // Backend defines the connection to a single backend and maintains a cache
@@ -47,6 +50,25 @@ type UnlimitedCounter map[string]int
 
 // FailurePolicy is a function will be called when we have a cache miss and an error reaching the upstream 3scale
 type FailurePolicy func() bool
+
+// NewBackend returns a cached backend which uses an in-memory cache
+func NewBackend(url string, client *http.Client) (*Backend, error) {
+	if client == nil {
+		client = &http.Client{
+			Timeout: time.Second * 10,
+		}
+	}
+
+	threescaleHttpClient, err := http2.NewClient(url, client)
+	if err != nil {
+		return nil, err
+	}
+	return &Backend{
+		client: threescaleHttpClient,
+		cache:  NewLocalCache(),
+		queue:  newQueue(100),
+	}, nil
+}
 
 // Authorize authorizes a request based on the current cached values
 // If the request misses the cache, a remote call to 3scale is made

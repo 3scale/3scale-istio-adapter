@@ -18,6 +18,7 @@ type LocalCache struct {
 	ds cmap.ConcurrentMap
 }
 
+// NewLocalCache returns a LocalCache with its data store initialised
 func NewLocalCache() *LocalCache {
 	return &LocalCache{ds: cmap.New()}
 }
