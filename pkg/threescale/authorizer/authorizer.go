@@ -25,7 +25,7 @@ type Manager struct {
 	clientBuilder    Builder
 	systemCache      SystemCache
 	useCachedBackend bool
-	cachedBackends   map[string]*backend.Backend
+	cachedBackends   map[string]cachedBackend
 }
 
 // SystemCache wraps the caching implementation and its configuration for 3scale system
@@ -86,6 +86,11 @@ type BackendParams struct {
 	UserKey string
 }
 
+type cachedBackend struct {
+	backend   *backend.Backend
+	stopFlush chan struct{}
+}
+
 // NewManager returns an instance of Manager
 // Starts refreshing background process for underlying system cache if provided
 func NewManager(builder Builder, systemCache *SystemCache, useCachedBackend bool) (*Manager, error) {
@@ -116,7 +121,7 @@ func NewManager(builder Builder, systemCache *SystemCache, useCachedBackend bool
 	}
 
 	if useCachedBackend {
-		m.cachedBackends = make(map[string]*backend.Backend)
+		m.cachedBackends = make(map[string]cachedBackend)
 	}
 
 	return m, nil
@@ -184,20 +189,20 @@ func (m Manager) passthroughAuthRep(backendURL string, request BackendRequest) (
 }
 
 func (m Manager) cachedAuthRep(backendURL string, request BackendRequest) (*BackendResponse, error) {
-	var cachedBackend *backend.Backend
+	var cb cachedBackend
 	var err error
-	cachedBackend, knownBackend := m.cachedBackends[backendURL]
+	cb, knownBackend := m.cachedBackends[backendURL]
 	if !knownBackend {
 		// try to create a cache if we haven't seen this backend before
-		cachedBackend, err = m.newCachedBackend(backendURL)
+		cb, err = m.newCachedBackend(backendURL)
 		if err != nil {
 			//todo(pgough) - add logging when we accept a logger
 			return m.passthroughAuthRep(backendURL, request)
 		}
-		m.cachedBackends[backendURL] = cachedBackend
+		m.cachedBackends[backendURL] = cb
 	}
 
-	return m.authRep(cachedBackend, request)
+	return m.authRep(cb.backend, request)
 }
 
 func (m Manager) authRep(client threescale.Client, request BackendRequest) (*BackendResponse, error) {
@@ -227,22 +232,32 @@ func (m Manager) authRep(client threescale.Client, request BackendRequest) (*Bac
 }
 
 // newCachedBackend creates a new backend and start the flushing process in the background
-func (m Manager) newCachedBackend(url string) (*backend.Backend, error) {
-	cachedBackend, err := backend.NewBackend(url, nil)
+func (m Manager) newCachedBackend(url string) (cachedBackend, error) {
+	backend, err := backend.NewBackend(url, nil)
 	if err != nil {
-		return nil, err
+		return cachedBackend{}, err
 	}
 
+	stop := make(chan struct{})
 	ticker := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				cachedBackend.Flush()
+				backend.Flush()
+			case <-stop:
+				// allows us to drain the cache before shutting down
+				backend.Flush()
+				ticker.Stop()
+				return
 			}
+
 		}
 	}()
-	return cachedBackend, nil
+	return cachedBackend{
+		backend:   backend,
+		stopFlush: stop,
+	}, nil
 }
 
 func (m Manager) fetchSystemConfigFromCache(systemURL string, request SystemRequest) (client.ProxyConfig, error) {
