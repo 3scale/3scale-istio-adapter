@@ -315,8 +315,8 @@ spec:
 					},
 				},
 				withAuthResponse: &authorizer.BackendResponse{
-					Authorized:     false,
-					RejectedReason: "should overwrite",
+					Authorized: false,
+					ErrorCode:  "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -352,8 +352,8 @@ spec:
 					},
 				},
 				withAuthResponse: &authorizer.BackendResponse{
-					Authorized:     false,
-					RejectedReason: "should overwrite",
+					Authorized: false,
+					ErrorCode:  "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -389,8 +389,8 @@ spec:
 					},
 				},
 				withAuthResponse: &authorizer.BackendResponse{
-					Authorized:     false,
-					RejectedReason: "should overwrite",
+					Authorized: false,
+					ErrorCode:  "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -426,8 +426,8 @@ spec:
 					},
 				},
 				withAuthResponse: &authorizer.BackendResponse{
-					Authorized:     false,
-					RejectedReason: "should overwrite",
+					Authorized: false,
+					ErrorCode:  "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -463,8 +463,8 @@ spec:
 					},
 				},
 				withAuthResponse: &authorizer.BackendResponse{
-					Authorized:     false,
-					RejectedReason: "should not overwrite",
+					Authorized: false,
+					ErrorCode:  "should not overwrite",
 				},
 			},
 			expect: generatedExpectedError(t, rpc.UNAUTHENTICATED, errNoCredentials.Error()),
@@ -501,8 +501,8 @@ spec:
 					},
 				},
 				withAuthResponse: &authorizer.BackendResponse{
-					Authorized:     false,
-					RejectedReason: "should overwrite",
+					Authorized: false,
+					ErrorCode:  "should overwrite",
 				},
 			},
 			expect: authenticatedSuccess,
@@ -539,11 +539,11 @@ spec:
 					},
 				},
 				withAuthResponse: &authorizer.BackendResponse{
-					Authorized:     false,
-					RejectedReason: "should not overwrite",
+					Authorized: false,
+					ErrorCode:  "should not overwrite",
 				},
 			},
-			expect: generatedExpectedError(t, rpc.PERMISSION_DENIED, "should not overwrite"),
+			expect: generatedExpectedError(t, rpc.UNKNOWN, "should not overwrite"),
 		},
 	}
 
