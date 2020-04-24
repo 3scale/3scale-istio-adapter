@@ -279,14 +279,21 @@ func errorToRpcStatus(err error) func(string) rpc.Status {
 
 func errorCodeToRpcStatus(threescaleErrorCode string) func(string) rpc.Status {
 	httpCode := convert.CodeToStatusCode(threescaleErrorCode)
-	if httpCode == 0 {
+
+	switch httpCode {
+	//this should never occur unless we are passed an empty reason/code by backend
+	// or backend provides us with an unmapped code
+	case 0:
 		return status.WithUnknown
+	// this typically means a breach in rate limits
+	case http.StatusConflict:
+		// return equiv of 429
+		return status.WithResourceExhausted
+	default:
+		// for all other cases that have reached backend return equiv of 403
+		return status.WithPermissionDenied
 	}
-	rpcStatus, ok := httpStatusToRpcStatus[httpCode]
-	if !ok {
-		return status.WithUnknown
-	}
-	return rpcStatus
+
 }
 
 var httpStatusToRpcStatus = map[int]func(string) rpc.Status{
