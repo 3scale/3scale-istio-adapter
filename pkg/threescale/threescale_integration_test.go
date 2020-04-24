@@ -545,6 +545,44 @@ spec:
 			},
 			expect: generatedExpectedError(t, rpc.UNKNOWN, "should not overwrite"),
 		},
+		{
+			name: "Test rate limited request returns a resource exhausted response",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/oidc",
+						"request.method":        "get",
+						"request.auth.claims":   map[string]string{"azp": "INVALID"},
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+							"service-mesh.3scale.net/service-id":  "any",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						BackendVersion: openIDTypeIdentifier,
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/oidc",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized: false,
+					ErrorCode:  "limits_exceeded",
+				},
+			},
+			expect: generatedExpectedError(t, rpc.RESOURCE_EXHAUSTED, "limits_exceeded"),
+		},
 	}
 
 	for _, input := range inputs {
