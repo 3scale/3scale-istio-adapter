@@ -17,10 +17,12 @@ import (
 	"time"
 
 	"github.com/3scale/3scale-go-client/threescale/api"
+	convert "github.com/3scale/3scale-go-client/threescale/http"
 	"github.com/3scale/3scale-istio-adapter/config"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
 	system "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
@@ -226,7 +228,7 @@ func (s *Threescale) convertAuthResponse(resp *authorizer.BackendResponse, resul
 
 	}
 	if !resp.Authorized {
-		result.Status = status.WithPermissionDenied(resp.RejectedReason)
+		result.Status = errorCodeToRpcStatus(resp.ErrorCode)(resp.ErrorCode)
 	} else {
 		result.Status = status.OK
 	}
@@ -273,6 +275,18 @@ func errorToRpcStatus(err error) func(string) rpc.Status {
 	default:
 		return status.WithUnknown
 	}
+}
+
+func errorCodeToRpcStatus(threescaleErrorCode string) func(string) rpc.Status {
+	httpCode := convert.CodeToStatusCode(threescaleErrorCode)
+	if httpCode == 0 {
+		return status.WithUnknown
+	}
+	rpcStatus, ok := httpStatusToRpcStatus[httpCode]
+	if !ok {
+		return status.WithUnknown
+	}
+	return rpcStatus
 }
 
 var httpStatusToRpcStatus = map[int]func(string) rpc.Status{
