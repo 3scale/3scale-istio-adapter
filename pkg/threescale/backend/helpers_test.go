@@ -40,29 +40,27 @@ func Test_EmptyTransactionFrom(t *testing.T) {
 func Test_GetApplicationFromResponse(t *testing.T) {
 	response := &threescale.AuthorizeResult{
 		Authorized: true,
-		AuthorizeExtensions: threescale.AuthorizeExtensions{
-			UsageReports: map[string][]api.UsageReport{
-				"hits": {
-					{
-						PeriodWindow: api.PeriodWindow{
-							Period: api.Day,
-							Start:  1000,
-							End:    2000,
-						},
-						MaxValue:     5,
-						CurrentValue: 10,
+		UsageReports: map[string][]api.UsageReport{
+			"hits": {
+				{
+					PeriodWindow: api.PeriodWindow{
+						Period: api.Day,
+						Start:  1000,
+						End:    2000,
 					},
+					MaxValue:     5,
+					CurrentValue: 10,
 				},
-				"other": {
-					{
-						PeriodWindow: api.PeriodWindow{
-							Period: api.Minute,
-							Start:  1000,
-							End:    2000,
-						},
-						MaxValue:     1000,
-						CurrentValue: 100,
+			},
+			"other": {
+				{
+					PeriodWindow: api.PeriodWindow{
+						Period: api.Minute,
+						Start:  1000,
+						End:    2000,
 					},
+					MaxValue:     1000,
+					CurrentValue: 100,
 				},
 			},
 		},
