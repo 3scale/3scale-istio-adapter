@@ -505,7 +505,6 @@ func TestBackendRequest_ToAPIRequest(t *testing.T) {
 					UserID:   "maybe",
 					UserKey:  "",
 				},
-				Timestamp: "",
 			},
 		},
 	}

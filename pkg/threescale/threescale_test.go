@@ -106,7 +106,7 @@ func TestHandleAuthorization(t *testing.T) {
 					Authorized: false,
 				},
 			},
-			expectStatus: int32(rpc.PERMISSION_DENIED),
+			expectStatus: int32(rpc.UNKNOWN),
 		},
 		{
 			name: "Test override with internal DNS",
@@ -153,25 +153,6 @@ func TestHandleAuthorization(t *testing.T) {
 			},
 			expectStatus: int32(rpc.OK),
 		},
-		//{
-		//	name: "Test override with internal DNS",
-		//	params: pb.Params{
-		//		ServiceId:   "internal-svc",
-		//		SystemUrl:   "https://www.fake-system.3scale.net",
-		//		AccessToken: "happy-path",
-		//		BackendUrl:  "http://" + internalBackendUrl,
-		//	},
-		//	expectStatus: int32(rpc.OK),
-		//	template: authorization.InstanceMsg{
-		//		Action: &authorization.ActionMsg{
-		//			Method: "get",
-		//			Path:   "/",
-		//		},
-		//		Subject: &authorization.SubjectMsg{
-		//			User: "secret",
-		//		},
-		//	},
-		//},
 	}
 	for _, input := range inputs {
 		t.Run(input.name, func(t *testing.T) {

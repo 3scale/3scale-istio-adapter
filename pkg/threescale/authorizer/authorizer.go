@@ -62,8 +62,8 @@ type BackendRequest struct {
 // BackendResponse contains the result of an Auth/AuthRep request
 type BackendResponse struct {
 	Authorized bool
-	// RejectedReason should* be set in cases where Authorized is false
-	RejectedReason string
+	// ErrorCode should be set in cases where Authorized is false
+	ErrorCode string
 }
 
 // BackendTransaction contains the metrics and end user auth required to make an Auth/AuthRep request to apisonator
@@ -169,7 +169,7 @@ func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendRes
 		return nil, fmt.Errorf("error calling AuthRep - %s", err)
 	}
 
-	return &BackendResponse{Authorized: res.Authorized, RejectedReason: res.ErrorCode}, nil
+	return &BackendResponse{Authorized: res.Authorized, ErrorCode: res.ErrorCode}, nil
 }
 
 func (m Manager) fetchSystemConfigFromCache(systemURL string, request SystemRequest) (client.ProxyConfig, error) {
