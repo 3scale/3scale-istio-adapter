@@ -72,18 +72,18 @@ func TestBackend_Authorize(t *testing.T) {
 				// we want to ensure the conversion is done here and the cache is populated correctly
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{{
+							PeriodWindow: api.PeriodWindow{
+								Period: api.Minute,
+							},
+							MaxValue:     4,
+							CurrentValue: 3,
+						},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy: make(api.Hierarchy),
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
-								},
-								MaxValue:     4,
-								CurrentValue: 3,
-							},
-							},
-						},
 					},
 				}
 
@@ -115,20 +115,20 @@ func TestBackend_Authorize(t *testing.T) {
 			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  make(api.Hierarchy),
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
-								},
-							},
-						},
 					},
 				}
 				fullRemoteState := getApplicationFromResponse(remoteResponse)
@@ -180,19 +180,19 @@ func TestBackend_Authorize(t *testing.T) {
 				// we want to ensure the conversion is done here and the cache is populated correctly
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{{
+							PeriodWindow: api.PeriodWindow{
+								Period: api.Minute,
+							},
+							MaxValue:     4,
+							CurrentValue: 3,
+						},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{{
-								PeriodWindow: api.PeriodWindow{
-									Period: api.Minute,
-								},
-								MaxValue:     4,
-								CurrentValue: 3,
-							},
-							},
-						},
 					},
 				}
 
@@ -375,20 +375,20 @@ func TestBackend_Authorize(t *testing.T) {
 				// we want to ensure the conversion is done here and the cache is populated correctly
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
-								},
-							},
-						},
 					},
 				}
 
@@ -497,20 +497,20 @@ func TestBackend_AuthRep(t *testing.T) {
 				// we want to ensure the conversion is done here and the cache is populated correctly
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  make(api.Hierarchy),
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
-								},
-							},
-						},
 					},
 				}
 
@@ -543,20 +543,20 @@ func TestBackend_AuthRep(t *testing.T) {
 
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  make(api.Hierarchy),
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
-								},
-							},
-						},
 					},
 				}
 
@@ -608,21 +608,21 @@ func TestBackend_AuthRep(t *testing.T) {
 			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
 				// we want to ensure the conversion is done here and the cache is populated correctly
 				remoteResponse := &threescale.AuthorizeResult{
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
 					Authorized: true,
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
-								},
-							},
-						},
 					},
 				}
 
@@ -655,20 +655,20 @@ func TestBackend_AuthRep(t *testing.T) {
 				// we want to ensure the conversion is done here and the cache is populated correctly
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
-								},
-							},
-						},
 					},
 				}
 
@@ -712,20 +712,20 @@ func TestBackend_AuthRep(t *testing.T) {
 			setup: func(cacheable Cacheable, remoteClient *mockRemoteClient) *Backend {
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
-								},
-							},
-						},
 					},
 				}
 
@@ -1036,19 +1036,19 @@ func TestBackend_Report(t *testing.T) {
 
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
-					AuthorizeExtensions: threescale.AuthorizeExtensions{
-						Hierarchy: api.Hierarchy{"hits": []string{"hits_child"}},
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
 								},
+								MaxValue:     4,
+								CurrentValue: 3,
 							},
 						},
+					},
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						Hierarchy: api.Hierarchy{"hits": []string{"hits_child"}},
 					},
 				}
 
@@ -1094,19 +1094,19 @@ func TestBackend_Report(t *testing.T) {
 
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
-					AuthorizeExtensions: threescale.AuthorizeExtensions{
-						Hierarchy: api.Hierarchy{"hits": []string{"hits_child"}},
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
 								},
+								MaxValue:     4,
+								CurrentValue: 3,
 							},
 						},
+					},
+					AuthorizeExtensions: threescale.AuthorizeExtensions{
+						Hierarchy: api.Hierarchy{"hits": []string{"hits_child"}},
 					},
 				}
 
@@ -1166,20 +1166,20 @@ func TestBackend_Report(t *testing.T) {
 
 				remoteResponse := &threescale.AuthorizeResult{
 					Authorized: true,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Minute,
+								},
+								MaxValue:     4,
+								CurrentValue: 3,
+							},
+						},
+					},
 					AuthorizeExtensions: threescale.AuthorizeExtensions{
 						Hierarchy:  api.Hierarchy{"hits": []string{"hits_child"}},
 						RateLimits: nil,
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Minute,
-									},
-									MaxValue:     4,
-									CurrentValue: 3,
-								},
-							},
-						},
 					},
 				}
 
@@ -1373,18 +1373,17 @@ func TestBackend_Flush(t *testing.T) {
 				reportErr: errors.New("err"),
 				authRes: &threescale.AuthorizeResult{
 					Authorized: true,
-					AuthorizeExtensions: threescale.AuthorizeExtensions{
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Hour,
-									},
-									CurrentValue: 80,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Hour,
 								},
+								CurrentValue: 80,
 							},
 						},
 					},
+					AuthorizeExtensions: threescale.AuthorizeExtensions{},
 				},
 				reportCallback: func(request threescale.Request) {
 					// verify that the metrics that we report for metrics with rate limits
@@ -1413,18 +1412,17 @@ func TestBackend_Flush(t *testing.T) {
 			remoteClient: &mockRemoteClient{
 				authRes: &threescale.AuthorizeResult{
 					Authorized: true,
-					AuthorizeExtensions: threescale.AuthorizeExtensions{
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Hour,
-									},
-									CurrentValue: 90,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Hour,
 								},
+								CurrentValue: 90,
 							},
 						},
 					},
+					AuthorizeExtensions: threescale.AuthorizeExtensions{},
 				},
 				reportCallback: func(request threescale.Request) {
 					// verify that the metrics that we report for metrics with rate limits
@@ -1515,18 +1513,17 @@ func TestBackend_Flush(t *testing.T) {
 				reportErr: errors.New("err"),
 				authRes: &threescale.AuthorizeResult{
 					Authorized: true,
-					AuthorizeExtensions: threescale.AuthorizeExtensions{
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Hour,
-									},
-									CurrentValue: 80,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Hour,
 								},
+								CurrentValue: 80,
 							},
 						},
 					},
+					AuthorizeExtensions: threescale.AuthorizeExtensions{},
 				},
 				reportCallback: func(request threescale.Request) {
 					// verify that the metrics that we report for metrics with rate limits
@@ -1559,18 +1556,17 @@ func TestBackend_Flush(t *testing.T) {
 			remoteClient: &mockRemoteClient{
 				authRes: &threescale.AuthorizeResult{
 					Authorized: true,
-					AuthorizeExtensions: threescale.AuthorizeExtensions{
-						UsageReports: api.UsageReports{
-							"hits": []api.UsageReport{
-								{
-									PeriodWindow: api.PeriodWindow{
-										Period: api.Hour,
-									},
-									CurrentValue: 90,
+					UsageReports: api.UsageReports{
+						"hits": []api.UsageReport{
+							{
+								PeriodWindow: api.PeriodWindow{
+									Period: api.Hour,
 								},
+								CurrentValue: 90,
 							},
 						},
 					},
+					AuthorizeExtensions: threescale.AuthorizeExtensions{},
 				},
 				reportCallback: func(request threescale.Request) {
 					// verify that the metrics that we report for metrics with rate limits
