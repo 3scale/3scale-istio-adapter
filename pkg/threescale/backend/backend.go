@@ -703,8 +703,8 @@ func (a *Application) adjustLocalState(flushingState *handledApp, remoteState Li
 		updated := lowestLocalGranularity.CurrentValue + lowestRemoteGranularity.CurrentValue -
 			(lowestSnappedGranularity.CurrentValue - delta) - reportedHits
 
-		lowestLocalGranularity.CurrentValue = updated
-		lowestLocalGranularity.MaxValue = lowestRemoteGranularity.MaxValue
+		a.LocalState[metric][0].CurrentValue = updated
+		a.LocalState[metric][0].MaxValue = lowestRemoteGranularity.MaxValue
 	}
 
 	return a
