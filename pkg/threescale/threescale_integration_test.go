@@ -104,7 +104,7 @@ func TestAuthorizationCheck(t *testing.T) {
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/",
 						"request.method":        "get",
-						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"request.headers":       map[string]string{"user_key": validAuth},
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 							"service-mesh.3scale.net/service-id":  "any",
@@ -137,7 +137,7 @@ func TestAuthorizationCheck(t *testing.T) {
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/",
 						"request.method":        "get",
-						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"request.headers":       map[string]string{"user_key": validAuth},
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 							"service-mesh.3scale.net/service-id":  "any",
@@ -183,7 +183,7 @@ spec:
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/",
 						"request.method":        "get",
-						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"request.headers":       map[string]string{"user_key": validAuth},
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 							"service-mesh.3scale.net/service-id":  "any",
@@ -229,7 +229,7 @@ spec:
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/",
 						"request.method":        "get",
-						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"request.headers":       map[string]string{"user_key": validAuth},
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
 						},
@@ -292,7 +292,7 @@ spec:
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
-						"request.headers":       map[string]string{"x-user-key": validAuth},
+						"request.headers":       map[string]string{"user_key": validAuth},
 						"request.method":        "get",
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
@@ -366,7 +366,7 @@ spec:
 					Attrs: map[string]interface{}{
 						"context.reporter.kind": "inbound",
 						"request.url_path":      "/thispath",
-						"request.headers":       map[string]string{"app-id": validAuth, "app-key": "secret"},
+						"request.headers":       map[string]string{"app_id": validAuth, "app_key": "secret"},
 						"request.method":        "get",
 						"destination.labels": map[string]string{
 							"service-mesh.3scale.net/credentials": "threescale",
