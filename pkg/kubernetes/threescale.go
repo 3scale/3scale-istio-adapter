@@ -28,11 +28,11 @@ const (
 	defaultThreescaleOIDCLabel   = threescale.OIDCAttributeKey
 
 	//DefaultApiKeyAttribute string for a 3scale adapter instance - Api Key pattern
-	DefaultApiKeyAttribute = `request.query_params["user_key"] | request.headers["x-user-key"] | ""`
+	DefaultApiKeyAttribute = `request.query_params["user_key"] | request.headers["user_key"] | ""`
 	//DefaultAppIDAttribute string for a 3scale adapter instance - App ID pattern
-	DefaultAppIDAttribute = `request.query_params["app_id"] | request.headers["app-id"] | ""`
+	DefaultAppIDAttribute = `request.query_params["app_id"] | request.headers["app_id"] | ""`
 	//DefaultAppKeyAttribute string for a 3scale adapter instance - App ID/OIDC pattern
-	DefaultAppKeyAttribute = `request.query_params["app_key"] | request.headers["app-key"] | ""`
+	DefaultAppKeyAttribute = `request.query_params["app_key"] | request.headers["app_key"] | ""`
 	//DefaultOIDCAttribute string for a 3scale adapter instance - OIDC pattern
 	DefaultOIDCAttribute = `request.auth.claims["azp"] | ""`
 )

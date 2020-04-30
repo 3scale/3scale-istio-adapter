@@ -101,7 +101,7 @@ func TestNewApiKeyInstance(t *testing.T) {
     path: request.url_path
     service: destination.labels["service-mesh.3scale.net/service-id"] | ""
   subject:
-    user: request.query_params["user_key"] | request.headers["x-user-key"] | ""
+    user: request.query_params["user_key"] | request.headers["user_key"] | ""
 template: threescale-authorization`
 	instance := NewApiKeyInstance(DefaultApiKeyAttribute)
 	b, err := json.MarshalIndent(instance, "", "  ")
@@ -127,8 +127,8 @@ func TestNewAppIDAppKeyInstance(t *testing.T) {
     service: destination.labels["service-mesh.3scale.net/service-id"] | ""
   subject:
     properties:
-      app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
-      app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
+      app_id: request.query_params["app_id"] | request.headers["app_id"] | ""
+      app_key: request.query_params["app_key"] | request.headers["app_key"] | ""
 template: threescale-authorization`
 	instance := NewAppIDAppKeyInstance(DefaultAppIDAttribute, DefaultAppKeyAttribute)
 	b, err := json.MarshalIndent(instance, "", "  ")

@@ -141,7 +141,7 @@ spec:
   template: threescale-authorization
   params:
     subject:
-      user: request.query_params["user_key"] | request.headers["user-key"] | ""
+      user: request.query_params["user_key"] | request.headers["user_key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"
@@ -168,8 +168,8 @@ spec:
   template: threescale-authorization
   params:
     subject:
-        app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
-        app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
+        app_id: request.query_params["app_id"] | request.headers["app_id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["app_key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"
@@ -191,7 +191,7 @@ spec:
   template: threescale-authorization
   params:
     subject:
-        app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
+        app_key: request.query_params["app_key"] | request.headers["app_key"] | ""
         client_id: request.auth.claims["azp"] | ""
     action:
       path: request.url_path
@@ -235,10 +235,10 @@ spec:
   template: threescale-authorization
   params:
     subject:
-      user: request.query_params["user_key"] | request.headers["user-key"] | ""
+      user: request.query_params["user_key"] | request.headers["user_key"] | ""
       properties:
-        app_id: request.query_params["app_id"] | request.headers["app-id"] | ""
-        app_key: request.query_params["app_key"] | request.headers["app-key"] | ""
+        app_id: request.query_params["app_id"] | request.headers["app_id"] | ""
+        app_key: request.query_params["app_key"] | request.headers["app_key"] | ""
     action:
       path: request.url_path
       method: request.method | "get"
