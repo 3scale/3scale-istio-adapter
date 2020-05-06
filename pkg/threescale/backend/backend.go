@@ -3,10 +3,13 @@ package backend
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"sync"
+	"time"
 
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
+	http2 "github.com/3scale/3scale-go-client/threescale/http"
 )
 
 // Backend defines the connection to a single backend and maintains a cache
@@ -48,6 +51,25 @@ type UnlimitedCounter map[string]int
 // FailurePolicy is a function will be called when we have a cache miss and an error reaching the upstream 3scale
 type FailurePolicy func() bool
 
+// NewBackend returns a cached backend which uses an in-memory cache
+func NewBackend(url string, client *http.Client) (*Backend, error) {
+	if client == nil {
+		client = &http.Client{
+			Timeout: time.Second * 10,
+		}
+	}
+
+	threescaleHttpClient, err := http2.NewClient(url, client)
+	if err != nil {
+		return nil, err
+	}
+	return &Backend{
+		client: threescaleHttpClient,
+		cache:  NewLocalCache(),
+		queue:  newQueue(100),
+	}, nil
+}
+
 // Authorize authorizes a request based on the current cached values
 // If the request misses the cache, a remote call to 3scale is made
 // Request Transactions must not be nil and must not be empty
@@ -68,9 +90,13 @@ func (b *Backend) authorize(request threescale.Request) (*threescale.AuthorizeRe
 	app := b.getApplicationFromCache(cacheKey)
 
 	if app == nil {
-		app, err = b.handleCacheMiss(request, cacheKey)
+		var upstreamResponse *threescale.AuthorizeResult
+		app, upstreamResponse, err = b.handleCacheMiss(request, cacheKey)
 		if err != nil {
 			return b.handleAuthorizationNetworkError(err)
+		}
+		if !upstreamResponse.Authorized {
+			return upstreamResponse, nil
 		}
 	}
 
@@ -79,7 +105,7 @@ func (b *Backend) authorize(request threescale.Request) (*threescale.AuthorizeRe
 
 	result := &threescale.AuthorizeResult{Authorized: isAuthorized}
 	if !isAuthorized {
-		result.ErrorCode = "usage limits are exceeded"
+		result.ErrorCode = "limits_exceeded"
 	}
 
 	return result, nil
@@ -106,9 +132,13 @@ func (b *Backend) authRep(request threescale.Request) (*threescale.AuthorizeResu
 	app := b.getApplicationFromCache(cacheKey)
 
 	if app == nil {
-		app, err = b.handleCacheMiss(request, cacheKey)
+		var upstreamResponse *threescale.AuthorizeResult
+		app, upstreamResponse, err = b.handleCacheMiss(request, cacheKey)
 		if err != nil {
 			return b.handleAuthorizationNetworkError(err)
+		}
+		if !upstreamResponse.Authorized {
+			return upstreamResponse, nil
 		}
 	}
 
@@ -120,7 +150,7 @@ func (b *Backend) authRep(request threescale.Request) (*threescale.AuthorizeResu
 		b.localReport(cacheKey, affectedMetrics)
 
 	} else {
-		result.ErrorCode = "usage limits are exceeded"
+		result.ErrorCode = "limits_exceeded"
 	}
 
 	return result, nil
@@ -138,7 +168,7 @@ func (b *Backend) handleAuthorizationNetworkError(err error) (*threescale.Author
 // handleCacheMiss attempts to call remote 3scale with a blank request and the
 // required extensions enabled to learn current state for caching purposes.
 // Sets the value in the cache and returns the newly cached value for re-use if required
-func (b *Backend) handleCacheMiss(request threescale.Request, cacheKey string) (*Application, error) {
+func (b *Backend) handleCacheMiss(request threescale.Request, cacheKey string) (*Application, *threescale.AuthorizeResult, error) {
 	var app Application
 
 	emptyTransaction := emptyTransactionFrom(request.Transactions[0])
@@ -146,13 +176,16 @@ func (b *Backend) handleCacheMiss(request threescale.Request, cacheKey string) (
 
 	resp, err := b.remoteAuth(emptyRequest)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if !resp.Authorized {
+		return nil, resp, nil
 	}
 	app = getApplicationFromResponse(resp)
 	app.annotateWithRequestDetails(request)
 
 	b.cache.Set(cacheKey, &app)
-	return &app, nil
+	return &app, resp, nil
 }
 
 // isAuthorized takes a read lock on the application and confirms if the request
@@ -217,7 +250,7 @@ func (b *Backend) report(request threescale.Request) (*threescale.ReportResult, 
 					// while reporting locally, we don't care about cache misses, however we do need
 					// to deal with the exception of cases where we have no hierarchy
 					// which could lead to incorrect reports
-					app, err = b.handleCacheMiss(request, cacheKey)
+					app, _, err = b.handleCacheMiss(request, cacheKey)
 					if err != nil {
 						// we can continue here and try to deal with the rest of the transactions
 						// it may fail if 3scale was down and likely a transient error
@@ -670,8 +703,8 @@ func (a *Application) adjustLocalState(flushingState *handledApp, remoteState Li
 		updated := lowestLocalGranularity.CurrentValue + lowestRemoteGranularity.CurrentValue -
 			(lowestSnappedGranularity.CurrentValue - delta) - reportedHits
 
-		lowestLocalGranularity.CurrentValue = updated
-		lowestLocalGranularity.MaxValue = lowestRemoteGranularity.MaxValue
+		a.LocalState[metric][0].CurrentValue = updated
+		a.LocalState[metric][0].MaxValue = lowestRemoteGranularity.MaxValue
 	}
 
 	return a

@@ -18,7 +18,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:539a2211943586879990054c15d3c767d26731df4fd302bbe5619c86efb378a0"
+  digest = "1:cf1dd494a482c6cce8ab959a60bad99b52a44c7f9abbc9029a741330433cb2cf"
   name = "github.com/3scale/3scale-go-client"
   packages = [
     "threescale",
@@ -27,7 +27,7 @@
     "threescale/internal",
   ]
   pruneopts = "NUT"
-  revision = "71833da7188f11b46d5a5c59d651d355b9e16baa"
+  revision = "65caa338b3b939f9541f5145c61da341d7afb1a5"
 
 [[projects]]
   digest = "1:be660b3d469d79ce10dca0ac101e0b37c9fe80803880950afa2cc85825b93b63"
