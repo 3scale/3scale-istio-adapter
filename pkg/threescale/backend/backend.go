@@ -2,8 +2,8 @@ package backend
 
 import (
 	"fmt"
+	"net"
 	"sync"
-	"time"
 
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
@@ -17,6 +17,8 @@ type Backend struct {
 	// a queue to enqueue cached applications whose counters need to be reported in a older period
 	// queue must not be nil
 	queue *dequeue
+	// policy defaults to deny if not set
+	policy FailurePolicy
 }
 
 // Application defined under a 3scale service
@@ -43,6 +45,9 @@ type LimitCounter api.UsageReports
 // UnlimitedCounter keeps a count of metrics without limits
 type UnlimitedCounter map[string]int
 
+// FailurePolicy is a function will be called when we have a cache miss and an error reaching the upstream 3scale
+type FailurePolicy func() bool
+
 // Authorize authorizes a request based on the current cached values
 // If the request misses the cache, a remote call to 3scale is made
 // Request Transactions must not be nil and must not be empty
@@ -65,7 +70,7 @@ func (b *Backend) authorize(request threescale.Request) (*threescale.AuthorizeRe
 	if app == nil {
 		app, err = b.handleCacheMiss(request, cacheKey)
 		if err != nil {
-			return nil, fmt.Errorf("unable to process request - %s", err.Error())
+			return b.handleAuthorizationNetworkError(err)
 		}
 	}
 
@@ -103,7 +108,7 @@ func (b *Backend) authRep(request threescale.Request) (*threescale.AuthorizeResu
 	if app == nil {
 		app, err = b.handleCacheMiss(request, cacheKey)
 		if err != nil {
-			return nil, fmt.Errorf("unable to process request - %s", err.Error())
+			return b.handleAuthorizationNetworkError(err)
 		}
 	}
 
@@ -119,6 +124,15 @@ func (b *Backend) authRep(request threescale.Request) (*threescale.AuthorizeResu
 	}
 
 	return result, nil
+}
+
+// determine what policy to apply, if any, in cases where 3scale cannot be reached.
+func (b *Backend) handleAuthorizationNetworkError(err error) (*threescale.AuthorizeResult, error) {
+	allow := b.applyPolicy(err)
+	if !allow {
+		return nil, fmt.Errorf("unable to process request - %s", err.Error())
+	}
+	return &threescale.AuthorizeResult{Authorized: true}, nil
 }
 
 // handleCacheMiss attempts to call remote 3scale with a blank request and the
@@ -566,21 +580,86 @@ func (a *Application) pruneUnlimitedCounter(snapshot Application) {
 // adjustLocalState assumes that we have a new remote state (set on a) fetched from 3scale and modifies local state based
 // on the state obtained during cache flushing
 func (a *Application) adjustLocalState(flushingState *handledApp, remoteState LimitCounter, remoteTimestamp int64) *Application {
-
-	//TODO - check for elapses and handle accordingly
-	time.Unix(flushingState.snapshot.timestamp, 0).Add(time.Minute).After(time.Unix(remoteTimestamp, 0))
-
 	a.RemoteState = remoteState
+
+	// get a map of periods that have elapsed, computed using our two timestamps
+	elapsedPeriods := a.LocalState.getElapsedPeriods(a.timestamp, remoteTimestamp)
+	// find any metrics and hence associated limits that have been deleted from the updated view of the state
+	added, removed := computeAddedAndRemovedMetrics(a.LocalState, a.RemoteState)
+
+	// sync state by pruning added and removed rate limiting periods from known metrics
+	var stateDeltas map[string]stateChanges
+	a.LocalState, stateDeltas = synchronizeStates(a.LocalState, a.RemoteState)
+
+	// if we found a new metric in the remote state, we must add it to known local state
+	for _, newMetric := range added {
+		a.LocalState[newMetric] = a.RemoteState[newMetric]
+		if flushingState.reportingErr {
+			// if we failed to report we should check if we previously had any counters for this metric that
+			// were unlimited and if so update the counters with the current known value
+			if currentValue, wasKnownUnlimited := a.UnlimitedCounter[newMetric]; wasKnownUnlimited {
+				for _, counters := range a.LocalState[newMetric] {
+					counters.CurrentValue += currentValue
+				}
+			}
+		}
+	}
+
+	if !flushingState.reportingErr {
+		// reset the counter if we have reported already
+		a.pruneUnlimitedCounter(flushingState.snapshot)
+	}
 
 	for metric, counters := range a.LocalState {
 
-		if canAdjust := a.statesAreComparable(metric, 0, a.RemoteState, flushingState.snapshot.LocalState); !canAdjust {
+		// if the limit has been removed we need to convert the current values to an unlimited metric for reporting
+		// if we failed to report, add current values, if we reported successfully add the activity since
+		// remove the metric from our local state and continue
+		if contains(metric, removed) {
+			now := a.LocalState[metric][0].CurrentValue
+			if flushingState.reportingErr {
+				a.UnlimitedCounter[metric] = now
+			} else {
+				then := flushingState.snapshot.LocalState[metric][0].CurrentValue
+				diff := now - then
+				a.UnlimitedCounter[metric] = diff
+			}
+			delete(a.LocalState, metric)
 			continue
 		}
 
+		// we are now, from this point on working with a fully synchronised state
+		// all new metrics have been added to local state
+		// all delete metrics have been removed from local state
+		// all previously known metrics with additional limits have had their limits added and set as remote state
+		// all previously known metrics with removed limits have had their limits removed remote state
+		// *we can now guarantee the state are comparable once again*
+		// update the local state to reflect the updated timestamp for the next iteration
+		a.timestamp = remoteTimestamp
 		lowestLocalGranularity := counters[0]
 		lowestSnappedGranularity := flushingState.snapshot.LocalState[metric][0]
 		lowestRemoteGranularity := a.RemoteState[metric][0]
+
+		var wasNewlyAdded bool
+		for _, addedLimit := range stateDeltas[metric].added {
+			if addedLimit.PeriodWindow.Period == lowestLocalGranularity.PeriodWindow.Period {
+				wasNewlyAdded = true
+				break
+			}
+		}
+		if wasNewlyAdded {
+			// if these are equal, we can say we have imported this new lowest limit
+			// from 3scale and we dont need to do anything further with it
+			continue
+		}
+
+		// if this was not a new limit we need to see if the period has elapsed
+		if elapsed := elapsedPeriods[lowestLocalGranularity.PeriodWindow.Period]; elapsed {
+			// we add the remote current value if the period has elapsed
+			lowestLocalGranularity.CurrentValue += lowestRemoteGranularity.CurrentValue
+			lowestLocalGranularity.MaxValue = lowestRemoteGranularity.MaxValue
+			continue
+		}
 
 		var reportedHits int
 		delta := flushingState.deltas[metric]
@@ -593,11 +672,6 @@ func (a *Application) adjustLocalState(flushingState *handledApp, remoteState Li
 
 		lowestLocalGranularity.CurrentValue = updated
 		lowestLocalGranularity.MaxValue = lowestRemoteGranularity.MaxValue
-	}
-
-	if !flushingState.reportingErr {
-		// reset the counter if we have reported already
-		a.pruneUnlimitedCounter(flushingState.snapshot)
 	}
 
 	return a
@@ -625,6 +699,16 @@ func (a *Application) statesAreComparable(metric string, index int, state, compa
 	return true
 }
 
+func (b *Backend) applyPolicy(err error) bool {
+	if nerr, ok := err.(net.Error); ok && (nerr.Temporary() || nerr.Timeout()) {
+		if b.policy == nil {
+			return false
+		}
+		return b.policy()
+	}
+	return false
+}
+
 func (a *Application) compareLocalToRemoteState(metric string, index int) bool {
 	return a.statesAreComparable(metric, index, a.LocalState, a.RemoteState)
 }
@@ -642,6 +726,40 @@ func (lc LimitCounter) deepCopy() LimitCounter {
 	return clone
 }
 
+func (lc LimitCounter) getElapsedPeriods(startOfPeriod, endOfPeriod int64) map[api.Period]bool {
+	var elapsedPeriods = make(map[api.Period]bool)
+	clone := lc.deepCopy()
+	// sort the clone so we can pull out the largest granularity first
+	api.UsageReports(clone).OrderByDescendingGranularity()
+	for _, reports := range lc {
+		if len(reports) < 1 {
+			continue
+		}
+		largestGranularity := reports[0].PeriodWindow.Period
+		hasElapsed := hasSurpassedDeadline(startOfPeriod, largestGranularity, endOfPeriod)
+		if !hasElapsed {
+			continue
+		}
+		for i := largestGranularity; i > 0; i-- {
+			if elapsedPeriods[i] == true {
+				break
+			}
+			elapsedPeriods[i] = true
+		}
+	}
+	return elapsedPeriods
+}
+
 func updateCountersCurrentValue(counter *api.UsageReport, incrementBy int) {
 	counter.CurrentValue += incrementBy
+}
+
+// FailOpenPolicy authorizes requests when the upstream 3scale is unavailable
+func FailOpenPolicy() bool {
+	return true
+}
+
+// FailClosedPolicy denies authorization requests when the upstream 3scale is unavailable
+func FailClosedPolicy() bool {
+	return false
 }
