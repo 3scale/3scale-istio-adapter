@@ -9,6 +9,7 @@ import (
 	"github.com/3scale/3scale-authorizer/pkg/system/v1/cache"
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
+	http2 "github.com/3scale/3scale-go-client/threescale/http"
 	"github.com/3scale/3scale-porta-go-client/client"
 )
 
@@ -493,8 +494,10 @@ func TestBackendRequest_ToAPIRequest(t *testing.T) {
 			Type:  api.AuthType("any"),
 			Value: "any",
 		},
-		Extensions: nil,
-		Service:    "any",
+		Extensions: api.Extensions{
+			http2.RejectionReasonHeaderExtension: "1",
+		},
+		Service: "any",
 		Transactions: []api.Transaction{
 			{
 				Metrics: api.Metrics{"hits": 5},

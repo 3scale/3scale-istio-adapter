@@ -7,6 +7,7 @@ import (
 	"github.com/3scale/3scale-authorizer/pkg/system/v1/cache"
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
+	backendClient "github.com/3scale/3scale-go-client/threescale/http"
 	"github.com/3scale/3scale-porta-go-client/client"
 )
 
@@ -62,8 +63,9 @@ type BackendRequest struct {
 // BackendResponse contains the result of an Auth/AuthRep request
 type BackendResponse struct {
 	Authorized bool
-	// ErrorCode should be set in cases where Authorized is false
-	ErrorCode string
+	ErrorCode  string
+	// RejectedReason should* be set in cases where Authorized is false
+	RejectedReason string
 }
 
 // BackendTransaction contains the metrics and end user auth required to make an Auth/AuthRep request to apisonator
@@ -169,7 +171,11 @@ func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendRes
 		return nil, fmt.Errorf("error calling AuthRep - %s", err)
 	}
 
-	return &BackendResponse{Authorized: res.Authorized, ErrorCode: res.ErrorCode}, nil
+	return &BackendResponse{
+		Authorized:     res.Authorized,
+		ErrorCode:      res.ErrorCode,
+		RejectedReason: res.RejectionReason,
+	}, nil
 }
 
 func (m Manager) fetchSystemConfigFromCache(systemURL string, request SystemRequest) (client.ProxyConfig, error) {
@@ -240,8 +246,11 @@ func (request BackendRequest) ToAPIRequest() (*threescale.Request, error) {
 			Type:  api.AuthType(request.Auth.Type),
 			Value: request.Auth.Value,
 		},
-		Extensions: nil,
-		Service:    api.Service(request.Service),
+		// we want to be have 3scale set the error_code explicitly
+		Extensions: api.Extensions{
+			backendClient.RejectionReasonHeaderExtension: "1",
+		},
+		Service: api.Service(request.Service),
 		Transactions: []api.Transaction{
 			{
 				Metrics: request.Transactions[0].Metrics,
