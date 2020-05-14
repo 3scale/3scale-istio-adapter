@@ -126,7 +126,7 @@ func TestAuthorizationCheck(t *testing.T) {
 				},
 				withSystemErr: nil,
 			},
-			expect: generatedExpectedError(t, rpc.PERMISSION_DENIED, "no matching mapping rule for request"),
+			expect: generatedExpectedError(t, rpc.NOT_FOUND, "no matching mapping rule for request"),
 		},
 		{
 			name: "Test failure when no access token set in handler",

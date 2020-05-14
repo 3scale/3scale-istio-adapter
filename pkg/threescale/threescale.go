@@ -215,7 +215,7 @@ func (s *Threescale) validateBackendRequest(request authorizer.BackendRequest) (
 		}
 
 		if len(transaction.Metrics) == 0 {
-			return status.WithPermissionDenied, errNoMappingRule
+			return status.WithNotFound, errNoMappingRule
 		}
 	}
 	return nil, nil
