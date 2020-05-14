@@ -546,6 +546,44 @@ spec:
 			expect: generatedExpectedError(t, rpc.UNKNOWN, "should not overwrite"),
 		},
 		{
+			name: "Test correct mapping of status codes for 409 from backend using error codes",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/oidc",
+						"request.method":        "get",
+						"request.auth.claims":   map[string]string{"azp": "INVALID"},
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+							"service-mesh.3scale.net/service-id":  "any",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						BackendVersion: openIDTypeIdentifier,
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/oidc",
+								},
+							},
+						},
+					},
+				},
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized: false,
+					ErrorCode:  "application_key_invalid",
+				},
+			},
+			expect: generatedExpectedError(t, rpc.PERMISSION_DENIED, "application_key_invalid"),
+		},
+		{
 			name: "Test rate limited request returns a resource exhausted response",
 			callWith: []integration.Call{
 				{
