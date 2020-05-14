@@ -278,22 +278,22 @@ func errorToRpcStatus(err error) func(string) rpc.Status {
 }
 
 func errorCodeToRpcStatus(threescaleErrorCode string) func(string) rpc.Status {
-	httpCode := convert.CodeToStatusCode(threescaleErrorCode)
+	if threescaleErrorCode == "limits_exceeded" {
+		// return equiv of 429
+		return status.WithResourceExhausted
+	}
 
-	switch httpCode {
+	switch convert.CodeToStatusCode(threescaleErrorCode) {
 	//this should never occur unless we are passed an empty reason/code by backend
 	// or backend provides us with an unmapped code
 	case 0:
 		return status.WithUnknown
-	// this typically means a breach in rate limits
 	case http.StatusConflict:
-		// return equiv of 429
-		return status.WithResourceExhausted
+		return status.WithPermissionDenied
 	default:
 		// for all other cases that have reached backend return equiv of 403
 		return status.WithPermissionDenied
 	}
-
 }
 
 var httpStatusToRpcStatus = map[int]func(string) rpc.Status{
