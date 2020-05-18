@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/3scale/3scale-authorizer/pkg/system/v1/cache"
@@ -233,7 +234,11 @@ func (m Manager) authRep(client threescale.Client, request BackendRequest) (*Bac
 
 // newCachedBackend creates a new backend and start the flushing process in the background
 func (m Manager) newCachedBackend(url string) (cachedBackend, error) {
-	backend, err := backend.NewBackend(url, nil)
+	var httpClient *http.Client
+	if cb, ok := m.clientBuilder.(*ClientBuilder); ok {
+		httpClient = cb.httpClient
+	}
+	backend, err := backend.NewBackend(url, httpClient)
 	if err != nil {
 		return cachedBackend{}, err
 	}
