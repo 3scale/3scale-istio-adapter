@@ -3,6 +3,7 @@
 package threescale
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -620,6 +621,47 @@ spec:
 				},
 			},
 			expect: generatedExpectedError(t, rpc.RESOURCE_EXHAUSTED, "limits_exceeded"),
+		},
+		{
+			name: "Test upstream unavailable produces the correct response",
+			callWith: []integration.Call{
+				{
+					CallKind: integration.CHECK,
+					Attrs: map[string]interface{}{
+						"context.reporter.kind": "inbound",
+						"request.url_path":      "/oidc",
+						"request.method":        "get",
+						"request.auth.claims":   map[string]string{"azp": "INVALID"},
+						"destination.labels": map[string]string{
+							"service-mesh.3scale.net/credentials": "threescale",
+							"service-mesh.3scale.net/service-id":  "any",
+						},
+					},
+				},
+			},
+			authorizer: mockAuthorizer{
+				withConfig: client.ProxyConfig{
+					Content: client.Content{
+						BackendVersion: openIDTypeIdentifier,
+						Proxy: client.ContentProxy{
+							ProxyRules: []client.ProxyRule{
+								{
+									HTTPMethod: http.MethodGet,
+									Pattern:    "/oidc",
+								},
+							},
+						},
+					},
+				},
+				withBackendErr: errors.New("upstream unavailable"),
+				withAuthResponse: &authorizer.BackendResponse{
+					Authorized: false,
+					RawResponse: &http.Response{
+						StatusCode: http.StatusServiceUnavailable,
+					},
+				},
+			},
+			expect: generatedExpectedError(t, rpc.UNAVAILABLE, "request authorization failed - upstream unavailable"),
 		},
 	}
 
