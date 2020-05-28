@@ -66,6 +66,7 @@ type BackendResponse struct {
 	ErrorCode  string
 	// RejectedReason should* be set in cases where Authorized is false
 	RejectedReason string
+	RawResponse    interface{}
 }
 
 // BackendTransaction contains the metrics and end user auth required to make an Auth/AuthRep request to apisonator
@@ -168,13 +169,21 @@ func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendRes
 
 	res, err := client.AuthRep(*req)
 	if err != nil {
-		return nil, fmt.Errorf("error calling AuthRep - %s", err)
+		var rawResponse interface{}
+		if res != nil {
+			rawResponse = res.RawResponse
+		}
+		return &BackendResponse{
+			Authorized:  false,
+			RawResponse: rawResponse,
+		}, fmt.Errorf("error calling AuthRep - %s", err)
 	}
 
 	return &BackendResponse{
 		Authorized:     res.Authorized,
 		ErrorCode:      res.ErrorCode,
 		RejectedReason: res.RejectionReason,
+		RawResponse:    res.RawResponse,
 	}, nil
 }
 

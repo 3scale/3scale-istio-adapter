@@ -220,5 +220,5 @@ func (m mockAuthorizer) AuthRep(backendURL string, request authorizer.BackendReq
 	if params.UserKey == "VALID" || params.AppID == "VALID" {
 		m.withAuthResponse.Authorized = true
 	}
-	return m.withAuthResponse, m.withSystemErr
+	return m.withAuthResponse, m.withBackendErr
 }

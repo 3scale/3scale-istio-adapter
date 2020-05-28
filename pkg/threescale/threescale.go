@@ -79,7 +79,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 
 	proxyConf, err := s.conf.authorizer.GetSystemConfiguration(cfg.SystemUrl, s.systemRequestFromHandlerConfig(cfg))
 	if err != nil {
-		result.Status, err = rpcStatusErrorHandler("error fetching config from 3scale", errorToRpcStatus(err), err)
+		result.Status, err = rpcStatusErrorHandler("error fetching config from 3scale", systemErrorToRpcStatus(err), err)
 		return result, err
 	}
 
@@ -97,11 +97,6 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 	}
 
 	authResult, err := s.conf.authorizer.AuthRep(cfg.BackendUrl, backendReq)
-	if err != nil {
-		result.Status, err = rpcStatusErrorHandler("request authorization failed", errorToRpcStatus(err), err)
-		return result, err
-	}
-
 	return s.convertAuthResponse(authResult, result, err)
 }
 
@@ -223,8 +218,10 @@ func (s *Threescale) validateBackendRequest(request authorizer.BackendRequest) (
 
 func (s *Threescale) convertAuthResponse(resp *authorizer.BackendResponse, result *v1beta1.CheckResult, err error) (*v1beta1.CheckResult, error) {
 	if err != nil {
-		result.Status, _ = rpcStatusErrorHandler("request authorization failed", errorToRpcStatus(err), err)
-		return result, err
+		// Try to obtain a correct mapping for the cause of failure. This will occur in events of 500+ status codes from
+		// upstream where we have not managed to get an actual response from Apisonator.
+		result.Status, _ = rpcStatusErrorHandler("request authorization failed", backendResponseToRpcStatus(resp), err)
+		return result, nil
 
 	}
 	if !resp.Authorized {
@@ -264,7 +261,7 @@ func rpcStatusErrorHandler(userFacingErrMsg string, fn func(string) rpc.Status, 
 	return fn(err.Error()), err
 }
 
-func errorToRpcStatus(err error) func(string) rpc.Status {
+func systemErrorToRpcStatus(err error) func(string) rpc.Status {
 	switch e := err.(type) {
 	case system.ApiErr:
 		code, ok := httpStatusToRpcStatus[e.Code()]
@@ -275,6 +272,18 @@ func errorToRpcStatus(err error) func(string) rpc.Status {
 	default:
 		return status.WithUnknown
 	}
+}
+
+func backendResponseToRpcStatus(result *authorizer.BackendResponse) func(string) rpc.Status {
+	respondWith := status.WithUnknown
+	if result != nil && result.RawResponse != nil {
+		if val, ok := result.RawResponse.(*http.Response); ok {
+			if code, ok := httpStatusToRpcStatus[val.StatusCode]; ok {
+				respondWith = code
+			}
+		}
+	}
+	return respondWith
 }
 
 func errorCodeToRpcStatus(threescaleErrorCode string) func(string) rpc.Status {
