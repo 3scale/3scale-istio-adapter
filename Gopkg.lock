@@ -29,11 +29,11 @@
   revision = "527d0856a00f247b90f1febfae979d06a6d228de"
 
 [[projects]]
-  digest = "1:be660b3d469d79ce10dca0ac101e0b37c9fe80803880950afa2cc85825b93b63"
+  digest = "1:9c5eb3708d92f87a0490935256c0d198ec74b234de38cff4d6df44d4d4cc8f3f"
   name = "github.com/3scale/3scale-porta-go-client"
   packages = ["client"]
   pruneopts = "NUT"
-  revision = "f6fbb21026d4577eb42c1186be300f01c859b686"
+  revision = "d87f43da14bc4a70e5c0ecb736f7d0f4e4c25b00"
 
 [[projects]]
   branch = "master"
