@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -236,10 +237,19 @@ func (s *Threescale) convertAuthResponse(resp *authorizer.BackendResponse, resul
 func generateMetrics(path string, method string, conf system.ProxyConfig) api.Metrics {
 	metrics := make(api.Metrics)
 
+	// sort proxy rules based on Position field to establish priority
+	sort.Slice(conf.Content.Proxy.ProxyRules, func(i, j int) bool {
+		return conf.Content.Proxy.ProxyRules[i].Position < conf.Content.Proxy.ProxyRules[j].Position
+	})
+
 	for _, pr := range conf.Content.Proxy.ProxyRules {
 		if match, err := regexp.MatchString(pr.Pattern, path); err == nil {
 			if match && strings.ToUpper(pr.HTTPMethod) == strings.ToUpper(method) {
 				metrics.Add(pr.MetricSystemName, int(pr.Delta))
+				// stop matching if this rule has been marked as Last
+				if pr.Last {
+					break
+				}
 			}
 		}
 	}

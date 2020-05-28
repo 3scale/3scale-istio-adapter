@@ -22,7 +22,7 @@
 
 [[constraint]]
   name = "github.com/3scale/3scale-porta-go-client"
-  revision = "f6fbb21026d4577eb42c1186be300f01c859b686"
+  revision = "d87f43da14bc4a70e5c0ecb736f7d0f4e4c25b00"
 
 [[constraint]]
   name = "github.com/3scale/3scale-authorizer"
