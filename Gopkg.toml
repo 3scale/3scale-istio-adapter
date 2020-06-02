@@ -1,4 +1,10 @@
 # Refer to https://golang.github.io/dep/docs/Gopkg.toml.html for details
+required = ["github.com/golang/glog"]
+
+[[override]]
+  name = "github.com/golang/glog"
+  source = "github.com/istio/glog"
+  revision = "d7cfb6fa2ccda15565f68f204d68907c80a5c977"
 
 [[override]]
   name = "istio.io/api"
