@@ -42,6 +42,10 @@ required = ["github.com/golang/glog"]
   name = "github.com/ghodss/yaml"
   version = "1.0.0"
 
+[[constraint]]
+  name = "github.com/orcaman/concurrent-map"
+  revision = "8c72a8bb44f6cfcff2abae8ebcbaaaf883331363"
+
 [prune]
   unused-packages = true
   go-tests = true

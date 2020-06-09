@@ -2,12 +2,14 @@ package authorizer
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/3scale/3scale-authorizer/pkg/system/v1/cache"
 	"github.com/3scale/3scale-go-client/threescale"
 	"github.com/3scale/3scale-go-client/threescale/api"
 	backendClient "github.com/3scale/3scale-go-client/threescale/http"
+	"github.com/3scale/3scale-istio-adapter/pkg/threescale/backend"
 	"github.com/3scale/3scale-porta-go-client/client"
 )
 
@@ -21,8 +23,10 @@ type Authorizer interface {
 // Supports managing interactions between multiple hosts and can optionally leverage available caching implementations
 // Capable of Authorizing a request to 3scale and providing the required functionality to pull from the sources to do so
 type Manager struct {
-	clientBuilder Builder
-	systemCache   SystemCache
+	clientBuilder    Builder
+	systemCache      SystemCache
+	useCachedBackend bool
+	cachedBackends   map[string]cachedBackend
 }
 
 // SystemCache wraps the caching implementation and its configuration for 3scale system
@@ -83,9 +87,14 @@ type BackendParams struct {
 	UserKey string
 }
 
+type cachedBackend struct {
+	backend   *backend.Backend
+	stopFlush chan struct{}
+}
+
 // NewManager returns an instance of Manager
 // Starts refreshing background process for underlying system cache if provided
-func NewManager(builder Builder, systemCache *SystemCache) (*Manager, error) {
+func NewManager(builder Builder, systemCache *SystemCache, useCachedBackend bool) (*Manager, error) {
 	if builder == nil {
 		return nil, fmt.Errorf("manager requires a valid builder")
 	}
@@ -106,10 +115,17 @@ func NewManager(builder Builder, systemCache *SystemCache) (*Manager, error) {
 
 	}
 
-	return &Manager{
-		clientBuilder: builder,
-		systemCache:   *systemCache,
-	}, nil
+	m := &Manager{
+		clientBuilder:    builder,
+		systemCache:      *systemCache,
+		useCachedBackend: useCachedBackend,
+	}
+
+	if useCachedBackend {
+		m.cachedBackends = make(map[string]cachedBackend)
+	}
+
+	return m, nil
 }
 
 // NewSystemCache returns a system cache configured with an in-memory caching implementation
@@ -157,11 +173,40 @@ func (m Manager) GetSystemConfiguration(systemURL string, request SystemRequest)
 
 // AuthRep does a Authorize and Report request into 3scale apisonator
 func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendResponse, error) {
+	if !m.useCachedBackend {
+		return m.passthroughAuthRep(backendURL, request)
+	}
+
+	return m.cachedAuthRep(backendURL, request)
+}
+
+func (m Manager) passthroughAuthRep(backendURL string, request BackendRequest) (*BackendResponse, error) {
 	client, err := m.clientBuilder.BuildBackendClient(backendURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to build required client for 3scale backend - %s", err.Error())
 	}
 
+	return m.authRep(client, request)
+}
+
+func (m Manager) cachedAuthRep(backendURL string, request BackendRequest) (*BackendResponse, error) {
+	var cb cachedBackend
+	var err error
+	cb, knownBackend := m.cachedBackends[backendURL]
+	if !knownBackend {
+		// try to create a cache if we haven't seen this backend before
+		cb, err = m.newCachedBackend(backendURL)
+		if err != nil {
+			//todo(pgough) - add logging when we accept a logger
+			return m.passthroughAuthRep(backendURL, request)
+		}
+		m.cachedBackends[backendURL] = cb
+	}
+
+	return m.authRep(cb.backend, request)
+}
+
+func (m Manager) authRep(client threescale.Client, request BackendRequest) (*BackendResponse, error) {
 	req, err := request.ToAPIRequest()
 	if err != nil {
 		return nil, fmt.Errorf("unable to build request to 3scale - %s", err)
@@ -184,6 +229,39 @@ func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendRes
 		ErrorCode:      res.ErrorCode,
 		RejectedReason: res.RejectionReason,
 		RawResponse:    res.RawResponse,
+	}, nil
+}
+
+// newCachedBackend creates a new backend and start the flushing process in the background
+func (m Manager) newCachedBackend(url string) (cachedBackend, error) {
+	var httpClient *http.Client
+	if cb, ok := m.clientBuilder.(*ClientBuilder); ok {
+		httpClient = cb.httpClient
+	}
+	backend, err := backend.NewBackend(url, httpClient)
+	if err != nil {
+		return cachedBackend{}, err
+	}
+
+	stop := make(chan struct{})
+	ticker := time.NewTicker(time.Second * 15)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				backend.Flush()
+			case <-stop:
+				// allows us to drain the cache before shutting down
+				backend.Flush()
+				ticker.Stop()
+				return
+			}
+
+		}
+	}()
+	return cachedBackend{
+		backend:   backend,
+		stopFlush: stop,
 	}, nil
 }
 

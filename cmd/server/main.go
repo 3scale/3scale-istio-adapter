@@ -50,6 +50,8 @@ func init() {
 
 	viper.BindEnv("grpc_conn_max_seconds")
 
+	viper.BindEnv("use_cached_backend")
+
 	options := istiolog.DefaultOptions()
 
 	if viper.IsSet("log_level") {
@@ -177,7 +179,11 @@ func main() {
 	}
 	clientBuilder := authorizer.NewClientBuilder(parseClientConfig())
 
-	authorizer, err := authorizer.NewManager(clientBuilder, cacheConfigBuilder())
+	authorizer, err := authorizer.NewManager(
+		clientBuilder,
+		cacheConfigBuilder(),
+		viper.GetBool("use_cached_backend"),
+	)
 	if err != nil {
 		istiolog.Errorf("Unable to create authorizer: %v", err)
 		os.Exit(1)

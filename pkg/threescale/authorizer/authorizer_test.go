@@ -14,12 +14,16 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
-	manager, err := NewManager(nil, nil)
+	manager, err := NewManager(nil, nil, false)
 	if err == nil {
 		t.Errorf("expected error as no builder provided")
 	}
 
-	manager, err = NewManager(NewClientBuilder(http.DefaultClient), NewSystemCache(SystemCacheConfig{}, nil))
+	manager, err = NewManager(
+		NewClientBuilder(http.DefaultClient),
+		NewSystemCache(SystemCacheConfig{}, nil),
+		false,
+	)
 	if err != nil {
 		t.Error("unexpected error")
 	}
