@@ -14,7 +14,9 @@ import (
 
 // Logger allows providing a custom logging solution
 type Logger interface {
-	Printf(string, ...interface{})
+	Infof(string, ...interface{})
+	Errorf(string, ...interface{})
+	Debugf(string, ...interface{})
 }
 
 // Backend defines the connection to a single backend and maintains a cache
@@ -27,6 +29,7 @@ type Backend struct {
 	queue *dequeue
 	// policy defaults to deny if not set
 	policy FailurePolicy
+	logger Logger
 }
 
 // Application defined under a 3scale service
@@ -57,11 +60,15 @@ type UnlimitedCounter map[string]int
 type FailurePolicy func() bool
 
 // NewBackend returns a cached backend which uses an in-memory cache
-func NewBackend(url string, client *http.Client) (*Backend, error) {
+func NewBackend(url string, client *http.Client, logger Logger) (*Backend, error) {
 	if client == nil {
 		client = &http.Client{
 			Timeout: time.Second * 10,
 		}
+	}
+
+	if logger == nil {
+		logger = &noOpLogger{}
 	}
 
 	threescaleHttpClient, err := http2.NewClient(url, client)
@@ -435,7 +442,7 @@ func (b *Backend) reportGroupedApps(service api.Service, apps []*Application) []
 	}
 	_, err := b.remoteReport(req)
 	if err != nil {
-		// TODO Log error
+		b.logger.Errorf("report failed for service %s and backend %s", string(req.Service), b.client.GetPeer())
 		for _, app := range handledApps {
 			app.reportingErr = true
 		}
@@ -449,6 +456,11 @@ func (b *Backend) handleFlushAuthorization(apps []*handledApp) []*handledApp {
 		req := getEmptyAuthRequest(app.snapshot.ownedBy, app.snapshot.auth, app.snapshot.params)
 		resp, err := b.remoteAuth(req)
 		if err != nil {
+			b.logger.Errorf(
+				"failed to fetch state for service %s and backend %s",
+				string(req.Service),
+				b.client.GetPeer(),
+			)
 			app.authErr = true
 		}
 		app.authResp = resp
@@ -473,8 +485,8 @@ func (b *Backend) handleFlushCacheUpdate(apps []*handledApp) {
 	for _, app := range apps {
 		// handle case (1)
 		if app.reportingErr && app.authErr {
-			// nothing to do here only continue on
-			// todo add logging
+			// nothing can be done besides to continue and leave cache state as is
+			// we have logged these errors previously
 			continue
 		}
 		cacheKey := app.snapshot.getCacheKey()
@@ -533,7 +545,6 @@ func (a *Application) calculateDeltas() api.Metrics {
 	for metric, counters := range a.LocalState {
 		// we want to handle the lowest granularity only here
 		if canHandle := a.compareLocalToRemoteState(metric, 0); !canHandle {
-			// TODO - add logging
 			continue
 		}
 
@@ -719,7 +730,6 @@ func (a *Application) adjustLocalState(flushingState *handledApp, remoteState Li
 // on the provided index and metric. It also ensures we aren't duplicating code and checking for panics in the calling funcs
 // We can safely call this function with any index and know we wont panic. If the function returns false, the provided
 // args are unusable and we should handle in the caller appropriately
-// TODO - this may end up returning an error instead to provide more context if we need it for others purposes (eg logging)
 func (a *Application) statesAreComparable(metric string, index int, state, compareTo LimitCounter) bool {
 	localCounters, ok := state[metric]
 	if !ok || (len(localCounters)-1) < index {
@@ -801,3 +811,11 @@ func FailOpenPolicy() bool {
 func FailClosedPolicy() bool {
 	return false
 }
+
+type noOpLogger struct{}
+
+func (l *noOpLogger) Infof(s string, i ...interface{}) {}
+
+func (l *noOpLogger) Errorf(s string, i ...interface{}) {}
+
+func (l *noOpLogger) Debugf(s string, i ...interface{}) {}
