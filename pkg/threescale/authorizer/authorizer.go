@@ -23,10 +23,12 @@ type Authorizer interface {
 // Supports managing interactions between multiple hosts and can optionally leverage available caching implementations
 // Capable of Authorizing a request to 3scale and providing the required functionality to pull from the sources to do so
 type Manager struct {
-	clientBuilder    Builder
-	systemCache      SystemCache
-	useCachedBackend bool
-	cachedBackends   map[string]cachedBackend
+	clientBuilder  Builder
+	systemCache    SystemCache
+	backendConf    BackendConfig
+	cachedBackends map[string]cachedBackend
+	// stopFlush controls the background process that periodically flushes the cache
+	stopFlush chan struct{}
 }
 
 // SystemCache wraps the caching implementation and its configuration for 3scale system
@@ -49,6 +51,15 @@ type SystemRequest struct {
 	AccessToken string
 	ServiceID   string
 	Environment string
+}
+
+type BackendConfig struct {
+	// EnableCaching of authorization responses to 3scale
+	EnableCaching bool
+	// CacheFlushInterval is the period at which the cache should be flushed and
+	// reported to 3scale
+	CacheFlushInterval time.Duration
+	Logger             backend.Logger
 }
 
 // BackendAuth contains client authorization credentials for apisonator
@@ -94,7 +105,7 @@ type cachedBackend struct {
 
 // NewManager returns an instance of Manager
 // Starts refreshing background process for underlying system cache if provided
-func NewManager(builder Builder, systemCache *SystemCache, useCachedBackend bool) (*Manager, error) {
+func NewManager(builder Builder, systemCache *SystemCache, backendConfig BackendConfig) (*Manager, error) {
 	if builder == nil {
 		return nil, fmt.Errorf("manager requires a valid builder")
 	}
@@ -116,12 +127,13 @@ func NewManager(builder Builder, systemCache *SystemCache, useCachedBackend bool
 	}
 
 	m := &Manager{
-		clientBuilder:    builder,
-		systemCache:      *systemCache,
-		useCachedBackend: useCachedBackend,
+		clientBuilder: builder,
+		systemCache:   *systemCache,
+		backendConf:   backendConfig,
+		stopFlush:     make(chan struct{}),
 	}
 
-	if useCachedBackend {
+	if backendConfig.EnableCaching {
 		m.cachedBackends = make(map[string]cachedBackend)
 	}
 
@@ -173,7 +185,7 @@ func (m Manager) GetSystemConfiguration(systemURL string, request SystemRequest)
 
 // AuthRep does a Authorize and Report request into 3scale apisonator
 func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendResponse, error) {
-	if !m.useCachedBackend {
+	if !m.backendConf.EnableCaching {
 		return m.passthroughAuthRep(backendURL, request)
 	}
 
@@ -234,23 +246,22 @@ func (m Manager) authRep(client threescale.Client, request BackendRequest) (*Bac
 
 // newCachedBackend creates a new backend and start the flushing process in the background
 func (m Manager) newCachedBackend(url string) (cachedBackend, error) {
-	var httpClient *http.Client
+	httpClient := http.DefaultClient
 	if cb, ok := m.clientBuilder.(*ClientBuilder); ok {
 		httpClient = cb.httpClient
 	}
-	backend, err := backend.NewBackend(url, httpClient)
+	backend, err := backend.NewBackend(url, httpClient, m.backendConf.Logger)
 	if err != nil {
 		return cachedBackend{}, err
 	}
 
-	stop := make(chan struct{})
-	ticker := time.NewTicker(time.Second * 15)
+	ticker := time.NewTicker(m.backendConf.CacheFlushInterval)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
 				backend.Flush()
-			case <-stop:
+			case <-m.stopFlush:
 				// allows us to drain the cache before shutting down
 				backend.Flush()
 				ticker.Stop()
@@ -259,9 +270,10 @@ func (m Manager) newCachedBackend(url string) (cachedBackend, error) {
 
 		}
 	}()
+	m.backendConf.Logger.Infof("created new cached backend for %s", url)
 	return cachedBackend{
 		backend:   backend,
-		stopFlush: stop,
+		stopFlush: m.stopFlush,
 	}, nil
 }
 
