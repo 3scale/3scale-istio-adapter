@@ -12,6 +12,11 @@ import (
 	http2 "github.com/3scale/3scale-go-client/threescale/http"
 )
 
+// Logger allows providing a custom logging solution
+type Logger interface {
+	Printf(string, ...interface{})
+}
+
 // Backend defines the connection to a single backend and maintains a cache
 // for multiple services and applications per backend. It implements the 3scale Client interface
 type Backend struct {
