@@ -132,7 +132,7 @@ func parseClientConfig() *http.Client {
 	return c
 }
 
-func cacheConfigBuilder() *authorizer.SystemCache {
+func createSystemCache() *authorizer.SystemCache {
 	cacheTTL := defaultSystemCacheTTLSeconds
 	cacheEntriesMax := defaultSystemCacheSize
 	cacheUpdateRetries := defaultSystemCacheRetries
@@ -164,6 +164,27 @@ func cacheConfigBuilder() *authorizer.SystemCache {
 	return authorizer.NewSystemCache(config, make(chan struct{}))
 }
 
+type logger struct {
+	printFn func(template string, args ...interface{})
+}
+
+func (l logger) Printf(template string, args ...interface{}) {
+	l.printFn(template, args)
+}
+
+func createBackendConfig() authorizer.BackendConfig {
+	if viper.GetBool("use_cached_backend") {
+		return authorizer.BackendConfig{
+			EnableCaching:      true,
+			CacheFlushInterval: time.Second * 15,
+			Logger:             istiolog.FindScope(istiolog.DefaultScopeName),
+		}
+	}
+	return authorizer.BackendConfig{
+		Logger: istiolog.FindScope(istiolog.DefaultScopeName),
+	}
+}
+
 func main() {
 	var addr string
 
@@ -181,8 +202,8 @@ func main() {
 
 	authorizer, err := authorizer.NewManager(
 		clientBuilder,
-		cacheConfigBuilder(),
-		viper.GetBool("use_cached_backend"),
+		createSystemCache(),
+		createBackendConfig(),
 	)
 	if err != nil {
 		istiolog.Errorf("Unable to create authorizer: %v", err)

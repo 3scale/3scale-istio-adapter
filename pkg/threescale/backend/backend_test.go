@@ -1598,7 +1598,9 @@ func TestBackend_Flush(t *testing.T) {
 				client: test.remoteClient,
 				cache:  cache,
 				queue:  newQueue(10),
+				logger: &noOpLogger{},
 			}
+
 			b.Flush()
 
 			<-reportNotifier
