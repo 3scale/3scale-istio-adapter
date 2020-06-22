@@ -49,49 +49,40 @@ func init() {
 
 	viper.BindEnv("use_cached_backend")
 
-	options := istiolog.DefaultOptions()
-
-	if viper.IsSet("log_level") {
-		loglevel := viper.GetString("log_level")
-		parsedLogLevel, err := stringToLogLevel(loglevel)
-
-		if err != nil {
-			fmt.Printf("THREESCALE_LOG_LEVEL is not valid, expected: debug,info,warn,error or none. Got: %v\n", loglevel)
-			os.Exit(1)
-		}
-
-		options.SetOutputLevel(istiolog.DefaultScopeName, parsedLogLevel)
-	}
-
-	if viper.IsSet("log_json") {
-		options.JSONEncoding = viper.GetBool("log_json")
-	}
-
-	if !viper.IsSet("log_grpc") || !viper.GetBool("log_grpc") {
-		options.LogGrpc = false
-		grpclog.SetLogger(log.New(ioutil.Discard, "", 0))
-	}
-
-	istiolog.Configure(options)
-	istiolog.Infof("Logging started")
-
+	configureLogging()
 }
 
-func stringToLogLevel(loglevel string) (istiolog.Level, error) {
+func configureLogging() {
+	options := log.DefaultOptions()
+	loglevel := viper.GetString("log_level")
+	parsedLogLevel := stringToLogLevel(loglevel)
+	options.SetOutputLevel(log.DefaultScopeName, parsedLogLevel)
+	options.JSONEncoding = viper.GetBool("log_json")
 
-	stringToLevel := map[string]istiolog.Level{
-		"debug": istiolog.DebugLevel,
-		"info":  istiolog.InfoLevel,
-		"warn":  istiolog.WarnLevel,
-		"error": istiolog.ErrorLevel,
-		"none":  istiolog.NoneLevel,
+	if !viper.GetBool("log_grpc") {
+		options.LogGrpc = false
+		grpclog.SetLoggerV2(
+			grpclog.NewLoggerV2WithVerbosity(ioutil.Discard, ioutil.Discard, ioutil.Discard, 0),
+		)
+	}
+
+	log.Configure(options)
+}
+
+func stringToLogLevel(loglevel string) log.Level {
+
+	stringToLevel := map[string]log.Level{
+		"debug": log.DebugLevel,
+		"info":  log.InfoLevel,
+		"warn":  log.WarnLevel,
+		"error": log.ErrorLevel,
+		"none":  log.NoneLevel,
 	}
 
 	if val, ok := stringToLevel[strings.ToLower(loglevel)]; ok {
-		return val, nil
+		return val
 	}
-
-	return istiolog.InfoLevel, errors.New("invalid log_level")
+	return log.InfoLevel
 }
 
 func parseMetricsConfig() *metrics.Reporter {
@@ -161,24 +152,17 @@ func createSystemCache() *authorizer.SystemCache {
 	return authorizer.NewSystemCache(config, make(chan struct{}))
 }
 
-type logger struct {
-	printFn func(template string, args ...interface{})
-}
-
-func (l logger) Printf(template string, args ...interface{}) {
-	l.printFn(template, args)
-}
-
 func createBackendConfig() authorizer.BackendConfig {
+	logger := log.FindScope(log.DefaultScopeName)
 	if viper.GetBool("use_cached_backend") {
 		return authorizer.BackendConfig{
 			EnableCaching:      true,
 			CacheFlushInterval: time.Second * 15,
-			Logger:             istiolog.FindScope(istiolog.DefaultScopeName),
+			Logger:             logger,
 		}
 	}
 	return authorizer.BackendConfig{
-		Logger: istiolog.FindScope(istiolog.DefaultScopeName),
+		Logger: logger,
 	}
 }
 
