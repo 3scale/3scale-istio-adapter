@@ -2,10 +2,7 @@ package main
 
 import (
 	"crypto/tls"
-	"errors"
-	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,7 +17,7 @@ import (
 
 	"google.golang.org/grpc/grpclog"
 
-	istiolog "istio.io/istio/pkg/log"
+	"istio.io/istio/pkg/log"
 )
 
 var version string
@@ -198,50 +195,51 @@ func main() {
 	if viper.IsSet("grpc_conn_max_seconds") {
 		grpcKeepAliveFor = time.Second * time.Duration(viper.GetInt("grpc_conn_max_seconds"))
 	}
-	clientBuilder := authorizer.NewClientBuilder(parseClientConfig())
 
 	authorizer, err := authorizer.NewManager(
-		clientBuilder,
+		authorizer.NewClientBuilder(parseClientConfig()),
 		createSystemCache(),
 		createBackendConfig(),
 	)
 	if err != nil {
-		istiolog.Errorf("Unable to create authorizer: %v", err)
-		os.Exit(1)
+		log.Fatalf("Unable to create authorizer: %v", err)
 	}
 
 	adapterConfig := threescale.NewAdapterConfig(authorizer, grpcKeepAliveFor)
 
 	s, err := threescale.NewThreescale(addr, adapterConfig)
-
 	if err != nil {
-		istiolog.Errorf("Unable to start sever: %v", err)
-		os.Exit(1)
+		log.Fatalf("Unable to start sever: %v", err)
 	}
-
-	if version == "" {
-		version = "undefined"
-	}
-	istiolog.Infof("Started server version %s", version)
 
 	shutdown := make(chan error, 1)
 	go func() {
+		if version == "" {
+			version = "undefined"
+		}
+		log.Infof("Starting server version %s", version)
 		s.Run(shutdown)
 	}()
 
 	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, syscall.SIGTERM)
+	signal.Notify(sigC, syscall.SIGTERM, syscall.SIGINT)
 
-	go func() {
-		_ = <-sigC
-		fmt.Println("SIGTERM received. Attempting graceful shutdown")
-		err := s.Close()
-		if err != nil {
-			fmt.Println("Error calling graceful shutdown")
-			os.Exit(1)
+	for {
+		select {
+		case sig := <-sigC:
+			log.Infof("\n%s received. Attempting graceful shutdown\n", sig.String())
+			authorizer.Shutdown()
+			err := s.Close()
+			if err != nil {
+				log.Fatalf("Error calling graceful shutdown")
+			}
+
+		case err = <-shutdown:
+			if err != nil {
+				log.Fatalf("gRPC server has shut down: err %v", err)
+			}
+
+			log.Info("gRPC server has shut down gracefully")
 		}
-		return
-	}()
-
-	_ = <-shutdown
+	}
 }
