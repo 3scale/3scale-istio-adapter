@@ -6,7 +6,8 @@ An [out of process gRPC Adapter](https://github.com/istio/istio/wiki/Mixer-Out-O
 * [Prerequisites](#prerequisites)
 * [Enabling Policies](#enabling-policies)
 * [Deploy the adapter](#deploy-the-adapter)
-* [Customise adapter manifests and create the resources](#customise-adapter-manifests-and-create-the-resources)
+* [Create the required resources](#create-the-required-resources)
+* [Generating and creating configuration](#generating-and-creating-configuration)
 * [Routing service traffic through the adapter](#routing-service-traffic-through-the-adapter)
 * [Authenticating requests](#authenticating-requests)
   * [Applying Patterns](#applying-patterns)
@@ -14,7 +15,6 @@ An [out of process gRPC Adapter](https://github.com/istio/istio/wiki/Mixer-Out-O
     * [Application ID Pattern](#application-id-pattern)
     * [OpenID Connect Pattern](#openid-connect-pattern)
     * [Hybrid](#hybrid-pattern)
-* [Generating sample CustomResources](#generating-sample-custom-resources)
 * [Adapter metrics](#adapter-metrics)
 * [Development and contributing](#development-and-contributing)
 
@@ -42,49 +42,53 @@ A Kubernetes deployment and service manifest are located in the `deploy` directo
 To deploy the adapter to a Kubernetes/OpenShift cluster, run:
 
 ```bash
-oc create -f deploy/
+kubectl create -f deploy/
 ```
 
 ## Configuring the adapter
 
 See [the adapter configuration options](cmd/server/README.md) to understand the default behaviour of the adapter, and how to modify it.
 
-## Customise adapter manifests and create the resources
+## Create the required resources
 
-The required CustomResources are located in the `istio` directory. These samples can be used
-to configure requests to your services via 3scale.
-
-Pay particular attention to the `kind: handler` resource in the file `istio/threescale-adapter-config.yaml`.
-This will need to be updated with your own 3scale credentials.
-
-Modify the handler configuration: `istio/threescale-adapter-config.yaml` with
-your 3scale configuration.
-
-```yaml
-# handler for adapter Threescale
-apiVersion: "config.istio.io/v1alpha2"
-kind: handler
-metadata:
- name: threescale
-spec:
- adapter: threescale
- params:
-   service_id: "XXXXXXXXXXXX"
-   system_url: "https://XXXXXX-admin.3scale.net/"
-   access_token: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
- connection:
-   address: "threescale-istio-adapter:3333"
-```
-
-Optionally, you can provide a `backedn_url` field within the params section to override the URL provided by 3scale configuration. This may be useful if the adapter runs
-on the same cluster as 3scale platform (on-premise) and you wish to leverage the internal cluster DNS.
+The required CustomResources are located in the `istio` directory.
 
 Create the required resources in the desired istio namespace. By default, this is `istio-system`, however, in a multi-tenant environment,
 this could be different.
 
 ```bash
-oc create -f istio/
+kubectl create -f istio/authorization-template.yaml
+kubectl creae -f istio/threescale-adapter.yaml
 ```
+
+## Generating and creating configuration
+
+The adapter embeds a tool which allows generation of the `handler`,`instance` and `rule` CR's.
+More detail can be found in the tools [documentation](cmd/cli/README.md).
+
+To generate these manifests from a deployed adapter, assuming it is deployed in the `istio-system` namespace, run the following:
+
+```bash
+export NS="istio-system" URL="https://replaceme-admin.3scale.net:443" NAME="name" TOKEN="token"
+oc exec -n ${NS} $(oc get po -n ${NS} -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
+-it -- ./3scale-config-gen \
+--url ${URL} --name ${NAME} --token ${TOKEN} -n ${NS}
+```
+
+This will produce some sample output to the terminal. Edit these samples if required and create the objects using `oc create` command.
+
+
+Update the workload (target service deployment's Pod Spec) with the required annotations:
+
+```bash
+export CREDENTIALS_NAME="replace-me"
+export SERVICE_ID="replace-me"
+export DEPLOYMENT="replace-me"
+patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net/service-id":"'"${SERVICE_ID}"'","service-mesh.3scale.net/credentials":"'"${CREDENTIALS_NAME}"'"}}}}}' )"
+oc patch deployment "${DEPLOYMENT}" --patch ''"${patch}"''
+```
+
+Sample manifest can be found in the `testdata` directory which can be used as a base if you prefer not to leverage the tool.
 
 ## Routing service traffic through the adapter
 
@@ -246,38 +250,11 @@ spec:
 
 ```
 
-## Generating sample custom resources
-
-The adapter embeds a tool which allows generation of the `handler`,`instance` and `rule` CR's.
-More detail can be found in the tools [documentation](cmd/cli/README.md)
-
-To generate these manifests from a deployed adapter, assuming it is deployed in the `istio-system` namespace, run the following:
-
-```bash
-export NS="istio-system" URL="https://replaceme-admin.3scale.net:443" NAME="name" TOKEN="token"
-oc exec -n ${NS} $(oc get po -n ${NS} -o jsonpath='{.items[?(@.metadata.labels.app=="3scale-istio-adapter")].metadata.name}') \
--it -- ./3scale-config-gen \
---url ${URL} --name ${NAME} --token ${TOKEN} -n ${NS}
-```
-
-This will produce some sample output to the terminal. Edit these samples if required and create the objects using `oc create` command.
-
-
-Update the workload (target service deployment's Pod Spec) with the required annotations:
-
-```bash
-export CREDENTIALS_NAME="replace-me"
-export SERVICE_ID="replace-me"
-export DEPLOYMENT="replace-me"
-patch="$(oc get deployment "${DEPLOYMENT}" --template='{"spec":{"template":{"metadata":{"labels":{ {{ range $k,$v := .spec.template.metadata.labels }}"{{ $k }}":"{{ $v }}",{{ end }}"service-mesh.3scale.net/service-id":"'"${SERVICE_ID}"'","service-mesh.3scale.net/credentials":"'"${CREDENTIALS_NAME}"'"}}}}}' )"
-oc patch deployment "${DEPLOYMENT}" --patch ''"${patch}"''
-```
-
 ## Adapter metrics
 
 The adapter, by default reports various Prometheus metrics which are exposed on port `8080` at the `/metrics` endpoint.
-These allow some insight into how the interactions between the adapter and 3scale are performing. The service is labelled
-to be automatically discovered and scraped by Prometheus.
+These allow some insight into how the interactions between the adapter and 3scale are performing. The service gets labelled
+and automatically discovered and scraped by Prometheus.
 
 
 ## Development and contributing
