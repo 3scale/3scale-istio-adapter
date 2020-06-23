@@ -17,6 +17,7 @@ import (
 type Authorizer interface {
 	GetSystemConfiguration(systemURL string, request SystemRequest) (client.ProxyConfig, error)
 	AuthRep(backendURL string, request BackendRequest) (*BackendResponse, error)
+	Shutdown()
 }
 
 // Manager manages connections and interactions between the adapter and 3scale (system and backend)
@@ -190,6 +191,11 @@ func (m Manager) AuthRep(backendURL string, request BackendRequest) (*BackendRes
 	}
 
 	return m.cachedAuthRep(backendURL, request)
+}
+
+func (m Manager) Shutdown() {
+	close(m.stopFlush)
+	close(m.systemCache.stopRefreshingTask)
 }
 
 func (m Manager) passthroughAuthRep(backendURL string, request BackendRequest) (*BackendResponse, error) {

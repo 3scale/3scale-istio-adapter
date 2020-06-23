@@ -294,3 +294,5 @@ func (m mockAuthorizer) AuthRep(backendURL string, request authorizer.BackendReq
 	}
 	return m.withAuthResponse, m.withBackendErr
 }
+
+func (m mockAuthorizer) Shutdown() {}

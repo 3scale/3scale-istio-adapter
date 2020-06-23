@@ -2,10 +2,7 @@ package main
 
 import (
 	"crypto/tls"
-	"errors"
-	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,7 +17,7 @@ import (
 
 	"google.golang.org/grpc/grpclog"
 
-	istiolog "istio.io/istio/pkg/log"
+	"istio.io/istio/pkg/log"
 )
 
 var version string
@@ -52,49 +49,40 @@ func init() {
 
 	viper.BindEnv("use_cached_backend")
 
-	options := istiolog.DefaultOptions()
-
-	if viper.IsSet("log_level") {
-		loglevel := viper.GetString("log_level")
-		parsedLogLevel, err := stringToLogLevel(loglevel)
-
-		if err != nil {
-			fmt.Printf("THREESCALE_LOG_LEVEL is not valid, expected: debug,info,warn,error or none. Got: %v\n", loglevel)
-			os.Exit(1)
-		}
-
-		options.SetOutputLevel(istiolog.DefaultScopeName, parsedLogLevel)
-	}
-
-	if viper.IsSet("log_json") {
-		options.JSONEncoding = viper.GetBool("log_json")
-	}
-
-	if !viper.IsSet("log_grpc") || !viper.GetBool("log_grpc") {
-		options.LogGrpc = false
-		grpclog.SetLogger(log.New(ioutil.Discard, "", 0))
-	}
-
-	istiolog.Configure(options)
-	istiolog.Infof("Logging started")
-
+	configureLogging()
 }
 
-func stringToLogLevel(loglevel string) (istiolog.Level, error) {
+func configureLogging() {
+	options := log.DefaultOptions()
+	loglevel := viper.GetString("log_level")
+	parsedLogLevel := stringToLogLevel(loglevel)
+	options.SetOutputLevel(log.DefaultScopeName, parsedLogLevel)
+	options.JSONEncoding = viper.GetBool("log_json")
 
-	stringToLevel := map[string]istiolog.Level{
-		"debug": istiolog.DebugLevel,
-		"info":  istiolog.InfoLevel,
-		"warn":  istiolog.WarnLevel,
-		"error": istiolog.ErrorLevel,
-		"none":  istiolog.NoneLevel,
+	if !viper.GetBool("log_grpc") {
+		options.LogGrpc = false
+		grpclog.SetLoggerV2(
+			grpclog.NewLoggerV2WithVerbosity(ioutil.Discard, ioutil.Discard, ioutil.Discard, 0),
+		)
+	}
+
+	log.Configure(options)
+}
+
+func stringToLogLevel(loglevel string) log.Level {
+
+	stringToLevel := map[string]log.Level{
+		"debug": log.DebugLevel,
+		"info":  log.InfoLevel,
+		"warn":  log.WarnLevel,
+		"error": log.ErrorLevel,
+		"none":  log.NoneLevel,
 	}
 
 	if val, ok := stringToLevel[strings.ToLower(loglevel)]; ok {
-		return val, nil
+		return val
 	}
-
-	return istiolog.InfoLevel, errors.New("invalid log_level")
+	return log.InfoLevel
 }
 
 func parseMetricsConfig() *metrics.Reporter {
@@ -164,24 +152,17 @@ func createSystemCache() *authorizer.SystemCache {
 	return authorizer.NewSystemCache(config, make(chan struct{}))
 }
 
-type logger struct {
-	printFn func(template string, args ...interface{})
-}
-
-func (l logger) Printf(template string, args ...interface{}) {
-	l.printFn(template, args)
-}
-
 func createBackendConfig() authorizer.BackendConfig {
+	logger := log.FindScope(log.DefaultScopeName)
 	if viper.GetBool("use_cached_backend") {
 		return authorizer.BackendConfig{
 			EnableCaching:      true,
 			CacheFlushInterval: time.Second * 15,
-			Logger:             istiolog.FindScope(istiolog.DefaultScopeName),
+			Logger:             logger,
 		}
 	}
 	return authorizer.BackendConfig{
-		Logger: istiolog.FindScope(istiolog.DefaultScopeName),
+		Logger: logger,
 	}
 }
 
@@ -198,50 +179,51 @@ func main() {
 	if viper.IsSet("grpc_conn_max_seconds") {
 		grpcKeepAliveFor = time.Second * time.Duration(viper.GetInt("grpc_conn_max_seconds"))
 	}
-	clientBuilder := authorizer.NewClientBuilder(parseClientConfig())
 
 	authorizer, err := authorizer.NewManager(
-		clientBuilder,
+		authorizer.NewClientBuilder(parseClientConfig()),
 		createSystemCache(),
 		createBackendConfig(),
 	)
 	if err != nil {
-		istiolog.Errorf("Unable to create authorizer: %v", err)
-		os.Exit(1)
+		log.Fatalf("Unable to create authorizer: %v", err)
 	}
 
 	adapterConfig := threescale.NewAdapterConfig(authorizer, grpcKeepAliveFor)
 
 	s, err := threescale.NewThreescale(addr, adapterConfig)
-
 	if err != nil {
-		istiolog.Errorf("Unable to start sever: %v", err)
-		os.Exit(1)
+		log.Fatalf("Unable to start sever: %v", err)
 	}
-
-	if version == "" {
-		version = "undefined"
-	}
-	istiolog.Infof("Started server version %s", version)
 
 	shutdown := make(chan error, 1)
 	go func() {
+		if version == "" {
+			version = "undefined"
+		}
+		log.Infof("Starting server version %s", version)
 		s.Run(shutdown)
 	}()
 
 	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, syscall.SIGTERM)
+	signal.Notify(sigC, syscall.SIGTERM, syscall.SIGINT)
 
-	go func() {
-		_ = <-sigC
-		fmt.Println("SIGTERM received. Attempting graceful shutdown")
-		err := s.Close()
-		if err != nil {
-			fmt.Println("Error calling graceful shutdown")
-			os.Exit(1)
+	for {
+		select {
+		case sig := <-sigC:
+			log.Infof("\n%s received. Attempting graceful shutdown\n", sig.String())
+			authorizer.Shutdown()
+			err := s.Close()
+			if err != nil {
+				log.Fatalf("Error calling graceful shutdown")
+			}
+
+		case err = <-shutdown:
+			if err != nil {
+				log.Fatalf("gRPC server has shut down: err %v", err)
+			}
+
+			log.Info("gRPC server has shut down gracefully")
 		}
-		return
-	}()
-
-	_ = <-shutdown
+	}
 }
