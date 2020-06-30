@@ -11,8 +11,8 @@ import (
 	system "github.com/3scale/3scale-porta-go-client/client"
 )
 
-// Builder provides an interface required by the adapter to complete authorization
-type Builder interface {
+// builder provides an interface required by the adapter to complete authorization
+type builder interface {
 	BuildSystemClient(systemURL, accessToken string) (SystemClient, error)
 	BuildBackendClient(backendURL string) (threescale.Client, error)
 }

@@ -14,19 +14,12 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
-	manager, err := NewManager(nil, nil, BackendConfig{})
-	if err == nil {
-		t.Errorf("expected error as no builder provided")
-	}
-
-	manager, err = NewManager(
-		NewClientBuilder(http.DefaultClient),
+	manager := NewManager(
+		http.DefaultClient,
 		NewSystemCache(SystemCacheConfig{}, nil),
 		BackendConfig{},
+		nil,
 	)
-	if err != nil {
-		t.Error("unexpected error")
-	}
 
 	if manager.systemCache.TTL.Seconds() != cache.DefaultCacheTTL.Seconds() {
 		t.Error("unexpected defaults set")
@@ -50,7 +43,7 @@ func TestManager_GetSystemConfiguration(t *testing.T) {
 	inputs := []struct {
 		name    string
 		request SystemRequest
-		builder Builder
+		builder builder
 		/// where tests use a cache we inject a real cache which acts as a form of integration testing here
 		cache     SystemCache
 		setup     func(configurationCache cache.ConfigurationCache)
@@ -208,8 +201,9 @@ func TestManager_GetSystemConfiguration(t *testing.T) {
 	for _, input := range inputs {
 		t.Run(input.name, func(t *testing.T) {
 			m := Manager{
-				clientBuilder: input.builder,
-				systemCache:   input.cache,
+				clientBuilder:   input.builder,
+				systemCache:     input.cache,
+				metricsReporter: &MetricsReporter{},
 			}
 
 			if input.setup != nil {
@@ -306,13 +300,13 @@ func TestManager_AuthRep(t *testing.T) {
 		name             string
 		url              string
 		request          BackendRequest
-		builder          Builder
+		builder          builder
 		expectErr        bool
 		expectAuthorized bool
 	}{
 		{
 			name: "Test expect fail when fail to build a client",
-			// we know we cannot build a client if we dont provide a valid URL
+			// we know we cannot build a client if we dont provide a valid Host
 			builder:   NewClientBuilder(http.DefaultClient),
 			expectErr: true,
 		},

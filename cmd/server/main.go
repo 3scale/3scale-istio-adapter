@@ -2,7 +2,9 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/3scale/3scale-istio-adapter/cmd/server/internal/metrics"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/metrics"
 	"github.com/spf13/viper"
 
 	"google.golang.org/grpc/grpclog"
@@ -27,6 +29,9 @@ const (
 	defaultSystemCacheTTLSeconds             = 300
 	defaultSystemCacheRefreshIntervalSeconds = 180
 	defaultSystemCacheSize                   = 1000
+
+	defaultMetricsEndpoint = "/metrics"
+	defaultMetricsPort     = 8080
 )
 
 func init() {
@@ -85,19 +90,30 @@ func stringToLogLevel(loglevel string) log.Level {
 	return log.InfoLevel
 }
 
-func parseMetricsConfig() *metrics.Reporter {
+func parseMetricsConfig() *authorizer.MetricsReporter {
 	if !viper.IsSet("report_metrics") || !viper.GetBool("report_metrics") {
 		return nil
 	}
 
-	var port int
+	port := defaultMetricsPort
 	if viper.IsSet("metrics_port") {
 		port = viper.GetInt("metrics_port")
-	} else {
-		port = 8080
 	}
 
-	return metrics.NewMetricsReporter(true, port)
+	metrics.Register()
+	http.Handle(defaultMetricsEndpoint, metrics.GetHandler())
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		log.Fatalf("failed to start metrics server %v", err)
+	}
+	go http.Serve(listener, nil)
+	log.Infof("Serving metrics on port %d", port)
+
+	return &authorizer.MetricsReporter{
+		ReportMetrics: true,
+		ResponseCB:    metrics.ReportCB,
+		CacheHitCB:    metrics.IncrementCacheHits,
+	}
 }
 
 func parseClientConfig() *http.Client {
@@ -180,14 +196,12 @@ func main() {
 		grpcKeepAliveFor = time.Second * time.Duration(viper.GetInt("grpc_conn_max_seconds"))
 	}
 
-	authorizer, err := authorizer.NewManager(
-		authorizer.NewClientBuilder(parseClientConfig()),
+	authorizer := authorizer.NewManager(
+		parseClientConfig(),
 		createSystemCache(),
 		createBackendConfig(),
+		parseMetricsConfig(),
 	)
-	if err != nil {
-		log.Fatalf("Unable to create authorizer: %v", err)
-	}
 
 	adapterConfig := threescale.NewAdapterConfig(authorizer, grpcKeepAliveFor)
 

@@ -24,12 +24,13 @@ type Authorizer interface {
 // Supports managing interactions between multiple hosts and can optionally leverage available caching implementations
 // Capable of Authorizing a request to 3scale and providing the required functionality to pull from the sources to do so
 type Manager struct {
-	clientBuilder  Builder
+	clientBuilder  builder
 	systemCache    SystemCache
 	backendConf    BackendConfig
 	cachedBackends map[string]cachedBackend
 	// stopFlush controls the background process that periodically flushes the cache
-	stopFlush chan struct{}
+	stopFlush       chan struct{}
+	metricsReporter *MetricsReporter
 }
 
 // SystemCache wraps the caching implementation and its configuration for 3scale system
@@ -106,9 +107,15 @@ type cachedBackend struct {
 
 // NewManager returns an instance of Manager
 // Starts refreshing background process for underlying system cache if provided
-func NewManager(builder Builder, systemCache *SystemCache, backendConfig BackendConfig) (*Manager, error) {
-	if builder == nil {
-		return nil, fmt.Errorf("manager requires a valid builder")
+func NewManager(client *http.Client, systemCache *SystemCache, backendConfig BackendConfig, reporter *MetricsReporter) *Manager {
+	builder := ClientBuilder{httpClient: http.DefaultClient}
+
+	if reporter == nil {
+		reporter = &MetricsReporter{}
+	}
+
+	if reporter.ReportMetrics && reporter.ResponseCB != nil {
+		builder.httpClient.Transport = &MetricsTransport{}
 	}
 
 	if systemCache.cache != nil {
@@ -128,17 +135,18 @@ func NewManager(builder Builder, systemCache *SystemCache, backendConfig Backend
 	}
 
 	m := &Manager{
-		clientBuilder: builder,
-		systemCache:   *systemCache,
-		backendConf:   backendConfig,
-		stopFlush:     make(chan struct{}),
+		clientBuilder:   builder,
+		systemCache:     *systemCache,
+		backendConf:     backendConfig,
+		stopFlush:       make(chan struct{}),
+		metricsReporter: reporter,
 	}
 
 	if backendConfig.EnableCaching {
 		m.cachedBackends = make(map[string]cachedBackend)
 	}
 
-	return m, nil
+	return m
 }
 
 // NewSystemCache returns a system cache configured with an in-memory caching implementation
@@ -261,6 +269,10 @@ func (m Manager) newCachedBackend(url string) (cachedBackend, error) {
 		return cachedBackend{}, err
 	}
 
+	backend.SetCacheHitCallback(func() {
+		m.metricsReporter.CacheHitCB(Backend)
+	})
+
 	ticker := time.NewTicker(m.backendConf.CacheFlushInterval)
 	go func() {
 		for {
@@ -301,6 +313,10 @@ func (m Manager) fetchSystemConfigFromCache(systemURL string, request SystemRequ
 
 	} else {
 		config = cachedValue.Item
+		if m.metricsReporter.CacheHitCB != nil {
+			m.metricsReporter.CacheHitCB(System)
+		}
+
 	}
 
 	return config, err
