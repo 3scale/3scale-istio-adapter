@@ -238,6 +238,7 @@ func main() {
 			}
 
 			log.Info("gRPC server has shut down gracefully")
+			return
 		}
 	}
 }
