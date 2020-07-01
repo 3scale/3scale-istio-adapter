@@ -35,7 +35,6 @@ const (
 )
 
 func init() {
-	viper.SetEnvPrefix("threescale")
 	viper.BindEnv("log_level")
 	viper.BindEnv("log_json")
 	viper.BindEnv("log_grpc")
