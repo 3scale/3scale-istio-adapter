@@ -21,7 +21,7 @@ configuring the following environment variables:
 | CACHE_REFRESH_RETRIES | Sets the number of times unreachable hosts will be retried during a cache update loop              | 1       |
 | ALLOW_INSECURE_CONN   | Allow to skip certificate verification when calling 3scale API's. Enabling is not recommended      | false   |
 | CLIENT_TIMEOUT_SECONDS| Sets the number of seconds to wait before terminating requests to 3scale System and Backend        | 10      |
-| GRPC_CONN_MAX_SECONDS | Sets the maximum amount of seconds (+/-10% jitter) a connection may exist before it will be closed | 1       |
+| GRPC_CONN_MAX_SECONDS | Sets the maximum amount of seconds (+/-10% jitter) a connection may exist before it will be closed | 60      |
 | USE_CACHED_BACKEND    | If true, attempt to create an in-memory apisonator cache for authorization requests                | false   |
 
 #### Caching behaviour
