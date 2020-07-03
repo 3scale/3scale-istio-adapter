@@ -84,6 +84,16 @@ spec:
               configMapKeyRef:
                 name: 3scale-istio-adapter-conf
                 key: backend.enable_cache
+          - name: BACKEND_CACHE_FLUSH_INTERVAL_SECONDS
+            valueFrom:
+              configMapKeyRef:
+                name: 3scale-istio-adapter-conf
+                key: backend.cache_flush_interval
+          - name: BACKEND_CACHE_FAIL_CLOSED_POLICY
+            valueFrom:
+              configMapKeyRef:
+                name: 3scale-istio-adapter-conf
+                key: backend.policy_fail_closed
         image: quay.io/3scale/3scale-istio-adapter:v1.0.0
         imagePullPolicy: Always
         livenessProbe:
