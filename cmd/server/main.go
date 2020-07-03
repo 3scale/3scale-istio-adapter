@@ -32,10 +32,11 @@ const (
 
 	defaultMetricsEndpoint = "/metrics"
 	defaultMetricsPort     = 8080
+
+	defaultBackendCacheFlushInterval = time.Second * 15
 )
 
 func init() {
-	viper.SetEnvPrefix("threescale")
 	viper.BindEnv("log_level")
 	viper.BindEnv("log_json")
 	viper.BindEnv("log_grpc")
@@ -53,6 +54,7 @@ func init() {
 	viper.BindEnv("grpc_conn_max_seconds")
 
 	viper.BindEnv("use_cached_backend")
+	viper.BindEnv("backend_cache_flush_interval_seconds")
 
 	configureLogging()
 }
@@ -171,9 +173,16 @@ func createSystemCache() *authorizer.SystemCache {
 func createBackendConfig() authorizer.BackendConfig {
 	logger := log.FindScope(log.DefaultScopeName)
 	if viper.GetBool("use_cached_backend") {
+		interval := time.Second * time.Duration(viper.GetInt("backend_cache_flush_interval_seconds"))
+		if interval == 0 {
+			interval = defaultBackendCacheFlushInterval
+		}
+
+		log.Infof("backend cache set to flush at %s intervals", interval.String())
+
 		return authorizer.BackendConfig{
 			EnableCaching:      true,
-			CacheFlushInterval: time.Second * 15,
+			CacheFlushInterval: interval,
 			Logger:             logger,
 		}
 	}
