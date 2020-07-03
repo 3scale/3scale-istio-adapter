@@ -62,6 +62,7 @@ type BackendConfig struct {
 	// reported to 3scale
 	CacheFlushInterval time.Duration
 	Logger             backend.Logger
+	Policy             backend.FailurePolicy
 }
 
 // BackendAuth contains client authorization credentials for apisonator
@@ -264,7 +265,7 @@ func (m Manager) newCachedBackend(url string) (cachedBackend, error) {
 	if cb, ok := m.clientBuilder.(*ClientBuilder); ok {
 		httpClient = cb.httpClient
 	}
-	backend, err := backend.NewBackend(url, httpClient, m.backendConf.Logger)
+	backend, err := backend.NewBackend(url, httpClient, m.backendConf.Logger, m.backendConf.Policy)
 	if err != nil {
 		return cachedBackend{}, err
 	}

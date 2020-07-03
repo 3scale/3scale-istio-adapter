@@ -61,7 +61,7 @@ type UnlimitedCounter map[string]int
 type FailurePolicy func() bool
 
 // NewBackend returns a cached backend which uses an in-memory cache
-func NewBackend(url string, client *http.Client, logger Logger) (*Backend, error) {
+func NewBackend(url string, client *http.Client, logger Logger, policy FailurePolicy) (*Backend, error) {
 	if client == nil {
 		client = &http.Client{
 			Timeout: time.Second * 10,
@@ -72,6 +72,10 @@ func NewBackend(url string, client *http.Client, logger Logger) (*Backend, error
 		logger = &noOpLogger{}
 	}
 
+	if policy == nil {
+		policy = FailClosedPolicy
+	}
+
 	threescaleHttpClient, err := http2.NewClient(url, client)
 	if err != nil {
 		return nil, err
@@ -80,6 +84,7 @@ func NewBackend(url string, client *http.Client, logger Logger) (*Backend, error
 		client:           threescaleHttpClient,
 		cache:            NewLocalCache(),
 		queue:            newQueue(100),
+		policy:           policy,
 		cacheHitCallback: func() {},
 	}, nil
 }
