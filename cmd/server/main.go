@@ -25,6 +25,8 @@ import (
 var version string
 
 const (
+	defaultListenAddr = "3333"
+
 	defaultSystemCacheRetries                = 1
 	defaultSystemCacheTTLSeconds             = 300
 	defaultSystemCacheRefreshIntervalSeconds = 180
@@ -197,7 +199,7 @@ func main() {
 	if viper.IsSet("listen_addr") {
 		addr = viper.GetString("listen_addr")
 	} else {
-		addr = "0"
+		addr = defaultListenAddr
 	}
 
 	grpcKeepAliveFor := time.Minute
