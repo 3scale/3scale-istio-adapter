@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi8/ubi-minimal AS build
+FROM ubi8-minimal:8-released AS build
 
 ENV GOPATH=/go
 ARG BUILDDIR="/go/src/github.com/3scale/3scale-istio-adapter"
