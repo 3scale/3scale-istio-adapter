@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/3scale/3scale-authorizer/pkg/authorizer"
 	"github.com/3scale/3scale-istio-adapter/cmd/server/internal/metrics"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale"
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
 	"github.com/spf13/viper"
 
 	"google.golang.org/grpc/grpclog"
@@ -214,9 +214,12 @@ func main() {
 		parseMetricsConfig(),
 	)
 
-	adapterConfig := threescale.NewAdapterConfig(authorizer, grpcKeepAliveFor)
+	adapterConf := &threescale.AdapterConfig{
+		Authorizer:      authorizer,
+		KeepAliveMaxAge: grpcKeepAliveFor,
+	}
 
-	s, err := threescale.NewThreescale(addr, adapterConfig)
+	s, err := threescale.NewThreescale(addr, adapterConf)
 	if err != nil {
 		log.Fatalf("Unable to start sever: %v", err)
 	}

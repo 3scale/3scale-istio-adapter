@@ -4,7 +4,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
+	"github.com/3scale/3scale-porta-go-client/client"
+
+	"github.com/3scale/3scale-authorizer/pkg/authorizer"
 	"google.golang.org/grpc"
 )
 
@@ -22,9 +24,15 @@ type Threescale struct {
 	conf     *AdapterConfig
 }
 
+type Authorizer interface {
+	GetSystemConfiguration(systemURL string, request authorizer.SystemRequest) (client.ProxyConfig, error)
+	AuthRep(backendURL string, request authorizer.BackendRequest) (*authorizer.BackendResponse, error)
+	Shutdown()
+}
+
 // AdapterConfig wraps optional configuration for the 3scale adapter
 type AdapterConfig struct {
-	authorizer authorizer.Authorizer
+	Authorizer Authorizer
 	//gRPC connection keepalive duration
-	keepAliveMaxAge time.Duration
+	KeepAliveMaxAge time.Duration
 }

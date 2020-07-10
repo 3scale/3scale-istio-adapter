@@ -4,10 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
+	"github.com/3scale/3scale-authorizer/pkg/authorizer"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // defaultMetricsPort - Default port that metrics endpoint will be served on

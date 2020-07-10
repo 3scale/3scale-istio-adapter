@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
+	"github.com/3scale/3scale-authorizer/pkg/authorizer"
 	"github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
 	integration "istio.io/istio/mixer/pkg/adapter/test"
@@ -71,7 +71,7 @@ func TestAuthorizationCheck(t *testing.T) {
 		name       string
 		callWith   []integration.Call
 		expect     string
-		authorizer authorizer.Authorizer
+		authorizer Authorizer
 		handler    []byte
 	}{
 		{
@@ -668,7 +668,7 @@ spec:
 	for _, input := range inputs {
 		s := integration.Scenario{
 			Setup: func() (ctx interface{}, err error) {
-				config := NewAdapterConfig(input.authorizer, time.Second)
+				config := &AdapterConfig{input.authorizer, time.Second}
 
 				pServer, err := NewThreescale("3333", config)
 				if err != nil {

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/3scale/3scale-authorizer/pkg/authorizer"
 	"github.com/3scale/3scale-istio-adapter/config"
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
 	"github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
 	"github.com/gogo/protobuf/types"
@@ -30,7 +30,7 @@ func TestHandleAuthorization(t *testing.T) {
 		params               config.Params
 		expectStatus         int32
 		expectErrMsgContains string
-		authorizer           authorizer.Authorizer
+		authorizer           Authorizer
 	}{
 		{
 			name: "Test nil config should error",
@@ -231,7 +231,10 @@ func TestHandleAuthorization(t *testing.T) {
 			}
 
 			c := &Threescale{
-				conf: NewAdapterConfig(input.authorizer, time.Second),
+				conf: &AdapterConfig{
+					Authorizer:      input.authorizer,
+					KeepAliveMaxAge: time.Second,
+				},
 			}
 			result, _ := c.HandleAuthorization(ctx, r)
 			if result.Status.Code != input.expectStatus {
@@ -249,7 +252,10 @@ func TestHandleAuthorization(t *testing.T) {
 
 func Test_NewThreescale(t *testing.T) {
 	addr := "0"
-	threescaleConf := NewAdapterConfig(nil, time.Minute)
+	threescaleConf := &AdapterConfig{
+		Authorizer:      nil,
+		KeepAliveMaxAge: time.Minute,
+	}
 	s, err := NewThreescale(addr, threescaleConf)
 	if err != nil {
 		t.Errorf("Error running threescale server %#v", err)

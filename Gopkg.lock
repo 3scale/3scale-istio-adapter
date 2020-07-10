@@ -10,11 +10,17 @@
   version = "v0.33.0"
 
 [[projects]]
-  digest = "1:55ad135bf39d7da1aa9ef59772b3effed869ea04c490ae934015801247fd5b4b"
+  digest = "1:1e379ae2a1796d8bdbeb58fba4d0208aaff91259e0d6c497f4224e615300a24f"
   name = "github.com/3scale/3scale-authorizer"
-  packages = ["pkg/system/v1/cache"]
+  packages = [
+    "pkg/authorizer",
+    "pkg/backend/v1",
+    "pkg/core",
+    "pkg/system/v1/cache",
+  ]
   pruneopts = "NUT"
-  revision = "8b3f1e0858ea5890389def65da3dcb063e606332"
+  revision = "a39078bbbf8ff4158c47daafc41052eb1bb92e9e"
+  version = "v0.0.1"
 
 [[projects]]
   digest = "1:785026af48559cb96056b851f6c0e5776788c2aa36747c84fbe5ca3af7f1b39e"
@@ -27,13 +33,15 @@
   ]
   pruneopts = "NUT"
   revision = "59f1bbdf5147f20e8e04e81d8d60b7dc196e877f"
+  version = "v0.5.0"
 
 [[projects]]
-  digest = "1:9c5eb3708d92f87a0490935256c0d198ec74b234de38cff4d6df44d4d4cc8f3f"
+  digest = "1:31d9683d91cbf694732a2501bee1c31653b7fe9505812d16c08ccead8d7792c3"
   name = "github.com/3scale/3scale-porta-go-client"
   packages = ["client"]
   pruneopts = "NUT"
-  revision = "d87f43da14bc4a70e5c0ecb736f7d0f4e4c25b00"
+  revision = "03546e7be48e489038ea6948a29126bca6925b05"
+  version = "v0.0.5"
 
 [[projects]]
   branch = "master"
@@ -1131,8 +1139,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/3scale/3scale-authorizer/pkg/system/v1/cache",
-    "github.com/3scale/3scale-go-client/threescale",
+    "github.com/3scale/3scale-authorizer/pkg/authorizer",
     "github.com/3scale/3scale-go-client/threescale/api",
     "github.com/3scale/3scale-go-client/threescale/http",
     "github.com/3scale/3scale-porta-go-client/client",
@@ -1142,7 +1149,6 @@
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
     "github.com/golang/glog",
-    "github.com/orcaman/concurrent-map",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/prometheus/client_golang/prometheus/testutil",
@@ -1150,7 +1156,6 @@
     "google.golang.org/grpc",
     "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/keepalive",
-    "gopkg.in/oleiade/lane.v1",
     "istio.io/api/mixer/adapter/model/v1beta1",
     "istio.io/api/policy/v1beta1",
     "istio.io/istio/mixer/pkg/adapter/test",
