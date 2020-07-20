@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
+	"github.com/3scale/3scale-authorizer/pkg/authorizer"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 

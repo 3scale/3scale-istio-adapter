@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/3scale/3scale-authorizer/pkg/authorizer"
 	"github.com/3scale/3scale-go-client/threescale/api"
 	convert "github.com/3scale/3scale-go-client/threescale/http"
 	"github.com/3scale/3scale-istio-adapter/config"
-	"github.com/3scale/3scale-istio-adapter/pkg/threescale/authorizer"
 	system "github.com/3scale/3scale-porta-go-client/client"
 	"github.com/gogo/googleapis/google/rpc"
 
@@ -78,7 +78,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		return result, nil
 	}
 
-	proxyConf, err := s.conf.authorizer.GetSystemConfiguration(cfg.SystemUrl, s.systemRequestFromHandlerConfig(cfg))
+	proxyConf, err := s.conf.Authorizer.GetSystemConfiguration(cfg.SystemUrl, s.systemRequestFromHandlerConfig(cfg))
 	if err != nil {
 		result.Status, err = rpcStatusErrorHandler("error fetching config from 3scale", systemErrorToRpcStatus(err), err)
 		return result, err
@@ -97,7 +97,7 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		cfg.BackendUrl = proxyConf.Content.Proxy.Backend.Endpoint
 	}
 
-	authResult, err := s.conf.authorizer.AuthRep(cfg.BackendUrl, backendReq)
+	authResult, err := s.conf.Authorizer.AuthRep(cfg.BackendUrl, backendReq)
 	return s.convertAuthResponse(authResult, result, err)
 }
 
@@ -350,15 +350,10 @@ func NewThreescale(addr string, conf *AdapterConfig) (Server, error) {
 	log.Infof("Threescale Istio Adapter is listening on \"%v\"\n", s.Addr())
 
 	s.server = grpc.NewServer(grpc.KeepaliveParams(keepalive.ServerParameters{
-		MaxConnectionAge: conf.keepAliveMaxAge,
+		MaxConnectionAge: conf.KeepAliveMaxAge,
 	}))
 	authorization.RegisterHandleAuthorizationServiceServer(s.server, s)
 	return s, nil
-}
-
-// NewAdapterConfig - Creates configuration for Threescale adapter
-func NewAdapterConfig(authorizer authorizer.Authorizer, grpcKeepalive time.Duration) *AdapterConfig {
-	return &AdapterConfig{authorizer, grpcKeepalive}
 }
 
 // Addr returns the Threescale addrs as a string
