@@ -7,7 +7,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"strconv"
 
 	"github.com/ghodss/yaml"
 	v1 "k8s.io/api/apps/v1"
@@ -27,6 +26,8 @@ const adapterImageRegistry = "quay.io/3scale/"
 const adapterImage = resourceName
 const adapterPort = 3333
 const metricPort = 8080
+
+const configMapName = "3scale-istio-adapter-conf"
 
 const deploymentStrategy = "RollingUpdate"
 
@@ -107,16 +108,136 @@ func main() {
 							},
 							Env: []corev1.EnvVar{
 								{
-									Name:  "THREESCALE_LOG_JSON",
-									Value: "true",
+									Name: "LOG_LEVEL",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "log_level",
+										},
+									},
 								},
 								{
-									Name:  "THREESCALE_REPORT_METRICS",
-									Value: "true",
+									Name: "LOG_JSON",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "log_json",
+										},
+									},
 								},
 								{
-									Name:  "THREESCALE_METRICS_PORT",
-									Value: strconv.Itoa(metricPort),
+									Name: "REPORT_METRICS",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "metrics.report",
+										},
+									},
+								},
+								{
+									Name: "CACHE_TTL_SECONDS",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "system.cache_ttl",
+										},
+									},
+								},
+								{
+									Name: "CACHE_REFRESH_SECONDS",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "system.cache_ttl",
+										},
+									},
+								},
+								{
+									Name: "CACHE_ENTRIES_MAX",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "system.cache_max_size",
+										},
+									},
+								},
+								{
+									Name: "CACHE_REFRESH_RETRIES",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "system.cache_refresh_retries",
+										},
+									},
+								},
+								{
+									Name: "ALLOW_INSECURE_CONN",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "client.allow_insecure_connections",
+										},
+									},
+								},
+								{
+									Name: "CLIENT_TIMEOUT_SECONDS",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "client.timeout",
+										},
+									},
+								},
+								{
+									Name: "GRPC_CONN_MAX_SECONDS",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "grpc.max_conn_timeout",
+										},
+									},
+								},
+								{
+									Name: "USE_CACHED_BACKEND",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "backend.enable_cache",
+										},
+									},
+								},
+								{
+									Name: "BACKEND_CACHE_FLUSH_INTERVAL_SECONDS",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "backend.cache_flush_interval",
+										},
+									},
 								},
 							},
 							Resources:              corev1.ResourceRequirements{},
