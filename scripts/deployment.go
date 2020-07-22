@@ -239,6 +239,17 @@ func main() {
 										},
 									},
 								},
+								{
+									Name: "BACKEND_CACHE_POLICY_FAIL_CLOSED",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "backend.policy_fail_closed",
+										},
+									},
+								},
 							},
 							Resources:              corev1.ResourceRequirements{},
 							TerminationMessagePath: "/dev/termination-log",
