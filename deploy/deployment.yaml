@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  creationTimestamp: "2020-07-20T12:10:03Z"
+  creationTimestamp: "2020-07-22T11:56:04Z"
   labels:
     app: 3scale-istio-adapter
   name: 3scale-istio-adapter
@@ -18,7 +18,7 @@ spec:
     type: RollingUpdate
   template:
     metadata:
-      creationTimestamp: "2020-07-20T12:10:03Z"
+      creationTimestamp: "2020-07-22T11:56:04Z"
       labels:
         app: 3scale-istio-adapter
     spec:
@@ -83,6 +83,11 @@ spec:
           valueFrom:
             configMapKeyRef:
               key: backend.cache_flush_interval
+              name: 3scale-istio-adapter-conf
+        - name: BACKEND_CACHE_POLICY_FAIL_CLOSED
+          valueFrom:
+            configMapKeyRef:
+              key: backend.policy_fail_closed
               name: 3scale-istio-adapter-conf
         image: quay.io/3scale/3scale-istio-adapter:v2.0.0
         imagePullPolicy: Always
