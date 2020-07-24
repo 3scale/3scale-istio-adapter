@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  creationTimestamp: "2020-07-22T11:56:04Z"
+  creationTimestamp: "2020-07-24T15:40:49Z"
   labels:
     app: 3scale-istio-adapter
   name: 3scale-istio-adapter
@@ -18,7 +18,7 @@ spec:
     type: RollingUpdate
   template:
     metadata:
-      creationTimestamp: "2020-07-22T11:56:04Z"
+      creationTimestamp: "2020-07-24T15:40:49Z"
       labels:
         app: 3scale-istio-adapter
     spec:
