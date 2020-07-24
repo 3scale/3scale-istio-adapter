@@ -2,6 +2,39 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 2.0.0 - 2020-07-24
+
+## Added
+
+- An authorization cache which maintains local counters for rate limits and
+  periodically flushes metrics to 3scale to increase performance.
+  ([#167](https://github.com/3scale/3scale-istio-adapter/pull/167))
+- A ConfigMap to provide configuration to the gRPC adapter
+  ([#164](https://github.com/3scale/3scale-istio-adapter/pull/164))
+    * A configuration option to the gRPC server (`USE_CACHED_BACKEND`) to enable the authorization cache.
+    * A configuration option to the gRPC server (`BACKEND_CACHE_FLUSH_INTERVAL_SECONDS`) to set the interval at which metrics get reported from the cache to 3scale.
+    * A configuration option to the gRPC server (`BACKEND_CACHE_POLICY_FAIL_CLOSED`) to determine the fate of a request if 3scale Apisonator is unreachable.
+- Prometheus metrics for authorization cache
+  ([#162](https://github.com/3scale/3scale-istio-adapter/pull/162))
+- Support for `last` and priority of mapping rules as defined in 3scale Porta
+  ([#150](https://github.com/3scale/3scale-istio-adapter/pull/150))
+
+## Changed
+
+- Removal of `THREESCALE_` prefix from existing environment variables
+  ([#164](https://github.com/3scale/3scale-istio-adapter/pull/164))
+- Metrics have been converged to include both Porta and Apisonator requests, differentiated by labels.
+  ([#162](https://github.com/3scale/3scale-istio-adapter/pull/162))
+- Updated response codes to match HTTP equivalent, as returned by APIcast
+  ([#144](https://github.com/3scale/3scale-istio-adapter/pull/144))
+  ([#138](https://github.com/3scale/3scale-istio-adapter/pull/138))
+  ([#136](https://github.com/3scale/3scale-istio-adapter/pull/136))
+
+## Fixed
+
+- Issue with `help` command for CLI tool returning excess information from imported dependency.
+  ([#151](https://github.com/3scale/3scale-istio-adapter/pull/151))
+
 ## 1.0.0 - 2019-08-07
 
 ## Added
