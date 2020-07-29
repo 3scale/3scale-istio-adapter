@@ -580,12 +580,11 @@
   version = "v1.9.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:3f3a05ae0b95893d90b9b3b5afdb79a9b3d96e4e36e099d841ae602e4aca0da8"
+  digest = "1:ad2bf20798504fbde0c5bdf5ee83d3354fb101d32c5b2267f811c1958b91b0ab"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   pruneopts = "NUT"
-  revision = "3d3f9f413869b949e48070b5bc593aa22cc2b8f2"
+  revision = "bac4c82f69751a6dd76e702d54b3ceb88adab236"
 
 [[projects]]
   branch = "master"
