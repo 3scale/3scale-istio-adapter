@@ -10,6 +10,10 @@ required = ["github.com/golang/glog"]
   name = "istio.io/api"
   version = "=1.1.8"
 
+[[override]]
+  name = "golang.org/x/crypto"
+  revision = "bac4c82f69751a6dd76e702d54b3ceb88adab236"
+
 [[constraint]]
   name = "github.com/gogo/protobuf"
   version = "1.1.1"

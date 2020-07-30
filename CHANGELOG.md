@@ -35,6 +35,13 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 - Issue with `help` command for CLI tool returning excess information from imported dependency.
   ([#151](https://github.com/3scale/3scale-istio-adapter/pull/151))
 
+## 1.0.0.1 - 2020-07-29
+
+### Security
+
+- Updated dependencies on golang.org/x/text and golang.org/x/crypto to fix CVE-2020-14040 and CVE-2020-9283.
+  ([#171](https://github.com/3scale/3scale-istio-adapter/pull/171))
+
 ## 1.0.0 - 2019-08-07
 
 ## Added
