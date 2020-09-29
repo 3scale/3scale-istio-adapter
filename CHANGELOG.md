@@ -22,7 +22,7 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
 ## 2.0.0 - 2020-07-24
 
-## Added
+### Added
 
 - An authorization cache which maintains local counters for rate limits and
   periodically flushes metrics to 3scale to increase performance.
@@ -37,7 +37,7 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 - Support for `last` and priority of mapping rules as defined in 3scale Porta
   ([#150](https://github.com/3scale/3scale-istio-adapter/pull/150))
 
-## Changed
+### Changed
 
 - Removal of `THREESCALE_` prefix from existing environment variables
   ([#164](https://github.com/3scale/3scale-istio-adapter/pull/164))
@@ -48,7 +48,7 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
   ([#138](https://github.com/3scale/3scale-istio-adapter/pull/138))
   ([#136](https://github.com/3scale/3scale-istio-adapter/pull/136))
 
-## Fixed
+### Fixed
 
 - Issue with `help` command for CLI tool returning excess information from imported dependency.
   ([#151](https://github.com/3scale/3scale-istio-adapter/pull/151))
@@ -62,25 +62,25 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
 ## 1.0.0 - 2019-08-07
 
-## Added
+### Added
 
 - A field to the handler params (`backend_url`) to allow overriding the 3scale backend the adapter should reach out to.
   ([#111](https://github.com/3scale/3scale-istio-adapter/pull/111))
 
-## Fixed
+### Fixed
 
 - The CLI tool no longer panics when provided with a name that fails Kubernetes validation.
   ([#113](https://github.com/3scale/3scale-istio-adapter/pull/113))
 
 ## 0.7.1 - 2019-06-17
 
-## Added
+### Added
 
 - A configuration option to the gRPC server (`THREESCALE_LOG_GRPC`) to allow suppression of gRPC logging.
   A configuration option to the gRPC server (`THREESCALE_GRPC_CONN_MAX_SECONDS`) to allow setting specific keepalive parameters.
   ([#104](https://github.com/3scale/3scale-istio-adapter/pull/104))
 
-## Changed
+### Changed
 
 - The Kubernetes service is now headless to support client side load balancing.
   The CLI tool now generates the connection address prefixed with `dns:///`.
@@ -91,7 +91,7 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
 ## 0.7.0 - 2019-06-12
 
-## Added
+### Added
 
 - Support for reading a services 3scale service ID from the pod's label providing a service discovery mechanism.
   This in turn requires a `name` flag to be added to the CLI tool.
@@ -99,7 +99,7 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 - A `namesapce` flag has been added to the CLI tool to support multi-tenancy in Maistra.
   ([#103](https://github.com/3scale/3scale-istio-adapter/pull/103))
 
-## Changed
+### Changed
 
 - The CLI tool now generates different output:
   The `destination.labels["service-mesh.3scale.net"]` and `destination.labels["service-mesh.3scale.net/uid"]` labels have been changed solely to
@@ -116,12 +116,12 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 - The dependency on Istio's `api` and `istio` packages is now based on version `1.1.7`
   ([#107](https://github.com/3scale/3scale-istio-adapter/pull/107))
 
-## Fixed
+### Fixed
 
 - Latency reports between the adapter and 3scale system are now reported correctly.
   ([#105](https://github.com/3scale/3scale-istio-adapter/pull/105))
 
-## Removed
+### Removed
 
 - The `github.com/3scale/3scale-istio-adapter/pkg/templating` package has been removed.
   In turn the `service`, `uid` and `fixup` flags have been removed from the CLI.
@@ -130,11 +130,11 @@ Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
 ## 0.6.0 - 2019-05-02
 
-## Added
+### Added
 
 - The [OpenID Connect](https://github.com/3scale/3scale-istio-adapter/blob/v0.6.0/README.md#openid-connect-pattern) authentication pattern is now supported via Istio's [end user authn](https://istio.io/help/ops/security/end-user-auth/) and the CLI tool to generate templates can now generate an instance template supporting this pattern. The hybrid pattern has been updated to include OIDC as well. (#[89](https://github.com/3scale/3scale-istio-adapter/pull/89))
 
-## Changed
+### Changed
 
 - The CLI tool enables the so-called "fixup" mode when no explicit unique id is
   specified, so that automatic generation of identifierss from URLs are modified
