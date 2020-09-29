@@ -23,14 +23,17 @@ configuring the following environment variables:
 | CLIENT_TIMEOUT_SECONDS| Sets the number of seconds to wait before terminating requests to 3scale System and Backend        | 10      |
 | GRPC_CONN_MAX_SECONDS | Sets the maximum amount of seconds (+/-10% jitter) a connection may exist before it will be closed | 60      |
 | USE_CACHED_BACKEND    | If true, attempt to create an in-memory apisonator cache for authorization requests                | false   |
+| BACKEND_CACHE_FLUSH_INTERVAL_SECONDS | If the backend cache is enabled, this sets the interval in seconds for flushing the cache against 3scale | 15      |
+| BACKEND_CACHE_POLICY_FAIL_CLOSED | Whenever the backend cache cannot retrieve authorization data, whether to deny (closed) or allow (open) requests | true   |
 
-#### Caching behaviour
+#### Configuration Caching Behaviour
+
 By default, responses from 3scale System API's will be cached. Entries will be purged from the cache when they
-become older than the `THREESCALE_CACHE_TTL_SECONDS` value. Again by default however, automatic refreshing of cached entries will be attempted
-some seconds before they expire, based on the `THREESCALE_CACHE_REFRESH_SECONDS` value. Automatic refreshing can be disabled by setting this value
-higher than the `THREESCALE_CACHE_TTL_SECONDS` value.
+become older than the `CACHE_TTL_SECONDS` value. Again by default however, automatic refreshing of cached entries will be attempted
+some seconds before they expire, based on the `CACHE_REFRESH_SECONDS` value. Automatic refreshing can be disabled by setting this value
+higher than the `CACHE_TTL_SECONDS` value.
 
-Caching can be disabled entirely by setting `THREESCALE_CACHE_ENTRIES_MAX` to a non-positive value.
+Caching can be disabled entirely by setting `CACHE_ENTRIES_MAX` to a non-positive value.
 
 Through the refreshing process, cached values whose hosts become unreachable will be retried before eventually being purged
 when past their expiry.
