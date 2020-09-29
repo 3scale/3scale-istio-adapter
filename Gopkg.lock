@@ -1141,6 +1141,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/3scale/3scale-authorizer/pkg/authorizer",
+    "github.com/3scale/3scale-authorizer/pkg/backend/v1",
     "github.com/3scale/3scale-go-client/threescale/api",
     "github.com/3scale/3scale-go-client/threescale/http",
     "github.com/3scale/3scale-porta-go-client/client",
