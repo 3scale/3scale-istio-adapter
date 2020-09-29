@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/3scale/3scale-authorizer/pkg/authorizer"
+	"github.com/3scale/3scale-authorizer/pkg/backend/v1"
 	"github.com/3scale/3scale-istio-adapter/cmd/server/internal/metrics"
 	"github.com/3scale/3scale-istio-adapter/pkg/threescale"
 	"github.com/spf13/viper"
@@ -57,6 +58,7 @@ func init() {
 
 	viper.BindEnv("use_cached_backend")
 	viper.BindEnv("backend_cache_flush_interval_seconds")
+	viper.BindEnv("backend_cache_policy_fail_closed")
 
 	configureLogging()
 }
@@ -174,6 +176,7 @@ func createSystemCache() *authorizer.SystemCache {
 
 func createBackendConfig() authorizer.BackendConfig {
 	logger := log.FindScope(log.DefaultScopeName)
+
 	if viper.GetBool("use_cached_backend") {
 		interval := time.Second * time.Duration(viper.GetInt("backend_cache_flush_interval_seconds"))
 		if interval == 0 {
@@ -186,11 +189,26 @@ func createBackendConfig() authorizer.BackendConfig {
 			EnableCaching:      true,
 			CacheFlushInterval: interval,
 			Logger:             logger,
+			Policy:             getFailurePolicy(),
 		}
 	}
+
 	return authorizer.BackendConfig{
 		Logger: logger,
 	}
+}
+
+func getFailurePolicy() backend.FailurePolicy {
+	policy := backend.FailClosedPolicy
+
+	if viper.IsSet("backend_cache_policy_fail_closed") && !viper.GetBool("backend_cache_policy_fail_closed") {
+		policy = backend.FailOpenPolicy
+		log.Infof("backend cache fail policy set to open")
+	} else {
+		log.Infof("backend cache fail policy set to closed")
+	}
+
+	return policy
 }
 
 func main() {
