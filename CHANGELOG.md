@@ -2,6 +2,17 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 2.0.1 - 2020-09-29
+
+### Fixed
+
+- The configuration for the failure policy (`BACKEND_CACHE_POLICY_FAIL_CLOSED`)
+  was not being taken into account and its default value was false rather than
+  true. ([#175](https://github.com/3scale/3scale-istio-adapter/pull/175))
+- Added missing documentation in the gRPC server for the flush intervals and
+  the failure policy, and removed the unused `THREESCALE_` prefix. ([#175](https://github.com/3scale/3scale-istio-adapter/pull/175))
+
+
 ## 2.0.0.1 - 2020-07-30
 
 ### Security
