@@ -204,27 +204,26 @@ spec:
 ```
 
 For this integration to work correctly. OpenID configuration must still be done in 3scale in order for the client to be created in the IdP.
-For the service the user wants to protect, they should create [end-user authentication](https://istio.io/help/ops/security/end-user-auth/) in the same namespace as that service.
+For the service the user wants to protect, they should create [Request authorization](https://istio.io/latest/docs/tasks/security/authorization/authz-jwt//) in the same namespace as that service.
 The JWT should then be passed in the `Authorization` header of the request.
 
-In the sample `Policy` defined below, replace `issuer` and `jwksUri` as appropriate.
+In the sample `RequestAuthentication` defined below, replace `issuer`, `jwksUri` and `selector` as appropriate.
 
 ```yaml
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: jwt-example
-  namespace: bookinfo
-spec:
-  origins:
-    - jwt:
-        issuer: >-
-          http://keycloak-keycloak.34.242.107.254.nip.io/auth/realms/3scale-keycloak
-        jwksUri: >-
-          http://keycloak-keycloak.34.242.107.254.nip.io/auth/realms/3scale-keycloak/protocol/openid-connect/certs
-  principalBinding: USE_ORIGIN
-  targets:
-    - name: productpage
+- apiVersion: security.istio.io/v1beta1
+  kind: RequestAuthentication
+  metadata:
+    name: jwt-example
+    namespace: bookinfo
+  spec:
+    selector:
+      matchLabels:
+        app: productpage
+    jwtRules:
+    - issuer: >-
+        http://keycloak-keycloak.34.242.107.254.nip.io/auth/realms/3scale-keycloak
+      jwksUri: >-
+        http://keycloak-keycloak.34.242.107.254.nip.io/auth/realms/3scale-keycloak/protocol/openid-connect/certs
 ```
 
 #### Hybrid Pattern
