@@ -2,6 +2,15 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 2.0.1.1 - 2021-02-04
+
+### Fixed
+
+- The sample custom resources for JWT authentication in the README have been
+  updated from Policy to RequestAuthentication. ([#177](https://github.com/3scale/3scale-istio-adapter/pull/177))
+- Examples for 3scale-config-gen in documentation where incorrectly spelled as
+  3scale-gen-config. ([#178](https://github.com/3scale/3scale-istio-adapter/pull/178))
+
 ## 2.0.1 - 2020-09-29
 
 ### Fixed
