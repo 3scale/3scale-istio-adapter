@@ -26,9 +26,9 @@ The program accepts a number of flags which are documented in the table below:
 ### Example
 
 This example will generate generic templates, allowing the token,url pair to be shared by multiple services as a single handler 
-> 3scale-gen-config --name=admin-credentials --url="https://myorg-admin.3scale.net:443" --token="[redacted]"
+> 3scale-config-gen --name=admin-credentials --url="https://myorg-admin.3scale.net:443" --token="[redacted]"
 
 This example will generate the templates with the service ID embedded in the handler:
-> 3scale-gen-config --url="https://myorg-admin.3scale.net" --name="my-unique-id" --service="123456789" --token="[redacted]"
+> 3scale-config-gen --url="https://myorg-admin.3scale.net" --name="my-unique-id" --service="123456789" --token="[redacted]"
 
 
