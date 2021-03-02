@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -53,6 +54,9 @@ func init() {
 
 	viper.BindEnv("client_timeout_seconds")
 	viper.BindEnv("allow_insecure_conn")
+	viper.BindEnv("root_ca")
+	viper.BindEnv("client_cert")
+	viper.BindEnv("client_key")
 
 	viper.BindEnv("grpc_conn_max_seconds")
 
@@ -132,11 +136,62 @@ func parseClientConfig() *http.Client {
 		c.Timeout = time.Duration(viper.GetInt("client_timeout_seconds")) * time.Second
 	}
 
+	tlsConfig := tls.Config{}
+	useTlsConfig := false
+
 	if viper.IsSet("allow_insecure_conn") {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: viper.GetBool("allow_insecure_conn")},
+		tlsConfig.InsecureSkipVerify = viper.GetBool("allow_insecure_conn")
+		useTlsConfig = true
+	}
+
+	if viper.IsSet("root_ca") {
+		rootCAPath := viper.GetString("root_ca")
+		if rootCAPath != "" {
+			var pool, err = x509.SystemCertPool()
+			if err != nil {
+				log.Errorf("failed to read system certificates %v, trying to read CA certs anyway", err)
+				pool = x509.NewCertPool()
+			}
+
+			pemCerts, err := ioutil.ReadFile(rootCAPath)
+			if err != nil {
+				log.Fatalf("failed to read root CA file %s - %v", rootCAPath, err)
+			} else {
+				if ok := pool.AppendCertsFromPEM(pemCerts); ok {
+					tlsConfig.RootCAs = pool
+					useTlsConfig = true
+				} else {
+					log.Fatalf("failed to parse root CA certificates %v", err)
+				}
+			}
 		}
-		c.Transport = tr
+	}
+
+	if viper.IsSet("client_cert") {
+		clientCertFile := viper.GetString("client_cert")
+		if clientCertFile != "" && viper.IsSet("client_key") {
+			clientKeyFile := viper.GetString("client_key")
+			if clientKeyFile != "" {
+				var cert, err = tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
+				if err != nil {
+					log.Fatalf("error creating X509 key pair from %s and %s - %v", clientCertFile, clientKeyFile, err)
+				} else {
+					tlsConfig.Certificates = []tls.Certificate{ cert }
+					useTlsConfig = true
+				}
+			} else {
+				log.Fatalf("empty client_key path")
+			}
+		} else {
+			log.Fatalf("both client_cert and client_key must be provided if you set any of them")
+		}
+	}
+
+	if useTlsConfig {
+		transport := &http.Transport{
+			TLSClientConfig: &tlsConfig,
+		}
+		c.Transport = transport
 	}
 
 	return c

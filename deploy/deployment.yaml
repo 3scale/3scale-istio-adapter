@@ -64,6 +64,21 @@ spec:
             configMapKeyRef:
               key: client.allow_insecure_connections
               name: 3scale-istio-adapter-conf
+        - name: ROOT_CA
+          valueFrom:
+            configMapKeyRef:
+              key: client.root_ca
+              name: 3scale-istio-adapter-conf
+        - name: CLIENT_CERT
+          valueFrom:
+            configMapKeyRef:
+              key: client.client_cert
+              name: 3scale-istio-adapter-conf
+        - name: CLIENT_KEY
+          valueFrom:
+            configMapKeyRef:
+              key: client.client_key
+              name: 3scale-istio-adapter-conf
         - name: CLIENT_TIMEOUT_SECONDS
           valueFrom:
             configMapKeyRef:

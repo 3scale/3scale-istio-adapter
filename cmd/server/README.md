@@ -20,6 +20,9 @@ configuring the following environment variables:
 | CACHE_ENTRIES_MAX     | Max number of items that can be stored in the cache at any time. Set to 0 to disable caching       | 1000    |
 | CACHE_REFRESH_RETRIES | Sets the number of times unreachable hosts will be retried during a cache update loop              | 1       |
 | ALLOW_INSECURE_CONN   | Allow to skip certificate verification when calling 3scale API's. Enabling is not recommended      | false   |
+| ROOT_CA               | Path to root CA file using PEM format                                                              | N/A     |
+| CLIENT_CERT           | Path to client certificate (public key) using PEM format (requires CLIENT_KEY)                     | N/A     |
+| CLIENT_KEY            | Path to client key (private key) using PEM format (requires CLIENT_CERT)                           | N/A     |
 | CLIENT_TIMEOUT_SECONDS| Sets the number of seconds to wait before terminating requests to 3scale System and Backend        | 10      |
 | GRPC_CONN_MAX_SECONDS | Sets the maximum amount of seconds (+/-10% jitter) a connection may exist before it will be closed | 60      |
 | USE_CACHED_BACKEND    | If true, attempt to create an in-memory apisonator cache for authorization requests                | false   |
