@@ -2,6 +2,15 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 2.0.2 - 2021-03-02
+
+### Added
+
+- Support for specifying a set of root CAs via a PEM file (in addition to system CAs)
+  using the `ROOT_CA` environment variable. ([#181](https://github.com/3scale/3scale-istio-adapter/pull/181))
+- Support for specifying a client certificate and key via PEM files using the
+  `CLIENT_CERT` and `CLIENT_KEY` environment variables. ([#181](https://github.com/3scale/3scale-istio-adapter/pull/181))
+
 ## 2.0.1.1 - 2021-02-04
 
 ### Fixed
