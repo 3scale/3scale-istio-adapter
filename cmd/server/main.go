@@ -239,7 +239,7 @@ func main() {
 
 	s, err := threescale.NewThreescale(addr, adapterConf)
 	if err != nil {
-		log.Fatalf("Unable to start sever: %v", err)
+		log.Fatalf("Unable to start server: %v", err)
 	}
 
 	shutdown := make(chan error, 1)
