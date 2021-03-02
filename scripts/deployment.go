@@ -196,6 +196,39 @@ func main() {
 									},
 								},
 								{
+									Name: "ROOT_CA",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "client.root_ca",
+										},
+									},
+								},
+								{
+									Name: "CLIENT_CERT",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "client.client_cert",
+										},
+									},
+								},
+								{
+									Name: "CLIENT_KEY",
+									ValueFrom: &corev1.EnvVarSource{
+										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMapName,
+											},
+											Key: "client.client_key",
+										},
+									},
+								},
+								{
 									Name: "CLIENT_TIMEOUT_SECONDS",
 									ValueFrom: &corev1.EnvVarSource{
 										ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
