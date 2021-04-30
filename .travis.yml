@@ -1,0 +1,20 @@
+language: go
+sudo: false
+dist: bionic
+arch: ppc64le
+include:
+- os: linux
+  addons:
+    packages:
+    - 1.11.x
+    - gcc
+    - make
+
+before_install:
+  - ./ci/setup_${TRAVIS_OS_NAME}_environment.sh
+
+script:
+  - dep ensure -v
+  - make build-adapter build-cli
+  - make unit
+  - make integration
