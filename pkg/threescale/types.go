@@ -27,6 +27,7 @@ type Threescale struct {
 type Authorizer interface {
 	GetSystemConfiguration(systemURL string, request authorizer.SystemRequest) (client.ProxyConfig, error)
 	AuthRep(backendURL string, request authorizer.BackendRequest) (*authorizer.BackendResponse, error)
+	OauthAuthRep(backendURL string, request authorizer.BackendRequest) (*authorizer.BackendResponse, error)
 	Shutdown()
 }
 
