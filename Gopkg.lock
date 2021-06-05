@@ -10,7 +10,7 @@
   version = "v0.33.0"
 
 [[projects]]
-  digest = "1:1e379ae2a1796d8bdbeb58fba4d0208aaff91259e0d6c497f4224e615300a24f"
+  digest = "1:5eef56811adbbe21b9cdefbcc334dc24f9dca5713c10b0d6cc49674e092983e0"
   name = "github.com/3scale/3scale-authorizer"
   packages = [
     "pkg/authorizer",
@@ -19,11 +19,11 @@
     "pkg/system/v1/cache",
   ]
   pruneopts = "NUT"
-  revision = "a39078bbbf8ff4158c47daafc41052eb1bb92e9e"
-  version = "v0.0.1"
+  revision = "f7c65e0d7916e44148fb3baf089b1715100c57c2"
+  version = "v0.0.2"
 
 [[projects]]
-  digest = "1:785026af48559cb96056b851f6c0e5776788c2aa36747c84fbe5ca3af7f1b39e"
+  digest = "1:e5118d5039ceec08e3f8e8632c9bf841822c864466b4139f9118664ab6486c23"
   name = "github.com/3scale/3scale-go-client"
   packages = [
     "threescale",
@@ -32,8 +32,8 @@
     "threescale/internal",
   ]
   pruneopts = "NUT"
-  revision = "59f1bbdf5147f20e8e04e81d8d60b7dc196e877f"
-  version = "v0.5.0"
+  revision = "b7a437245b138ed9ef7c35f3c062e5ffb345d47c"
+  version = "v0.5.1"
 
 [[projects]]
   digest = "1:31d9683d91cbf694732a2501bee1c31653b7fe9505812d16c08ccead8d7792c3"
@@ -337,6 +337,14 @@
   pruneopts = "NUT"
   revision = "a96e63847dc3c67d17befa69c303767e2f84e54f"
   version = "v2.1"
+
+[[projects]]
+  digest = "1:a00835b7324a3a40ce1218811a6693cdd7fd75f393b5b273adbb9bbf3bd5341e"
+  name = "github.com/oleiade/lane"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "9fa23cc22f31d14f45d012b1374df3ce247f4767"
+  version = "v1.0.1"
 
 [[projects]]
   digest = "1:7da29c22bcc5c2ffb308324377dc00b5084650348c2799e573ed226d8cc9faf0"
@@ -752,14 +760,6 @@
   pruneopts = "NUT"
   revision = "d2d2541c53f18d2a059457998ce2876cc8e67cbf"
   version = "v0.9.1"
-
-[[projects]]
-  digest = "1:a00835b7324a3a40ce1218811a6693cdd7fd75f393b5b273adbb9bbf3bd5341e"
-  name = "gopkg.in/oleiade/lane.v1"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "28f7c3f09254f12b51e620fa4db136ba58804762"
-  version = "v1.0.0"
 
 [[projects]]
   digest = "1:7c95b35057a0ff2e19f707173cc1a947fa43a6eb5c4d300d196ece0334046082"
