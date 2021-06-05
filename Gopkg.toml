@@ -28,7 +28,7 @@ required = ["github.com/golang/glog"]
 
 [[constraint]]
   name = "github.com/3scale/3scale-go-client"
-  version = "0.5.0"
+  revision = "3b61c3e068055ea4cbc50f8ebc51856be760be8e"
 
 [[constraint]]
   name = "github.com/3scale/3scale-porta-go-client"
@@ -36,7 +36,7 @@ required = ["github.com/golang/glog"]
 
 [[constraint]]
   name = "github.com/3scale/3scale-authorizer"
-  version = "0.0.1"
+  revision = "bd1704a1c6757820f16e7922219d9903d8046f62"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"

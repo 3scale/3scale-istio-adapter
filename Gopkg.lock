@@ -10,7 +10,7 @@
   version = "v0.33.0"
 
 [[projects]]
-  digest = "1:1e379ae2a1796d8bdbeb58fba4d0208aaff91259e0d6c497f4224e615300a24f"
+  digest = "1:70170461ffa2176b114125da8a297d590cc238d57d04c354791ed2e16c2f2f0b"
   name = "github.com/3scale/3scale-authorizer"
   packages = [
     "pkg/authorizer",
@@ -19,11 +19,10 @@
     "pkg/system/v1/cache",
   ]
   pruneopts = "NUT"
-  revision = "a39078bbbf8ff4158c47daafc41052eb1bb92e9e"
-  version = "v0.0.1"
+  revision = "bd1704a1c6757820f16e7922219d9903d8046f62"
 
 [[projects]]
-  digest = "1:785026af48559cb96056b851f6c0e5776788c2aa36747c84fbe5ca3af7f1b39e"
+  digest = "1:856cbd1c982c669dde18173ee7c77d5efcb46e2b15038c92f2e410292aacedc7"
   name = "github.com/3scale/3scale-go-client"
   packages = [
     "threescale",
@@ -32,8 +31,7 @@
     "threescale/internal",
   ]
   pruneopts = "NUT"
-  revision = "59f1bbdf5147f20e8e04e81d8d60b7dc196e877f"
-  version = "v0.5.0"
+  revision = "486782b1a2b8c3dbecf9191653a3d70257bfd418"
 
 [[projects]]
   digest = "1:31d9683d91cbf694732a2501bee1c31653b7fe9505812d16c08ccead8d7792c3"
