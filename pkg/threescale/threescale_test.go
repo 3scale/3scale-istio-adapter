@@ -280,6 +280,10 @@ func (m mockAuthorizer) GetSystemConfiguration(systemURL string, request authori
 	return m.withConfig, m.withSystemErr
 }
 
+func (m mockAuthorizer) OauthAuthRep(backendURL string, request authorizer.BackendRequest) (*authorizer.BackendResponse, error) {
+	return m.AuthRep(backendURL, request)
+}
+
 func (m mockAuthorizer) AuthRep(backendURL string, request authorizer.BackendRequest) (*authorizer.BackendResponse, error) {
 	if m.withAuthRepCallback != nil {
 		m.withAuthRepCallback(backendURL, request, m.t)
