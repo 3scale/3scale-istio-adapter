@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"fmt"
+	"os"
 
 	"github.com/3scale/3scale-authorizer/pkg/authorizer"
 	"github.com/3scale/3scale-istio-adapter/config"
@@ -281,10 +283,12 @@ func (m mockAuthorizer) GetSystemConfiguration(systemURL string, request authori
 }
 
 func (m mockAuthorizer) OauthAuthRep(backendURL string, request authorizer.BackendRequest) (*authorizer.BackendResponse, error) {
+	fmt.Fprintf(os.Stderr, "\n***** [adapter-test] mockAuthorizer.OauthAuthRep:\n%#v\n%#v\n\n", backendURL, request)
 	return m.AuthRep(backendURL, request)
 }
 
 func (m mockAuthorizer) AuthRep(backendURL string, request authorizer.BackendRequest) (*authorizer.BackendResponse, error) {
+	fmt.Fprintf(os.Stderr, "\n***** [adapter-test] mockAuthorizer.AuthRep:\n%#v\n%#v\n\n", backendURL, request)
 	if m.withAuthRepCallback != nil {
 		m.withAuthRepCallback(backendURL, request, m.t)
 	}
