@@ -7,6 +7,7 @@
 package threescale
 
 import (
+	"os"
 	"context"
 	"errors"
 	"fmt"
@@ -99,9 +100,16 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 
 	var authResult *authorizer.BackendResponse
 
+	fmt.Fprintf(os.Stderr, "\n***** [adapter] Threescale.HandleAuthorization:\n%#v\n%#v\nBE_VERSION: %#v\n\n", ctx, r, proxyConf.Content.BackendVersion)
+	log.Warnf("\n***** [adapter] Threescale.HandleAuthorization:\n%#v\n%#v\nBE_VERSION: %#v\n\n", ctx, r, proxyConf.Content.BackendVersion)
+
 	if proxyConf.Content.BackendVersion == openIDTypeIdentifier {
+		fmt.Fprintf(os.Stderr, "\n***** [adapter] Threescale.HandleAuthorization: PERFORMING OauthAuthRep :)\n\n")
+		log.Warnf("\n***** [adapter] Threescale.HandleAuthorization: PERFORMING OauthAuthRep :)\n\n")
 		authResult, err = s.conf.Authorizer.OauthAuthRep(cfg.BackendUrl, backendReq)
 	} else {
+		fmt.Fprintf(os.Stderr, "\n***** [adapter] Threescale.HandleAuthorization: PERFORMING AuthRep :/\n\n")
+		log.Warnf("\n***** [adapter] Threescale.HandleAuthorization: PERFORMING AuthRep :/\n\n")
 		authResult, err = s.conf.Authorizer.AuthRep(cfg.BackendUrl, backendReq)
 	}
 	return s.convertAuthResponse(authResult, result, err)
