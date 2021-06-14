@@ -2,6 +2,19 @@
 
 Notable changes to 3scale Istio Mixer Adapter will be tracked in this document.
 
+## 2.0.3 - 2021-06-14
+
+### Added
+
+- Added CI tests for the ppc64le architecture. ([#185](https://github.com/3scale/3scale-istio-adapter/pull/185))
+
+### Fixed
+
+- No longer require for OIDC flows to provide the application's `client_secret`
+  as the `app_key` parameter. ([#188](https://github.com/3scale/3scale-istio-adapter/pull/188))
+- Go 1.16 compilation. ([#187](https://github.com/3scale/3scale-istio-adapter/pull/187))
+- Fixed a few minor warnings in the code. ([#186](https://github.com/3scale/3scale-istio-adapter/pull/186))
+
 ## 2.0.2 - 2021-03-02
 
 ### Added

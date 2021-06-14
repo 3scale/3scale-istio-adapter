@@ -1,4 +1,4 @@
-TAG ?=  $(shell git -C "$(PROJECT_PATH)" describe --dirty --tags)
+TAG ?= $(shell git -C "$(PROJECT_PATH)" describe --dirty --tags)
 ifdef VERSION
 override TAG = $(VERSION)
 endif
@@ -135,6 +135,7 @@ validate-release:
 	@if [ -z ${VERSION} ]; then echo VERSION is unset && exit 1; fi
 
 .PHONY: generate-template
+generate-template: export GO111MODULE ?= auto
 generate-template:
 	@go run -ldflags="-X main.version=$(VERSION)" "$(PROJECT_PATH)/scripts/deployment.go" > "$(PROJECT_PATH)/deploy/deployment.yaml"
 

@@ -1,8 +1,8 @@
-# This code was generated as part of the release process using make release for version v2.0.2
+# This code was generated as part of the release process using make release for version v2.0.3
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  creationTimestamp: "2021-03-02T16:34:08Z"
+  creationTimestamp: "2021-06-14T18:29:04Z"
   labels:
     app: 3scale-istio-adapter
   name: 3scale-istio-adapter
@@ -18,7 +18,7 @@ spec:
     type: RollingUpdate
   template:
     metadata:
-      creationTimestamp: "2021-03-02T16:34:08Z"
+      creationTimestamp: "2021-06-14T18:29:04Z"
       labels:
         app: 3scale-istio-adapter
     spec:
@@ -104,7 +104,7 @@ spec:
             configMapKeyRef:
               key: backend.policy_fail_closed
               name: 3scale-istio-adapter-conf
-        image: quay.io/3scale/3scale-istio-adapter:v2.0.2
+        image: quay.io/3scale/3scale-istio-adapter:v2.0.3
         imagePullPolicy: Always
         livenessProbe:
           initialDelaySeconds: 10
