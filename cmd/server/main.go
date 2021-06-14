@@ -41,28 +41,28 @@ const (
 )
 
 func init() {
-	viper.BindEnv("log_level")
-	viper.BindEnv("log_json")
-	viper.BindEnv("log_grpc")
-	viper.BindEnv("listen_addr")
-	viper.BindEnv("report_metrics")
-	viper.BindEnv("metrics_port")
+	_ = viper.BindEnv("log_level")
+	_ = viper.BindEnv("log_json")
+	_ = viper.BindEnv("log_grpc")
+	_ = viper.BindEnv("listen_addr")
+	_ = viper.BindEnv("report_metrics")
+	_ = viper.BindEnv("metrics_port")
 
-	viper.BindEnv("cache_ttl_seconds")
-	viper.BindEnv("cache_refresh_seconds")
-	viper.BindEnv("cache_entries_max")
+	_ = viper.BindEnv("cache_ttl_seconds")
+	_ = viper.BindEnv("cache_refresh_seconds")
+	_ = viper.BindEnv("cache_entries_max")
 
-	viper.BindEnv("client_timeout_seconds")
-	viper.BindEnv("allow_insecure_conn")
-	viper.BindEnv("root_ca")
-	viper.BindEnv("client_cert")
-	viper.BindEnv("client_key")
+	_ = viper.BindEnv("client_timeout_seconds")
+	_ = viper.BindEnv("allow_insecure_conn")
+	_ = viper.BindEnv("root_ca")
+	_ = viper.BindEnv("client_cert")
+	_ = viper.BindEnv("client_key")
 
-	viper.BindEnv("grpc_conn_max_seconds")
+	_ = viper.BindEnv("grpc_conn_max_seconds")
 
-	viper.BindEnv("use_cached_backend")
-	viper.BindEnv("backend_cache_flush_interval_seconds")
-	viper.BindEnv("backend_cache_policy_fail_closed")
+	_ = viper.BindEnv("use_cached_backend")
+	_ = viper.BindEnv("backend_cache_flush_interval_seconds")
+	_ = viper.BindEnv("backend_cache_policy_fail_closed")
 
 	configureLogging()
 }
@@ -81,7 +81,7 @@ func configureLogging() {
 		)
 	}
 
-	log.Configure(options)
+	_ = log.Configure(options)
 }
 
 func stringToLogLevel(loglevel string) log.Level {
@@ -116,7 +116,10 @@ func parseMetricsConfig() *authorizer.MetricsReporter {
 	if err != nil {
 		log.Fatalf("failed to start metrics server %v", err)
 	}
-	go http.Serve(listener, nil)
+	go func() {
+		// always returns a non-nil error
+		_ = http.Serve(listener, nil)
+	}()
 	log.Infof("Serving metrics on port %d", port)
 
 	return &authorizer.MetricsReporter{
@@ -129,7 +132,7 @@ func parseMetricsConfig() *authorizer.MetricsReporter {
 func parseClientConfig() *http.Client {
 	c := &http.Client{
 		// Setting some sensible default here for http timeouts
-		Timeout: time.Duration(time.Second * 10),
+		Timeout: time.Second * 10,
 	}
 
 	if viper.IsSet("client_timeout_seconds") {
@@ -280,7 +283,7 @@ func main() {
 		grpcKeepAliveFor = time.Second * time.Duration(viper.GetInt("grpc_conn_max_seconds"))
 	}
 
-	authorizer := authorizer.NewManager(
+	authorizerMgr := authorizer.NewManager(
 		parseClientConfig(),
 		createSystemCache(),
 		createBackendConfig(),
@@ -288,7 +291,7 @@ func main() {
 	)
 
 	adapterConf := &threescale.AdapterConfig{
-		Authorizer:      authorizer,
+		Authorizer:      authorizerMgr,
 		KeepAliveMaxAge: grpcKeepAliveFor,
 	}
 
@@ -313,7 +316,7 @@ func main() {
 		select {
 		case sig := <-sigC:
 			log.Infof("\n%s received. Attempting graceful shutdown\n", sig.String())
-			authorizer.Shutdown()
+			authorizerMgr.Shutdown()
 			err := s.Close()
 			if err != nil {
 				log.Fatalf("Error calling graceful shutdown")
