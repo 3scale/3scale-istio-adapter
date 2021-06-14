@@ -12,9 +12,11 @@ SOURCES := $(shell find $(PROJECT_PATH)/pkg -name '*.go')
 
 ## Build targets ##
 
+3scale-istio-adapter: export GO111MODULE ?= auto
 3scale-istio-adapter: update-dependencies $(DEP_LOCK) $(PROJECT_PATH)/cmd/server/main.go $(SOURCES) ## Build the adapter binary
 	go build -ldflags="-X main.version=$(TAG)" -o _output/3scale-istio-adapter cmd/server/main.go
 
+3scale-config-gen: export GO111MODULE ?= auto
 3scale-config-gen: update-dependencies $(DEP_LOCK) $(PROJECT_PATH)/cmd/cli/main.go $(SOURCES) ## Build the config generator cli
 	go build -ldflags="-s -w -X main.version=$(TAG)" -o _output/3scale-config-gen cmd/cli/main.go
 
@@ -27,11 +29,13 @@ build-cli: 3scale-config-gen ## Alias to build the config generator cli
 ## Testing targets ##
 
 .PHONY: unit
+unit: export GO111MODULE ?= auto
 unit: ## Run unit tests
 	mkdir -p "$(PROJECT_PATH)/_output"
 	go test ./... -covermode=count -test.coverprofile="$(PROJECT_PATH)/_output/unit.cov"
 
 .PHONY: integration
+integration: export GO111MODULE ?= auto
 integration: ## Run integration tests
 	go test -covermode=count -tags integration -test.coverprofile="$(PROJECT_PATH)/_output/integration.cov" -run=TestAuthorizationCheck ./...
 
