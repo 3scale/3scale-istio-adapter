@@ -32,12 +32,12 @@ build-cli: 3scale-config-gen ## Alias to build the config generator cli
 unit: export GO111MODULE ?= auto
 unit: ## Run unit tests
 	mkdir -p "$(PROJECT_PATH)/_output"
-	go test ./... -covermode=count -test.coverprofile="$(PROJECT_PATH)/_output/unit.cov"
+	go test ./... -covermode=count -test.v -test.coverprofile="$(PROJECT_PATH)/_output/unit.cov"
 
 .PHONY: integration
 integration: export GO111MODULE ?= auto
 integration: ## Run integration tests
-	go test -covermode=count -tags integration -test.coverprofile="$(PROJECT_PATH)/_output/integration.cov" -run=TestAuthorizationCheck ./...
+	go test -covermode=count -tags integration -test.v -test.coverprofile="$(PROJECT_PATH)/_output/integration.cov" -run=TestAuthorizationCheck ./...
 
 .PHONY: test
 test: unit integration ## Runs all tests
