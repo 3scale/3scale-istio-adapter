@@ -97,7 +97,15 @@ func (s *Threescale) HandleAuthorization(ctx context.Context, r *authorization.H
 		cfg.BackendUrl = proxyConf.Content.Proxy.Backend.Endpoint
 	}
 
-	authResult, err := s.conf.Authorizer.AuthRep(cfg.BackendUrl, backendReq)
+	var authResult *authorizer.BackendResponse
+
+	if proxyConf.Content.BackendVersion == openIDTypeIdentifier {
+	        log.Debugf("HandleAuthorization: backend_version is %#v, calling OauthAuthRep\n", proxyConf.Content.BackendVersion)
+		authResult, err = s.conf.Authorizer.OauthAuthRep(cfg.BackendUrl, backendReq)
+	} else {
+	        log.Debugf("HandleAuthorization: backend_version is %#v, calling AuthRep\n", proxyConf.Content.BackendVersion)
+		authResult, err = s.conf.Authorizer.AuthRep(cfg.BackendUrl, backendReq)
+	}
 	return s.convertAuthResponse(authResult, result, err)
 }
 
