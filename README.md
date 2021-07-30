@@ -172,6 +172,7 @@ spec:
   template: threescale-authorization
   params:
     subject:
+      properties:
         app_id: request.query_params["app_id"] | request.headers["app_id"] | ""
         app_key: request.query_params["app_key"] | request.headers["app_key"] | ""
     action:
@@ -195,6 +196,7 @@ spec:
   template: threescale-authorization
   params:
     subject:
+      properties:
         app_key: request.query_params["app_key"] | request.headers["app_key"] | ""
         client_id: request.auth.claims["azp"] | ""
     action:
